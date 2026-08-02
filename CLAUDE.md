@@ -385,18 +385,25 @@ Findings and two throwaway scripts. No implementation.
 §4, §5 and §11 above; the active-members capture, troop_id resolution and the
 arrangemang spike are all done and decided.
 
-Still outstanding, and all cheap:
+Still outstanding. **Both are Phase 1 inputs, not Phase 2** — take them in one
+sitting near the start of Phase 1:
 
-- **Capture the `waiting` and `awaiting_approval` variants.** Needed for the
-  applicant workflow, and they are the only way to observe non-active
-  `status.raw_value` codes. The memberlist-code → `confirmed|waiting|cancelled`
-  mapping is on the Phase 2 critical path and cannot be completed without them.
-- **Re-capture after Höst 2026 is invoiced.** The first capture caught the
-  register mid-cycle: `current_term` was `not_invoiced` for everyone, so
-  `current_term_due_date` and `kid` were empty for everyone. Several payment
-  conclusions will change once invoices exist. Do not trust the payment views
-  until a post-invoicing capture confirms them, and expect new
-  payment-status codes to appear.
+- **Capture the `waiting` and `awaiting_approval` variants.** They back the
+  read-only waiting-list and applicant views in Phase 1, and they are also the
+  only way to observe non-active `status.raw_value` codes, which the Phase 2
+  write mapping needs.
+- **Re-capture after Höst 2026 is invoiced.** Invoicing is at least a month
+  away, so **this cannot happen before the summer shift and must not block
+  anything.** Decouple it:
+  - The unpaid-dues feature works *today* against `prev_term` (Vår 2026),
+    which is invoiced and carries real statuses. Build and validate the
+    three-bucket logic against that.
+  - `current_term` is `not_invoiced` for everyone, so `current_term_due_date`
+    and `kid` parsing is unexercised and new payment codes are likely to appear
+    once invoices exist.
+  - Ship the payment views marked as validated against Vår 2026 only, and
+    revisit after invoicing. The uppflyttning path does not depend on payment
+    data at all, so nothing on the critical path waits for this.
 
 ### Phase 1 — read-only
 
@@ -626,6 +633,17 @@ heuristics tuned against real data once the capture exists.
   which is a role and therefore visible. Flag for review, never auto-move.
 - **Members with no avdelning at all.** Present in live data. Manual resolution.
 
+**Scope: the structural checks above apply to Spårare, Upptäckare and
+Äventyrare only.** Utmanare and Rover are exempt from both the age check and
+the multi-avdelning check. Their composition is deliberately variable once
+formed — members move between avdelningar and new members are recruited
+directly — and they are never auto-moved, so a finding there prompts no action
+and is pure noise. An Utmanare assisting in a younger avdelning is normal at
+this kår, not an anomaly.
+
+Data-quality checks (email, phone, address formatting) still apply to everyone.
+Those are about the accuracy of the record, not the shape of the membership.
+
 Note that role-holders and Ledare members are different populations that
 overlap only partially — an adult can sit in Ledare with no recorded role, and
 a role-holder can sit in a scout avdelning. For move-exclusion take the
@@ -798,6 +816,50 @@ year is directly derivable from `date_of_birth` and cannot.
 Weekday is not available from the API. It lives in config, per avdelning,
 alongside the troop_id.
 
+### The avdelning roster
+
+Fourteen avdelningar as of 2026-08-02. Member counts sum to 369; the capture
+found 371 active members of whom 2 have no `unit`, which reconciles exactly and
+independently confirms that `unit` is single-valued with no double counting.
+
+| Avdelning | `unit_type` | Age range in Scoutnet | Weekday | Members |
+|---|---|---|---|---|
+| Hajarna | Spårare (2) | 8–9 | Mon | 20 |
+| Späckhuggarna | Spårare (2) | 8–9 | Tue | 16 |
+| Rockorna | Spårare (2) | 8–9 | Wed | 21 |
+| Kämparna | Upptäckare (3) | 10–11 | Mon | 24 |
+| Spejarna | Upptäckare (3) | 10–11 | Tue | 26 |
+| Utforskarna | Upptäckare (3) | 10–11 | Wed | 14 |
+| Vikingarna | Äventyrare (4) | 12–14 | Thu | 69 |
+| Finndus | Utmanare (5) | 15–18 | | 17 |
+| Finnemang | Utmanare (5) | 15–18 | | 13 |
+| Fniss | Utmanare (5) | 14–18 | | 17 |
+| Finness | Rover (6) | none set | | 3 |
+| Finnurligt | Rover (6) | none set | | 5 |
+| Parafinn | Rover (6) | none set | | 4 |
+| Ledare | Annat (7) | 18– | | 120 |
+
+Counts are indicative, recorded for sanity-checking, and will drift. troop_ids
+come from `unit.raw_value` at runtime, not from this table.
+
+**Avdelningsledare names are deliberately omitted.** They are personal data and
+the tool has no use for them; leadership is read from `roles` at runtime.
+
+Note that the three Utmanare age ranges overlap completely and Fniss starts at
+14 rather than 15, so **cohort cannot be inferred from an Utmanare avdelning's
+configured range**. Each carries a `cohort_year` in our config instead, recorded
+when the avdelning is created — the three existing ones need theirs filled in.
+
+**`Ledare` is the only avdelning configured 18+**, and is the sole entry in the
+18+ list for the §11 age finding.
+
+### Expected transition volumes
+
+Roughly 28 Spårare, 32 Upptäckare and 23 Äventyrare move each summer, so about
+**83 members** in a full uppflyttning — four chunks at the default size of 25.
+Use this as an order-of-magnitude check: a computed master set of 8 or 300 means
+something is wrong.
+
 ### The four transition kinds
 
 **1. `same_weekday` — Spårare → Upptäckare**
@@ -812,33 +874,109 @@ Only the **oldest Upptäckare cohort** moves, from all three avdelningar into
 Vikingarna. Younger Upptäckare stay put. This is the one place three
 avdelningar collapse into one.
 
-**3. `operator_selected_target` — Äventyrare → Utmanare**
+**3. `new_cohort_avdelning` — Äventyrare → Utmanare**
 
-The oldest Äventyrare cohort leaves Vikingarna for a **newly created Utmanare
-avdelning**, one per cohort. That avdelning does not exist when the changelist
-is computed, and the tool cannot create avdelningar.
+The oldest Äventyrare cohort leaves Vikingarna for a **new Utmanare avdelning
+created for that cohort**. Creation is age-based: one new avdelning per cohort
+year, formed around the group leaving Vikingarna.
 
-So this transition has **no default target in config**. The operator creates
-the avdelning in Scoutnet first, refreshes, then selects it as the target. Until
-they do, the transition is shown as pending with an explanation rather than
-silently producing an empty move set.
+Each Utmanare avdelning therefore carries a **`cohort_year` in our config**,
+recorded when it is created. The target for cohort N is the Utmanare avdelning
+whose `cohort_year` is N — determined, not chosen freshly each run.
+
+Scoutnet's own age range for these avdelningar is a generic 15–18 and does not
+encode the cohort, which is why `cohort_year` lives in our config rather than
+being read from the API.
+
+The tool cannot create avdelningar. So the operator creates it in Scoutnet,
+records its `cohort_year`, and refreshes; until then the transition shows as
+pending with an explanation rather than silently producing an empty move set.
+
+**The target is elected once, for the whole cohort.** The operator creates the
+new Utmanare avdelning in Scoutnet and elects it as the target; that election
+is a **single choice covering the entire moving cohort — the oldest Äventyrare
+birth year only, not all of Vikingarna** — and never a per-member decision.
+Roughly 23 of Vikingarna's 69 members; the other two cohorts stay put. The
+default offered is the avdelning whose `cohort_year` is N.
+
+**The target may already have members.** By migration time it might hold
+leaders assigned to it, or scouts transferred manually in advance. Never
+require or assume an empty target:
+
+- Do not warn or block on a non-empty target.
+- Show its current membership before the run, so the operator can confirm they
+  elected the right avdelning.
+- Reconciliation compares against **intent**, never against "the target should
+  contain exactly the moved cohort". Pre-existing members are not drift.
+- Undo reverses only the members this run moved. It must never remove someone
+  who was already there.
+- A scout transferred manually beforehand is no longer in Vikingarna and so
+  drops out of the Äventyrare set naturally. No special handling, but do not
+  let them appear twice.
+
+**A genuinely empty target is invisible to the tool.** The avdelning-name →
+troop_id map is derived from `unit.raw_value` across the memberlist, so an
+avdelning with no members appears nowhere in the response and cannot be
+discovered. Either it holds at least one member — in practice a leader — or the
+operator supplies its troop_id manually in config. When an elected target cannot
+be resolved, say exactly this rather than failing obscurely.
+
+Per-member overrides still layer on top for individual exceptions, per below.
+Keep the two levels distinct in the UI and in the config: cohort-level target
+election first, individual exceptions second.
+
+The transition stays pending until the new avdelning exists and has been
+elected. There is no path that moves the cohort into an existing Utmanare
+avdelning — a new one is created each year, outside the tool.
+
+**`cohort_year` describes the core, not the boundary.** An Utmanare avdelning
+is built around one specific birth year, and that stays true — but the edges
+drift, because members move between Utmanare avdelningar and new members are
+recruited directly into them.
+
+So `cohort_year` may be used to **describe, order and project**: label an
+avdelning in the UI, sort the three by age, feed the next-year membership
+projection, and identify which avdelning is oldest and therefore closest to
+decommissioning. It must **never** be used to generate a finding or to move
+anyone after the avdelning is formed. A member whose birth year differs from
+their avdelning's cohort is expected, not an anomaly.
 
 **4. `never_auto` — Utmanare and Rover**
 
-No age-based moves, ever. An Utmanare sitting in an avdelning whose nominal
-cohort does not match theirs is **not** a finding — do not interfere.
+No age-based moves, ever. An Utmanare sitting in an avdelning whose founding
+cohort does not match their birth year is **not** a finding — do not interfere.
 
 Utmanare only move when an avdelning is **decommissioned**, which is entirely
-operator-initiated. The tool never proposes it. The operator says "move everyone
-in avdelning X to Y" and the tool executes it as a normal run: dry-run,
-snapshot, chunked, reconciled, undoable. Typical targets are Ledare, since the
-members are 18+, or a Rover avdelning; the operator chooses, there is no default.
+operator-initiated. Because the core is one specific year, the tool can *show*
+which avdelning is oldest and therefore nearest retirement — but showing is the
+limit. It never proposes a decommissioning and never initiates one. The operator
+says "move everyone in avdelning X to Y" and the tool executes it as a normal
+run: dry-run, snapshot, chunked, reconciled, undoable. Typical targets are
+Ledare, since the members are 18+, or a Rover avdelning; the operator chooses,
+there is no default.
 
-### Rover is exempt from everything
+### Utmanare and Rover are age-exempt
 
-Never age-checked. No over-26 finding. A Rover membership held alongside another
-avdelning is **not** flagged by the multi-avdelning check in §11 — it harms
-nobody and generates noise.
+Neither is age-checked, in moves or in findings. An Utmanare who turns 18 is
+**not** flagged — their avdelningar are configured up to 18 anyway, and the
+bracket is operator-managed by design. A Rover over 26 is not flagged either. A
+Rover membership held alongside another avdelning is **not** flagged by the
+multi-avdelning check in §11; it harms nobody and would generate constant noise.
+
+The §11 age finding therefore applies only to Spårare, Upptäckare and
+Äventyrare avdelningar, with Ledare as the configured 18+ exception.
+
+### Where cohort year N comes from
+
+**Config, with the live term as a cross-check.** Do not derive N from the live
+response alone — a mid-cycle capture could silently shift every cohort by a
+year, which would produce a plausible-looking and completely wrong master set.
+
+Cross-check against the `current_term` label: `"Höst YYYY"` means N = YYYY,
+`"Vår YYYY"` means N = YYYY − 1, since the cohort year is the year of the
+autumn term. If the configured N and the derived N disagree, **refuse to compute
+a master set** and say which two values conflict. This is a cheap guard against
+the single most damaging silent error in the whole tool.
 
 ### Off-cohort members
 
@@ -847,8 +985,11 @@ say a 2014-born still in Spårare — is **flagged for review and excluded from 
 automatic move set**. Never moved two brackets automatically.
 
 These require manual intervention. List them prominently, and require the
-operator to explicitly acknowledge the list before a run can be confirmed, so
-they cannot be scrolled past. Excludes Utmanare and Rover per above.
+operator to explicitly acknowledge the list before proceeding, so they cannot be
+scrolled past. In Phase 2 that gate sits before a run can be confirmed; **in
+Phase 1, where there is no run, it gates the changelist export** — and the
+acknowledgement, with its timestamp and the count acknowledged, is stamped on
+the workbook's cover sheet. Excludes Utmanare and Rover per above.
 
 ### Per-member overrides
 
