@@ -1,0 +1,32 @@
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+service-account*.json
+credentials*.json
+
+# Live captures, snapshots, unscrubbed data
+captures/
+snapshots/
+*.raw.json
+*.local.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Tooling
+node_modules/
+bundled.yaml
+.DS_Store
