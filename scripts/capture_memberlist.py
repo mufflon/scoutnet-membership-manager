@@ -44,7 +44,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 REQUIRED_VARS = ("SCOUTNET_ENTITY_ID", "SCOUTNET_API_KEY")
@@ -106,7 +106,8 @@ def fetch(base_url: str, entity_id: str, api_key: str, params: dict[str, str]) -
     req.add_header("Authorization", f"Basic {token}")
     req.add_header("Accept", "application/json")
     try:
-        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_S, context=build_ssl_context()) as resp:
+        ctx = build_ssl_context()
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_S, context=ctx) as resp:
             return resp.read()
     except urllib.error.HTTPError as e:
         hint = {
@@ -262,7 +263,7 @@ def main() -> None:
     raw = fetch(base_url, entity_id, api_key, params)
 
     CAPTURES_DIR.mkdir(exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     out = CAPTURES_DIR / f"memberlist-{variant}-{stamp}.raw.json"
     out.write_bytes(raw)
     print(f"Raw JSON written to: {out}  ({len(raw)} bytes)")

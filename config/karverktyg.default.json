@@ -1,0 +1,31 @@
+{
+  "_comment": "PLACEHOLDER configuration for Scoutkåren Finn (CLAUDE.md §13). Structure derived from the 2026-08-02 capture. troop_ids are resolved from unit.raw_value at runtime and intentionally omitted here except where an avdelning would be too empty to appear. The three Utmanare avdelningar need their cohort_year filled in by the operator before an Aventyrare->Utmanare move can resolve.",
+  "name": "Scoutkåren Finn",
+  "group_id": "1025",
+  "cohort_year_n": null,
+  "placeholder": true,
+  "brackets": [
+    { "bracket": "sparare",    "age_min": 8,  "age_max": 9,  "transition": "same_weekday",          "structural_checks": true },
+    { "bracket": "upptackare", "age_min": 10, "age_max": 11, "transition": "merge",                 "structural_checks": true },
+    { "bracket": "aventyrare", "age_min": 12, "age_max": 14, "transition": "new_cohort_avdelning",  "structural_checks": true },
+    { "bracket": "utmanare",   "age_min": 14, "age_max": 18, "transition": "never_auto",            "structural_checks": false },
+    { "bracket": "rover",      "age_min": null, "age_max": null, "transition": "never_auto",        "structural_checks": false },
+    { "bracket": "annat",      "age_min": null, "age_max": null, "transition": "none",              "structural_checks": false }
+  ],
+  "avdelningar": [
+    { "name": "Hajarna",       "bracket": "sparare",    "weekday": 0, "default_target": "Kämparna" },
+    { "name": "Späckhuggarna", "bracket": "sparare",    "weekday": 1, "default_target": "Spejarna" },
+    { "name": "Rockorna",      "bracket": "sparare",    "weekday": 2, "default_target": "Utforskarna" },
+    { "name": "Kämparna",      "bracket": "upptackare", "weekday": 0, "default_target": "Vikingarna" },
+    { "name": "Spejarna",      "bracket": "upptackare", "weekday": 1, "default_target": "Vikingarna" },
+    { "name": "Utforskarna",   "bracket": "upptackare", "weekday": 2, "default_target": "Vikingarna" },
+    { "name": "Vikingarna",    "bracket": "aventyrare", "weekday": 3 },
+    { "name": "Finndus",       "bracket": "utmanare",   "cohort_year": null },
+    { "name": "Finnemang",     "bracket": "utmanare",   "cohort_year": null },
+    { "name": "Fniss",         "bracket": "utmanare",   "cohort_year": null },
+    { "name": "Finness",       "bracket": "rover" },
+    { "name": "Finnurligt",    "bracket": "rover" },
+    { "name": "Parafinn",      "bracket": "rover" },
+    { "name": "Ledare",        "bracket": "annat",      "is_18plus": true }
+  ]
+}

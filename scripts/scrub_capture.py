@@ -242,7 +242,8 @@ def scrub_field(field: str, wrapper: dict, ctx: dict) -> dict:
 
     # Remaining policies replace a scalar value (and raw_value if present).
     if policy == "NAME":
-        fake = rng.choice(FIRST_NAMES) if field in ("first_name", "nickname") else rng.choice(LAST_NAMES)
+        given = field in ("first_name", "nickname")
+        fake = rng.choice(FIRST_NAMES) if given else rng.choice(LAST_NAMES)
         if field in ("contact_fathers_name", "contact_mothers_name", "address_co"):
             fake = f"{rng.choice(FIRST_NAMES)} {rng.choice(LAST_NAMES)}"
     elif policy == "STREET":
