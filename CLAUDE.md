@@ -110,13 +110,58 @@ Servers: `https://scoutnet.se/api` (production),
 
 ### Endpoint surface
 
-**Group-scoped:** `GET /group/memberlist`, `GET /organisation/group`,
-`POST /organisation/register/member`, `POST /organisation/update/membership`
+**What Finn actually has access to**, read off the Webbkoppling page 2026-08-03.
+This is the authoritative list; the OpenAPI document is neither a subset nor a
+superset of it:
 
-**Project-scoped, one key per arrangemang:** `GET /project/get/participants`,
-`GET /project/get/groups`, `GET /project/get/questions`, `POST /project/checkin`
+| Endpoint | In OpenAPI 0.4.1? | Status |
+|---|---|---|
+| `GET /group/memberlist` | yes | in use |
+| `GET /organisation/group` | yes | in use |
+| `POST /organisation/update/membership` | yes | **available** — Phase 2 write path |
+| `POST /organisation/register/member` | yes | available, not used |
+| `GET /group/resources` | **no** | undocumented, unexplored |
+| `GET /group/customlists` | **no** | undocumented, unexplored |
+| `GET /organisation/project` | **no** | undocumented, unexplored |
 
-**Unavailable:** `GET /body_key_list`, restricted to internally developed systems.
+**Not available to Finn:** `GET /body_key_list` (restricted to internally
+developed systems, as expected) and the entire project-scoped family the spec
+documents — `/project/get/participants`, `/project/get/groups`,
+`/project/get/questions`, `/project/checkin`.
+
+Two consequences.
+
+**The write endpoints are confirmed available.** The open question of whether
+this kår is even offered `update/membership` is closed. Phase 2 is not blocked on
+credentials.
+
+**The vendored spec is incomplete, and the drift-check cannot detect that.**
+Three live endpoints appear nowhere in the OpenAPI document, so upstream being
+"in sync" says nothing about them. The Webbkoppling page — not the spec — is the
+source of truth for what exists. Re-read it when anything surprising happens.
+
+### The three undocumented endpoints
+
+Unexplored as of 2026-08-03. Each needs its own key. **Probe all three with a
+single read before scoping any further work**, following the Phase 0 capture
+discipline: raw response to a gitignored directory, key names and counts only in
+anything committed or reported.
+
+- **`/organisation/project`** — the important one. §5 concludes attendance is
+  infeasible partly because "there is no group-level list of a kår's projects".
+  A group-scoped project endpoint is precisely that, so **that premise may be
+  wrong.** Treat the attendance conclusion as provisional until this is read.
+  Note that even a list of arrangemang does not by itself give attendance:
+  `/project/get/participants` is *not* available to Finn, so reading who attended
+  may still be blocked — but the blocker would be a different and more precise
+  one than the key-count argument currently given.
+- **`/group/customlists`** — driven by e-postlistor defined in Scoutnet, where
+  the columns are chosen in the UI. Potentially a narrower, faster data source
+  than the 49-field memberlist, which would suit the minimal-personal-data
+  posture. Also worth testing as a workaround for the `awaiting_approval`
+  timeout.
+- **`/group/resources`** — purpose unknown; possibly kår resources such as
+  facilities or equipment. Speculation until read.
 
 ### Documented failure modes
 
@@ -300,6 +345,12 @@ How the read client calls the API, learned from live use (§6 modes still apply)
   reliably read-times-out for this kår while `waiting` returns quickly). A
   variant that errors or times out must degrade to an inline "unavailable"
   notice and load **independently** — it must never block or 500 the whole blade.
+- **Consequence for Phase 2.** The applicant approval workflow reads *from*
+  `awaiting_approval`, so on current evidence it cannot be built on a variant
+  that reliably times out. Establish whether the timeout is intermittent, a
+  payload-size problem, or permanent **before** scoping that slice. Uppflyttning
+  is unaffected: it reads the active variant, and every mover is active, so the
+  status echoed back is `confirmed`.
 
 ## 5. Feasibility — read before proposing features
 
@@ -322,28 +373,39 @@ troop_id is **resolved**: `unit.raw_value` carries it, corroborated by the keys
 of `roles.value.troop`. Build the avdelning-name → troop_id map from a single
 memberlist call; no project key is needed. The remaining risk is that
 `unit.raw_value` is not the same id the write endpoint expects — low, but
-unverified. **Confirm it against the write endpoint before any bulk write**,
-alongside the atomicity check that §8 already mandates. Record the verified
-mapping in the repo.
+unverified, and it is now the **only** assumption that can block a real run.
+**Confirm it against the write endpoint on a single placeholder record before
+any bulk write** (§8, testing stage 2). Record the verified mapping in the repo.
 
-**Not feasible with the documented API:**
+**Not feasible — but this conclusion is now provisional:**
 - Cross-checking members against reported activities
 - "Who has missed recent meetings / is becoming less active"
 - Per-avdelning activity statistics
-- Creating next year's activities from Excel — no create-arrangemang endpoint exists
+- Creating next year's activities from Excel — no create-arrangemang endpoint
+  appears in the OpenAPI document
 - Listing configured meetings
 
-Scoutnet models attendance as *arrangemang*, one per meeting, each behind its
-own project-scoped key. For Finn that is roughly 15 meetings × 13 scout
-avdelningar ≈ **195 arrangemang per term**, each needing a key provisioned by
-hand by an administrator. And there is no create-arrangemang endpoint at all,
-so programmatic creation is impossible rather than merely unverified.
+The reasoning was: Scoutnet models attendance as *arrangemang*, one per meeting,
+each behind its own project-scoped key — roughly 15 meetings × 13 scout
+avdelningar ≈ **195 arrangemang per term** for Finn, each key provisioned by hand
+— and there is no group-level list of a kår's projects.
 
-**Decision (2026-08-02): attendance is out of scope.** Do not build or key
-weekly arrangemang. However, do not *foreclose* a single manually-keyed
-arrangemang later — treat a project key as an optional per-deployment
-capability in §12 and §13 so one camp check-in could be added without rework.
-Build nothing project-scoped now. State the limitation plainly in the README.
+**That last premise may be wrong.** `/organisation/project` is available to Finn
+and is not in the OpenAPI document at all (§4). A group-scoped project endpoint
+is exactly the thing whose absence the argument rests on. Read it before
+treating any of the above as settled.
+
+Two things do not change either way. `/project/get/participants` is **not**
+available to Finn, so reading who actually attended may still be blocked. And
+nothing in the documented or observed surface creates arrangemang, so the Excel
+import still has no destination.
+
+**Standing decision (2026-08-02, unchanged): attendance is out of scope for now.**
+Do not build or key weekly arrangemang, and build nothing project-scoped yet.
+Keep a project key as an optional per-deployment capability in §12 and §13 so a
+single camp check-in could be added without rework. State the limitation plainly
+in the README — and state it as "not available to us today", not as "impossible",
+until `/organisation/project` has actually been read.
 
 ## 6. Operating modes and hard rules
 
@@ -384,8 +446,17 @@ A test asserts that write methods are absent in `fixture` and `read_only`.
 4. **Dry-run is the default** on every write path. Executing requires explicit
    confirmation.
 5. **No concurrent writes.** Chunks are sent one at a time, never in parallel.
-6. **Never rename a file to a dot-prefix to hide or soft-delete it.** Delete it.
-7. No new dependencies without stating why.
+6. **Never fabricate an identifier for a negative test against production.**
+   Member numbers are Scoutnet-wide, so an invented one probably belongs to a
+   real person in some kår — possibly one who later joins Finn. Malform the
+   payload's *shape* instead, and only against the mock.
+7. **Keys are never pasted anywhere outside the deployment.** Not into chats,
+   AI tools, issues, tickets, screenshots or logs. If a key is exposed anywhere
+   at all, regenerate it in Scoutnet immediately — keys are permanent until
+   regenerated, so an exposed key stays live until someone acts. Record the
+   rotation and where the exposure occurred.
+8. **Never rename a file to a dot-prefix to hide or soft-delete it.** Delete it.
+9. No new dependencies without stating why.
 
 ## 7. Phasing
 
@@ -482,20 +553,38 @@ Only after Phase 1 runs and Phase 0's blockers are closed.
 
 ## 8. Write execution (Phase 2)
 
-### Chunked atomic batches
+### Chunked writes, and why we do not rely on atomicity
 
-The endpoint is atomic and batch-capable, and we use it that way. Serial
-per-member writes would be the design that leaves the kår half-moved when a pod
-dies mid-run; an atomic batch that fails changes nothing.
+The endpoint is batch-capable and **documented** as atomic: any error rejects
+the entire request. That claim is attractive — an atomic batch that fails
+changes nothing, whereas per-member writes can leave the kår half-moved when a
+pod dies mid-run.
 
-- **Chunk size is configurable**, default small (start at 25). Chunks are sent
-  **one at a time, serially**, with a configurable minimum delay between them.
+**But the claim is unverified, and we have deliberately chosen not to verify
+it.** The only way to test it against production is to construct a failing
+request, which means fabricating a member number, which means very likely
+touching a real person's record in some kår. That is not a trade we make (hard
+rule 6). Verifying it would also be the sort of test that is unnecessary if the
+design simply does not depend on the answer.
+
+So the design does not depend on it:
+
+- **Chunk size is configurable, and the default is 1.** One member per request
+  needs no atomicity guarantee at all. Nothing in the code, the docs or the UI
+  may assert or assume that a multi-member chunk is all-or-nothing.
+- Chunks are sent **one at a time, serially**, with a configurable minimum delay
+  between them. At chunk size 1 a full uppflyttning is roughly 83 requests —
+  under two minutes at a one-second delay. The conservative default is close to
+  free.
+- At chunk size 1 a crash can leave a run partially applied. That is **accepted**:
+  the journal records exactly where it stopped and reconciliation catches the
+  remainder.
+- **Raising chunk size is a deliberate later decision**, taken only once the
+  endpoint's real partial-failure behaviour is understood from ordinary
+  operation — a chunk that errors during normal use will eventually tell us what
+  it did. Record what was observed here before changing the default.
 - No documented limit on batch size or request rate exists. Treat this as
-  unknown. Small chunks are how we stay clear of undiscovered limits.
-- **Verify atomicity empirically before trusting it.** Send a two-member chunk
-  where one entry is deliberately invalid, then confirm the valid one did *not*
-  apply. If Scoutnet does not honour its own atomicity claim, fall back to
-  one member per request and record that finding here.
+  unknown. Small chunks are also how we stay clear of undiscovered limits.
 - **Re-read before write.** `status` is mandatory, so fetch current status
   immediately beforehand and echo it back unchanged. Only `troop_id` changes
   during an uppflyttning.
@@ -573,9 +662,45 @@ In this order, operator approving each step:
 1. **Mock Scoutnet server**, generated from the bundled schema rather than
    hand-written, replaying realistic captured read data and validating request
    bodies. Exercise the full run here including crash, resume and failure paths.
-2. **One hardcoded member**, agreed in advance, against the real API. Verify by
-   hand in the Scoutnet UI. Also verify idempotency by repeating it, and verify
-   atomicity with the deliberately-invalid pair described above.
+
+   The malformed-payload test lives **here and only here** — a non-numeric member
+   key, or an out-of-enum `status`. Against the mock it exercises our own error
+   handling, failed-chunk display and resume path. It tells us nothing about
+   Scoutnet's behaviour, and neither the code nor the docs may imply it does.
+
+2. **A single member against the real API**, agreed in advance.
+
+   Two subjects are available: a **placeholder account used for receiving mail**
+   (a non-person, and the correct first choice — a mistake there damages nothing),
+   and **the operator's own record** as a second. Prefer the placeholder for
+   everything that can be done there.
+
+   Note that the operator's record carries leader roles and the administrative
+   access this tool depends on. Testing writes against the account you rely on
+   for access is worth avoiding wherever the placeholder will do.
+
+   **Enforce a member allowlist.** A config-supplied list of member numbers that
+   writes may touch at this stage; the executor refuses any member number not on
+   it, and a test asserts the refusal. This bounds the blast radius of a bug in
+   the move computation to two records regardless of what the computation
+   produces. Store member numbers in config, never names in the repo.
+
+   Three checks, on the placeholder wherever possible:
+
+   - **troop_id** — confirm `unit.raw_value` is the id the write endpoint
+     accepts. This is the last outstanding assumption from §5 and the only one
+     that can block a real run.
+   - **Round trip** — move A → B, reconcile, undo, reconcile again. Exercises
+     write, reconciliation and undo end to end on a record nobody depends on.
+   - **Idempotency** — repeat the same write and confirm it is a no-op. The
+     resume-after-crash design assumes this, so it needs confirming rather than
+     asserting.
+
+   **Atomicity is not tested here.** See above: chunk size defaults to 1 so
+   nothing depends on the answer.
+
+   Verify each result by hand in the Scoutnet UI, not only through the tool.
+
 3. **A reviewed list**, displayed in full and approved before execution.
 
 ## 9. State (Postgres)
