@@ -332,8 +332,13 @@ function flash(node) {
   setTimeout(() => (node.style.backgroundColor = ""), 600);
 }
 
-// Which transition group the operator is working (shared by Uppflyttning + Utför).
+// Which transition group the operator is working, and the one saved for execution.
+// The view group is transient; the saved group is the deliberate handoff to Utför.
 let UPP_GROUP = "all";
+const SAVED_GROUP_KEY = "upp_saved_group";
+const savedGroup = () => localStorage.getItem(SAVED_GROUP_KEY);
+const saveGroup = (g) => localStorage.setItem(SAVED_GROUP_KEY, g);
+const clearSavedGroup = () => localStorage.removeItem(SAVED_GROUP_KEY);
 const UPP_GROUP_LABEL = {
   all: "Alla transitioner",
   same_weekday: "Spårare → Upptäckare",
@@ -399,6 +404,24 @@ async function renderUppflyttning(root) {
 
   root.append(groupSelector(d.groups));
   root.append(el("h3", {}, UPP_GROUP_LABEL[d.group] + " · uppflyttningsår " + esc(d.cohort_year)));
+
+  // Save the current group for execution (the handoff to Utför uppflyttning).
+  const saved = savedGroup();
+  const saveBtn = el("button", { class: "action" }, "Spara urval för utförande");
+  saveBtn.onclick = () => { saveGroup(UPP_GROUP); refresh(); };
+  const saveCardChildren = [
+    el("div", { class: "muted" }, saved
+      ? "Sparat för utförande: " + (UPP_GROUP_LABEL[saved] || saved) + ". Gå till Utför uppflyttning för att starta."
+      : "Inget urval sparat. Spara den valda gruppen för att kunna utföra den."),
+    el("div", { style: "margin-top:.4rem" }, saveBtn),
+  ];
+  if (saved) {
+    const clearBtn = el("button", {}, "Rensa sparat urval");
+    clearBtn.onclick = () => { clearSavedGroup(); refresh(); };
+    saveCardChildren[1].append(" ", clearBtn);
+  }
+  root.append(el("div", { class: "card" }, ...saveCardChildren));
+
   root.append(el("p", {}, el("a", { href: "/api/uppflyttning/changelist.xlsx?group=" + d.group }, "Exportera changelist (Excel)"), el("span", { class: "muted" }, " – enbart vald grupp")));
   root.append(
     el(
@@ -436,22 +459,23 @@ async function renderUppflyttning(root) {
     el("div", { style: "margin-top:.4rem;" }, sel, " ", electBtn),
   );
 
-  // Direct avdelnings-id entry (§17): a brand-new, empty Utmanare-avdelning does
-  // not appear in the memberlist and so is not in the dropdown. Create it in
-  // Scoutnet, read its 5-digit avdelnings-id from the avdelning's URL, enter here.
-  const manualName = el("input", { type: "text", placeholder: "Namn på ny avdelning", style: "width:13rem" });
-  const manualId = el("input", { type: "number", placeholder: "avdelnings-id (5 siffror)", min: "10000", max: "99999", style: "width:12rem;margin-left:.3rem" });
+  // Direct avdelnings-id entry (§17): a brand-new, empty Utmanare-avdelning is not
+  // in the memberlist, so not in the dropdown. Create it in Scoutnet, read its
+  // 5-digit avdelnings-id from the avdelning's URL, enter it here. The name is
+  // immaterial — a placeholder is stored; the digits plus the confirmation are all
+  // that is needed.
+  const manualId = el("input", { type: "number", placeholder: "avdelnings-id (5 siffror)", min: "10000", max: "99999", style: "width:14rem" });
   const ackChk = el("input", { type: "checkbox" });
-  const ackLabel = el("label", { class: "muted", style: "display:block;margin-top:.3rem" }, ackChk, " Bekräfta okänt/nytt avdelnings-id (finns inte i data)");
+  const ackLabel = el("label", { class: "muted", style: "display:block;margin-top:.3rem" }, ackChk, " Bekräfta att detta är den nya, tomma Utmanare-avdelningen");
   const manualBtn = el("button", { class: "action", style: "margin-left:.3rem" }, "Välj med avdelnings-id");
   manualBtn.onclick = async () => {
-    if (!manualName.value.trim() || !manualId.value) {
-      alert("Ange både namn och avdelnings-id.");
+    if (!manualId.value) {
+      alert("Ange avdelnings-id (5 siffror).");
       return;
     }
     try {
       await apiSend("POST", "uppflyttning/target", {
-        avdelning: manualName.value.trim(),
+        avdelning: "Nytt utmanarlag " + manualId.value,
         troop_id: Number(manualId.value),
         acknowledge_unknown: ackChk.checked,
         by: "webb",
@@ -464,7 +488,7 @@ async function renderUppflyttning(root) {
   electCard.append(
     el("div", { class: "muted", style: "margin-top:.7rem" },
       "Ny tom avdelning? Skapa den i Scoutnet, hämta dess avdelnings-id (5 siffror) ur avdelningens URL och ange direkt:"),
-    el("div", { style: "margin-top:.3rem" }, manualName, manualId, manualBtn),
+    el("div", { style: "margin-top:.3rem" }, manualId, manualBtn),
     ackLabel,
   );
   if (d.elected_target) {
@@ -475,7 +499,8 @@ async function renderUppflyttning(root) {
     };
     electCard.append(el("div", { style: "margin-top:.4rem;" }, clr));
   }
-  root.append(electCard);
+  // Only relevant when working the Äventyrare → Utmanare transition.
+  if (d.group === "new_cohort_avdelning") root.append(electCard);
 
   // Per-scout row. Every control persists async and updates ONLY its own row
   // from the server's reply — no full re-render.
@@ -869,16 +894,30 @@ async function renderExecute(root) {
     return;
   }
 
+  // Runs whatever was saved under Uppflyttning — no group selection here. Without
+  // a saved selection there is nothing to execute.
+  const g = savedGroup();
+  if (!g) {
+    root.append(
+      el(
+        "div",
+        { class: "card" },
+        el("strong", {}, "Utför uppflyttning"),
+        el("p", { class: "muted" }, 'Inget urval är sparat. Gå till fliken Uppflyttning, välj en transition och klicka "Spara urval för utförande".'),
+      ),
+    );
+    return;
+  }
+
   // Off-cohort acknowledgement gate (§17): must be ticked before executing.
   let upp;
   try {
-    upp = await api("uppflyttning?group=" + UPP_GROUP);
+    upp = await api("uppflyttning?group=" + g);
   } catch (e) {
     root.append(el("p", { class: "err" }, "Kan inte beräkna uppflyttningen: " + e.message));
     return;
   }
   rememberAvdelningar(upp.avdelningar);
-  root.append(groupSelector(upp.groups));
   root.append(el("h3", {}, "Utför: " + UPP_GROUP_LABEL[upp.group] + " · uppflyttningsår " + esc(upp.cohort_year)));
   let ackedBy = null;
   const offCount = upp.off_cohort.length;
@@ -894,7 +933,7 @@ async function renderExecute(root) {
   const runDry = async () => {
     previewOut.replaceChildren(el("p", { class: "muted" }, "Kör torrkörning…"));
     try {
-      const r = await apiSend("POST", "uppflyttning/run", { mode: "dry_run", group: UPP_GROUP });
+      const r = await apiSend("POST", "uppflyttning/run", { mode: "dry_run", group: g });
       willApply = preview(previewOut, r);
       execBtn.disabled = willApply === 0 || (offCount > 0 && !ackedBy);
     } catch (e) {
@@ -931,7 +970,7 @@ async function renderExecute(root) {
     dryBtn.disabled = true;
     execBtn.disabled = true;
     try {
-      const r = await apiSend("POST", "uppflyttning/run", { mode: "execute", ack_by: ackedBy, group: UPP_GROUP });
+      const r = await apiSend("POST", "uppflyttning/run", { mode: "execute", ack_by: ackedBy, group: g });
       pollRun(progress, r.run_id);
     } catch (e) {
       progress.replaceChildren(el("p", { class: "err" }, e.message));
