@@ -5,12 +5,16 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from flask import Blueprint, Response, current_app, jsonify, request
+from flask.typing import ResponseReturnValue
 
+from karverktyg.config.models import KarConfig
 from karverktyg.db.session import get_session
 from karverktyg.export import ChangelistAckRequired, build_changelist
 from karverktyg.findings import compute_findings
 from karverktyg.membership import effective_templates, generate_drafts, upsert_template
 from karverktyg.membership.templates import templates_by_key
+from karverktyg.scoutnet.models import MemberList
+from karverktyg.settings import Settings
 from karverktyg.uppflyttning import compute_master_set
 from karverktyg.uppflyttning.cohort import CohortYearConflict, resolve_cohort_year
 from karverktyg.uppflyttning.models import MoveEntry
@@ -23,15 +27,15 @@ _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 _SEVERITY_ORDER = {"security": 0, "warning": 1, "info": 2}
 
 
-def _settings():
+def _settings() -> Settings:
     return current_app.config["SETTINGS"]
 
 
-def _config():
+def _config() -> KarConfig:
     return current_app.config["KAR_CONFIG"]
 
 
-def _memberlist(variant: str = "active"):
+def _memberlist(variant: str = "active") -> MemberList:
     return current_app.config["SCOUTNET"].memberlist(variant)
 
 
@@ -56,19 +60,23 @@ def _ser_move(e: MoveEntry) -> dict:
 
 
 @api_bp.get("/overview")
-def api_overview():
+def api_overview() -> ResponseReturnValue:
+    """Overview counts and term labels."""
     return jsonify(overview(_memberlist(), _settings()))
 
 
 @api_bp.get("/dues")
-def api_dues():
+def api_dues() -> ResponseReturnValue:
+    """Per-avdelning payment breakdown for the invoiced term."""
     ml = _memberlist()
     return jsonify(term=ml.prev_term_label, avdelningar=dues_by_avdelning(ml))
 
 
 @api_bp.get("/waiting")
-def api_waiting():
-    def ser(ml):
+def api_waiting() -> ResponseReturnValue:
+    """Waiting list and awaiting-approval applicants."""
+
+    def ser(ml: MemberList) -> list[dict]:
         return [{"member_no": m.member_no, "name": m.full_name, "unit": m.unit} for m in ml.members]
 
     return jsonify(
@@ -77,7 +85,8 @@ def api_waiting():
 
 
 @api_bp.get("/findings")
-def api_findings():
+def api_findings() -> ResponseReturnValue:
+    """Findings for the register, security findings first (§11)."""
     ml = _memberlist()
     try:
         n = resolve_cohort_year(_config_n(), ml.current_term_label)
@@ -102,7 +111,8 @@ def api_findings():
 
 
 @api_bp.get("/uppflyttning")
-def api_uppflyttning():
+def api_uppflyttning() -> ResponseReturnValue:
+    """The computed uppflyttning master set, grouped by status and target (§17)."""
     ml = _memberlist()
     ms = compute_master_set(ml, _config(), _config_n(), ml.current_term_label)
     return jsonify(
@@ -116,7 +126,8 @@ def api_uppflyttning():
 
 
 @api_bp.get("/uppflyttning/changelist.xlsx")
-def api_changelist():
+def api_changelist() -> ResponseReturnValue:
+    """Stream the changelist workbook; 409 until off-cohort is acknowledged (§17)."""
     ml = _memberlist()
     ms = compute_master_set(ml, _config(), _config_n(), ml.current_term_label)
     ack_by = request.args.get("ack_by")
@@ -143,7 +154,8 @@ def api_changelist():
 
 
 @api_bp.get("/membership/drafts")
-def api_membership_drafts():
+def api_membership_drafts() -> ResponseReturnValue:
+    """Copy-paste membership-request email drafts for applicants (§10)."""
     variant = request.args.get("variant", "waiting")
     if variant not in ("waiting", "awaiting_approval"):
         variant = "waiting"
@@ -172,13 +184,15 @@ def api_membership_drafts():
 
 
 @api_bp.get("/templates")
-def api_templates():
+def api_templates() -> ResponseReturnValue:
+    """Effective email templates (shipped defaults plus DB overrides)."""
     with get_session(current_app.config["SESSIONMAKER"]) as s:
         return jsonify(templates=effective_templates(s))
 
 
 @api_bp.put("/templates/<key>")
-def api_template_update(key: str):
+def api_template_update(key: str) -> ResponseReturnValue:
+    """Update an email template's subject/body (DB override)."""
     data = request.get_json(silent=True) or {}
     subject, body = data.get("subject"), data.get("body")
     if not subject or not body:
@@ -192,5 +206,6 @@ def api_template_update(key: str):
 
 
 @api_bp.get("/capabilities")
-def api_capabilities():
+def api_capabilities() -> ResponseReturnValue:
+    """What this deployment can do (§12)."""
     return jsonify(capabilities(_settings(), _config()))

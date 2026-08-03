@@ -1,4 +1,5 @@
-"""Swedish collation (CLAUDE.md §2).
+"""
+Swedish collation (CLAUDE.md §2).
 
 å, ä and ö sort *after* z, not as variants of a and o. Primary path is
 PyICU with locale sv_SE; when PyICU is not installed (it needs system ICU) we
@@ -21,13 +22,15 @@ try:  # pragma: no cover - exercised only where PyICU is installed
     import icu
 
     _COLLATOR = icu.Collator.createInstance(icu.Locale("sv_SE"))
-except Exception:  # ImportError, or ICU data missing
+except Exception:  # noqa: BLE001 - optional ICU; any failure falls back
     _COLLATOR = None
 
 
 def _fallback_key(value: str) -> tuple:
-    """Deterministic sv_SE-ish key without ICU. Casefold, push å/ä/ö past z,
-    then strip remaining combining marks so other accents order sensibly."""
+    """
+    Deterministic sv_SE-ish key without ICU. Casefold, push å/ä/ö past z,
+    then strip remaining combining marks so other accents order sensibly.
+    """
     folded = value.casefold()
     out: list[str] = []
     for ch in folded:

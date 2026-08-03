@@ -1,4 +1,5 @@
-"""Kår configuration: brackets, avdelningar and uppflyttning rules (§13, §17).
+"""
+Kår configuration: brackets, avdelningar and uppflyttning rules (§13, §17).
 
 Configuration, not code — loaded from a JSON document (mountable as a
 Kubernetes ConfigMap) and validated into typed models.

@@ -15,6 +15,7 @@ class ConfigError(RuntimeError):
 
 
 def load_config(path: str | Path) -> KarConfig:
+    """Load config."""
     p = Path(path)
     if not p.exists():
         raise ConfigError(f"config file not found: {p}")

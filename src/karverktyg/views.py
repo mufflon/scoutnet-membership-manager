@@ -1,4 +1,5 @@
-"""Pure read-only view computations shared by the API (Phase 1).
+"""
+Pure read-only view computations shared by the API (Phase 1).
 
 Kept separate from Flask so they are unit-testable without a request context.
 """
@@ -16,6 +17,7 @@ _ACTIONABLE = {PaymentBucket.OUTSTANDING, PaymentBucket.UNKNOWN}
 
 
 def overview(memberlist: MemberList, settings: Settings) -> dict:
+    """Overview."""
     return {
         "kar": settings.kar_name,
         "member_count": len(memberlist),
@@ -28,8 +30,10 @@ def overview(memberlist: MemberList, settings: Settings) -> dict:
 
 
 def dues_by_avdelning(memberlist: MemberList) -> list[dict]:
-    """Per-avdelning payment breakdown, keyed on the invoiced (prev) term, with
-    the outstanding members listed for action."""
+    """
+    Per-avdelning payment breakdown, keyed on the invoiced (prev) term, with
+    the outstanding members listed for action.
+    """
     buckets: dict[str, Counter] = {}
     outstanding: dict[str, list[dict]] = {}
     for m in memberlist.members:

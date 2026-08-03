@@ -1,4 +1,5 @@
-"""Post-hoc reconciliation (§7 Phase 1, reused by Phase 2).
+"""
+Post-hoc reconciliation (§7 Phase 1, reused by Phase 2).
 
 After the operator has entered the moves manually, re-fetch the memberlist and
 diff it against the changelist *intent*. Reports how many applied, which members
@@ -17,6 +18,8 @@ from karverktyg.uppflyttning.models import MasterSet
 
 @dataclass
 class ReconItem:
+    """ReconItem."""
+
     member_no: str
     member_name: str
     intended_target: str | None
@@ -27,15 +30,19 @@ class ReconItem:
 
 @dataclass
 class ReconResult:
+    """ReconResult."""
+
     applied: list[ReconItem] = field(default_factory=list)
     not_found: list[ReconItem] = field(default_factory=list)
     elsewhere: list[ReconItem] = field(default_factory=list)
 
     @property
     def all_applied(self) -> bool:
+        """All applied."""
         return not self.not_found and not self.elsewhere
 
     def summary(self) -> dict[str, int]:
+        """Summary."""
         return {
             "applied": len(self.applied),
             "not_found": len(self.not_found),
@@ -44,6 +51,7 @@ class ReconResult:
 
 
 def reconcile(master: MasterSet, memberlist_after: MemberList) -> ReconResult:
+    """Reconcile."""
     by_no = memberlist_after.by_member_no()
     result = ReconResult()
     for e in master.ready():  # only the intended moves; overrides already applied

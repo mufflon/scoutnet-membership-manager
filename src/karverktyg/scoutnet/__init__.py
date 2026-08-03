@@ -1,4 +1,5 @@
-"""Scoutnet API client and models (CLAUDE.md §4).
+"""
+Scoutnet API client and models (CLAUDE.md §4).
 
 Read-only in Phase 1. The client is constructed per mode (§6); write methods do
 not exist on the read-only or fixture clients, so a bug cannot reach them.

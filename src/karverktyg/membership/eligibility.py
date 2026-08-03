@@ -20,11 +20,12 @@ _LADDER = [Bracket.SPARARE, Bracket.UPPTACKARE, Bracket.AVENTYRARE, Bracket.UTMA
 
 
 def bracket_label(bracket: Bracket | None) -> str | None:
+    """Bracket label."""
     return BRACKET_LABEL_SV.get(bracket) if bracket else None
 
 
 def pronoun_sv(sex_code: str | None) -> str:
-    """han / hon from the Scoutnet sex code; hen when unknown (neutral default)."""
+    """Han / hon from the Scoutnet sex code; hen when unknown (neutral default)."""
     s = str(sex_code) if sex_code is not None else ""
     if s == "1":
         return "han"
@@ -36,7 +37,7 @@ def pronoun_sv(sex_code: str | None) -> str:
 def eligible_bracket(
     birth_year: int | None, cohort_year_n: int | None, config: KarConfig
 ) -> Bracket | None:
-    """The bracket whose age window the applicant's age falls in (§17 age model)."""
+    """Return the bracket whose age window the applicant's age falls in (§17 age model)."""
     if birth_year is None or cohort_year_n is None:
         return None
     age = cohort_year_n - birth_year
@@ -65,8 +66,10 @@ def bracket_avdelningar(bracket: Bracket, config: KarConfig) -> list[dict]:
 
 
 def avdelningar_sentence(bracket: Bracket, config: KarConfig) -> str:
-    """e.g. 'Spårare består av tre avdelningar som träffas på måndagar (Hajarna),
-    tisdagar (Späckhuggarna) och onsdagar (Rockorna).'"""
+    """
+    e.g. 'Spårare består av tre avdelningar som träffas på måndagar (Hajarna),
+    tisdagar (Späckhuggarna) och onsdagar (Rockorna).'
+    """
     avd = bracket_avdelningar(bracket, config)
     if not avd:
         return ""

@@ -1,4 +1,5 @@
-"""Scoutnet clients, constructed per mode (§6).
+"""
+Scoutnet clients, constructed per mode (§6).
 
 Only read clients exist in this repo. There is no write method anywhere on
 ``FixtureClient`` or ``ReadOnlyClient``; the read_write client is Phase 2 and
@@ -30,19 +31,26 @@ DEFAULT_FIXTURE = Path("fixtures/memberlist.scrubbed.json")
 _WAITING_SAMPLE = Path("fixtures/memberlist-waiting.sample.json")
 
 
+_HTTP_UNAUTHORIZED = 401
+_HTTP_BAD_REQUEST = 400
+
+
 class ScoutnetError(RuntimeError):
     """A Scoutnet call failed (documented failure modes: 400, 401 — §4)."""
 
 
 class FixtureClient:
-    """Serves committed fixtures. No network, no credentials (§6). Only the
-    ``active`` variant is captured so far; other variants return empty."""
+    """
+    Serves committed fixtures. No network, no credentials (§6). Only the
+    ``active`` variant is captured so far; other variants return empty.
+    """
 
-    def __init__(self, fixture_path: str | Path = DEFAULT_FIXTURE):
+    def __init__(self, fixture_path: str | Path = DEFAULT_FIXTURE) -> None:
         self._path = Path(fixture_path)
         self._raw: dict[str, Any] = json.loads(self._path.read_text(encoding="utf-8"))
 
     def memberlist(self, variant: str = "active") -> MemberList:
+        """Load a memberlist variant from the committed/synthetic fixtures."""
         if variant not in _VARIANT_PARAMS:
             raise ScoutnetError(f"unknown variant {variant!r}")
         if variant == "active":
@@ -54,8 +62,10 @@ class FixtureClient:
         return MemberList(members=[], variant=variant)
 
     def organisation_group(self) -> dict[str, Any]:
-        """Synthesised aggregate so fixture mode is self-contained and looks
-        like read_only to the frontend (§6)."""
+        """
+        Synthesised aggregate so fixture mode is self-contained and looks
+        like read_only to the frontend (§6).
+        """
         ml = self.memberlist("active")
         n = len(ml)
         return {
@@ -67,14 +77,14 @@ class FixtureClient:
             "_synthesised": True,
         }
 
-    def close(self) -> None:  # symmetry with ReadOnlyClient
-        pass
+    def close(self) -> None:
+        """No-op; present for symmetry with ReadOnlyClient."""
 
 
 class ReadOnlyClient:
     """Live read-only access to Scoutnet. HTTP Basic, per-endpoint key (§4)."""
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings) -> None:
         self._entity_id = settings.entity_id or ""
         self._memberlist_key = settings.memberlist_key
         self._org_key = settings.organisation_group_key
@@ -94,30 +104,34 @@ class ReadOnlyClient:
         if key is None:
             raise ScoutnetError(f"no API key configured for {path}")
         resp = self._http.get(path, params=params, auth=(self._entity_id, key.get_secret_value()))
-        if resp.status_code == 401:
+        if resp.status_code == _HTTP_UNAUTHORIZED:
             raise ScoutnetError(
                 f"401 Unauthorized for {path} — check entity id and that the key "
                 "is the one for this endpoint"
             )
-        if resp.status_code == 400:
+        if resp.status_code == _HTTP_BAD_REQUEST:
             raise ScoutnetError(f"400 Bad Request for {path}: {resp.text[:200]}")
         resp.raise_for_status()
         return resp.json()
 
     def memberlist(self, variant: str = "active") -> MemberList:
+        """Fetch a live memberlist variant (§4)."""
         if variant not in _VARIANT_PARAMS:
             raise ScoutnetError(f"unknown variant {variant!r}")
         raw = self._get("/group/memberlist", self._memberlist_key, _VARIANT_PARAMS[variant])
         return parse_memberlist(raw, variant)
 
     def organisation_group(self) -> dict[str, Any]:
+        """Fetch the aggregate organisation/group stats (§4)."""
         return self._get("/organisation/group", self._org_key, {})
 
     def close(self) -> None:
+        """Close the underlying HTTP client."""
         self._http.close()
 
 
 def build_client(settings: Settings) -> FixtureClient | ReadOnlyClient:
+    """Construct the read client for the active mode; refuse read_write (§6)."""
     if settings.mode is Mode.FIXTURE:
         return FixtureClient()
     if settings.mode is Mode.READ_ONLY:

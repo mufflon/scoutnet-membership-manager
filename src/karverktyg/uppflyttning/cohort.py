@@ -1,4 +1,5 @@
-"""Cohort year N: derivation from the live term and the config cross-check (§17).
+"""
+Cohort year N: derivation from the live term and the config cross-check (§17).
 
 N is the calendar year of the autumn term the scouts are being moved INTO. The
 uppflyttning is always computed before the summer camp, so N = the year in the
@@ -26,15 +27,17 @@ class CohortYearConflict(RuntimeError):
 
 
 def derive_n_from_term_label(current_term_label: str | None) -> int | None:
-    """N = the 4-digit year in the term label, for both "Höst" and "Vår" (the
+    """
+    N = the 4-digit year in the term label, for both "Höst" and "Vår" (the
     autumn cohort the coming move feeds). Requires a recognisable term label;
-    returns None otherwise."""
+    returns None otherwise.
+    """
     if not current_term_label:
         return None
     year: int | None = None
     has_season = False
     for token in current_term_label.replace("-", " ").split():
-        if len(token) == 4 and token.isdigit():
+        if len(token) == 4 and token.isdigit():  # noqa: PLR2004 - 4-digit year
             year = int(token)
         if token.casefold().startswith(("höst", "host", "vår", "var")):
             has_season = True

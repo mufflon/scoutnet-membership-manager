@@ -1,4 +1,5 @@
-"""Persistence (CLAUDE.md §9).
+"""
+Persistence (CLAUDE.md §9).
 
 Stores the minimum to make workflows resumable and nothing Scoutnet already
 holds. Names, addresses, personal numbers, emails and phone numbers are never

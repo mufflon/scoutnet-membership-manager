@@ -1,4 +1,5 @@
-"""Typed configuration models (§17).
+"""
+Typed configuration models (§17).
 
 The engine understands the four transition kinds and reads everything else from
 config. Cohort is keyed on **birth year**, never school year (§17); ages here
@@ -13,6 +14,8 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class Bracket(enum.StrEnum):
+    """Scout age brackets, keyed to Scoutnet unit_type."""
+
     SPARARE = "sparare"
     UPPTACKARE = "upptackare"
     AVENTYRARE = "aventyrare"
@@ -34,19 +37,24 @@ _CODE_TO_BRACKET: dict[int, Bracket] = {v: k for k, v in _UNIT_TYPE_CODE.items()
 
 
 def unit_type_code(bracket: Bracket) -> int:
+    """The Scoutnet unit_type code for a bracket."""
     return _UNIT_TYPE_CODE[bracket]
 
 
 def bracket_by_unit_type_code(code: int | str | None) -> Bracket | None:
+    """The bracket for a Scoutnet unit_type code, or None if unrecognised."""
     if code is None:
         return None
     try:
-        return _CODE_TO_BRACKET.get(int(code))
+        numeric = int(code)
     except TypeError, ValueError:
         return None
+    return _CODE_TO_BRACKET.get(numeric)
 
 
 class TransitionKind(enum.StrEnum):
+    """How a bracket's oldest cohort moves up at the summer shift (§17)."""
+
     SAME_WEEKDAY = "same_weekday"  # Spårare → Upptäckare (matched weekday)
     MERGE = "merge"  # Upptäckare → one Äventyrare avdelning
     NEW_COHORT_AVDELNING = "new_cohort_avdelning"  # Äventyrare → new Utmanare
@@ -55,6 +63,8 @@ class TransitionKind(enum.StrEnum):
 
 
 class BracketRule(BaseModel):
+    """Age span and transition kind for one bracket."""
+
     bracket: Bracket
     # Cohort-age span (N − birth_year). None for brackets that are not
     # age-bounded (Rover, Annat).
@@ -66,6 +76,8 @@ class BracketRule(BaseModel):
 
 
 class Avdelning(BaseModel):
+    """One avdelning's config: bracket, weekday, move target, ids."""
+
     name: str
     bracket: Bracket
     # 0 = Monday .. 6 = Sunday. Required for same_weekday sources/targets.
@@ -83,6 +95,8 @@ class Avdelning(BaseModel):
 
 
 class KarConfig(BaseModel):
+    """The whole kår configuration: brackets and avdelningar (§13, §17)."""
+
     name: str
     group_id: str
     # Cohort year N. None => derive from the live term, guarded by the
@@ -132,27 +146,33 @@ class KarConfig(BaseModel):
 
     # --- Lookups -----------------------------------------------------------
     def rule(self, bracket: Bracket) -> BracketRule:
+        """The rule for a bracket; raises KeyError if not configured."""
         for r in self.brackets:
             if r.bracket is bracket:
                 return r
         raise KeyError(bracket)
 
     def avdelning(self, name: str) -> Avdelning | None:
+        """The avdelning with this name, or None."""
         for a in self.avdelningar:
             if a.name == name:
                 return a
         return None
 
     def avdelningar_in(self, bracket: Bracket) -> list[Avdelning]:
+        """All avdelningar in a bracket."""
         return [a for a in self.avdelningar if a.bracket is bracket]
 
     def target_for_cohort(self, bracket: Bracket, cohort_year: int) -> Avdelning | None:
-        """The avdelning of ``bracket`` whose cohort_year matches — the
-        new_cohort_avdelning target for that cohort (§17)."""
+        """
+        Return the avdelning of ``bracket`` whose cohort_year matches — the
+        new_cohort_avdelning target for that cohort (§17).
+        """
         for a in self.avdelningar_in(bracket):
             if a.cohort_year == cohort_year:
                 return a
         return None
 
     def eighteen_plus_avdelningar(self) -> list[str]:
+        """Names of avdelningar configured as 18+ (e.g. Ledare)."""
         return [a.name for a in self.avdelningar if a.is_18plus]

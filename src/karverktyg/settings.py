@@ -1,4 +1,5 @@
-"""Application settings (CLAUDE.md §6, §13).
+"""
+Application settings (CLAUDE.md §6, §13).
 
 All configuration is environment-driven through pydantic-settings. Secrets
 (API keys, DB password) come from the environment only and never from the repo
@@ -17,8 +18,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Mode(enum.StrEnum):
-    """Deployment-level capability switch (§6). Enforced at client construction:
-    in the wrong mode the write methods do not exist on the client object."""
+    """
+    Deployment-level capability switch (§6). Enforced at client construction:
+    in the wrong mode the write methods do not exist on the client object.
+    """
 
     FIXTURE = "fixture"
     READ_ONLY = "read_only"
@@ -30,8 +33,10 @@ class MissingCredentialError(RuntimeError):
 
 
 def _truncated_hash(secret: SecretStr | None) -> str | None:
-    """A short, non-reversible fingerprint of a key for the capabilities page
-    (§12) — never the key itself."""
+    """
+    Return a short, non-reversible fingerprint of a key for the capabilities page
+    (§12) — never the key itself.
+    """
     if secret is None:
         return None
     digest = hashlib.sha256(secret.get_secret_value().encode()).hexdigest()
@@ -39,6 +44,8 @@ def _truncated_hash(secret: SecretStr | None) -> str | None:
 
 
 class Settings(BaseSettings):
+    """Settings."""
+
     model_config = SettingsConfigDict(
         env_prefix="SCOUTNET_",
         env_file=".env",
@@ -81,8 +88,10 @@ class Settings(BaseSettings):
     build_number: str = "dev"
 
     def require_live_credentials(self) -> None:
-        """Fail loudly when the active mode needs live keys but they are absent
-        (Hard rule #1). ``fixture`` needs none."""
+        """
+        Fail loudly when the active mode needs live keys but they are absent
+        (Hard rule #1). ``fixture`` needs none.
+        """
         if self.mode is Mode.FIXTURE:
             return
         missing: list[str] = []
@@ -96,8 +105,10 @@ class Settings(BaseSettings):
             )
 
     def endpoint_key_fingerprints(self) -> dict[str, str | None]:
-        """Presence + truncated hash per endpoint key, for the capabilities
-        page (§12). Never exposes a key."""
+        """
+        Presence + truncated hash per endpoint key, for the capabilities
+        page (§12). Never exposes a key.
+        """
         return {
             "group/memberlist": _truncated_hash(self.memberlist_key),
             "organisation/group": _truncated_hash(self.organisation_group_key),

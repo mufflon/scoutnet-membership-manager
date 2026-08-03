@@ -55,7 +55,61 @@ line-length = 100
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+select = ["ALL"]
+ignore = [
+    "COM812", # incorrectly requires commas for strings in log messages
+    "D203",   # one-blank-line-before-class
+    "D212",   # summary line in docstrings will start with the second raw
+    "D413",   # not applicable for numpy docstrings
+    "EM101",  # raw-string-in-exception
+    "EM102",  # we want to use f string in exception messages
+    "FA100",  # we want to avoid importing __future__
+    "G004",   # we want to use f string in log messages
+    "TRY003", # we want to write long exception messages
+    "TD002",  # TODO need no ticket
+    "TD003",  # TODO need no author
+    "FIX002", # TODO is for the future, not now
+    "RUF013", # Explicit optional parameters are suboptimal, but fine-ish
+    "D107",   # Don't require docstring for __init__
+    # --- added for this codebase (not in the shared base list) ---
+    "RUF001", # Swedish domain text (å, ä, ö) is not "ambiguous unicode"
+    "RUF002", # same, in docstrings
+    "RUF003", # same, in comments
+    "TC001",  # moving first-party types to TYPE_CHECKING breaks SQLAlchemy Mapped[]
+    "TC002",  # ditto for third-party (pydantic evaluates annotations at runtime)
+    "TC003",  # ditto for stdlib (e.g. datetime in ORM models)
+    "CPY001", # no per-file copyright header for this internal tool
+    "PLC0415", # lazy imports are deliberate (optional deps, CLI subcommands)
+    "PLR0913", # parametric builder functions (changelist, drafts) take many args
+    "PLR0917", # ditto, positional
+    "ANN401", # Any is correct at the dynamic JSON parsing boundary
+    "N818",   # descriptive exception names (CohortYearConflict, ChangelistAckRequired)
+    # docstring micro-style (same category as the already-ignored D203/D212/D413);
+    # docstrings are still required to exist (D101/D102/D103), just not policed for
+    # mood/period/blank-line placement:
+    "D205",   # blank line between summary and description
+    "D400",   # first line ends with a period
+    "D401",   # imperative mood
+    "D415",   # first line ends with punctuation
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",    # we need assertions for tests
+    "D",       # docstrings are not mandatory for tests
+    "ANN",     # type annotations are optional in tests (fixtures are self-documenting)
+    "PLR",     # complexity/magic-value limits are irrelevant in test expectations
+    "INP001",  # test packages need no __init__.py
+    "SLF001",  # tests may poke private members
+    "N802",    # test fakes mimic external PascalCase SDK method names
+    "PT018",   # composite asserts are readable in tests
+    "PT006",   # parametrize name style is fine
+    "DTZ",     # naive datetimes are fine in test fixtures
+]
+# Throwaway Phase-0 spike scripts (stdlib, print structure to stdout) — §7.
+"scripts/**/*.py" = ["D", "ANN", "T201", "S", "PLR", "C901", "BLE001", "TRY", "PTH", "PERF", "PLW", "PLC", "N", "ARG", "FBT", "EXE001", "RUF", "DTZ"]
+# Alembic migrations follow their own generated conventions.
+"migrations/**/*.py" = ["D", "ANN", "INP001"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

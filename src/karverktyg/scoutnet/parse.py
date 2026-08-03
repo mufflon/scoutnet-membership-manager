@@ -1,4 +1,5 @@
-"""Parse a raw ``GET /group/memberlist`` payload into typed models (§4).
+"""
+Parse a raw ``GET /group/memberlist`` payload into typed models (§4).
 
 Handles the observed quirks explicitly:
   * every field is wrapped as ``{value}`` or ``{value, raw_value}``;
@@ -46,7 +47,7 @@ def _int_or_none(v: Any) -> int | None:
 
 
 def _birth_year(dob: Any) -> int | None:
-    if not isinstance(dob, str) or len(dob) < 4:
+    if not isinstance(dob, str) or len(dob) < 4:  # noqa: PLR2004 - 4-digit year
         return None
     return _int_or_none(dob[:4])
 
@@ -80,6 +81,7 @@ def _parse_roles(wrapper: Any) -> list[Role]:
 
 
 def parse_member(member_no: str, fields: dict[str, Any]) -> Member:
+    """Parse member."""
     m = Member(member_no=str(_value(fields.get("member_no")) or member_no))
     m.first_name = str(_value(fields.get("first_name")) or "")
     m.last_name = str(_value(fields.get("last_name")) or "")
@@ -120,9 +122,10 @@ def parse_member(member_no: str, fields: dict[str, Any]) -> Member:
 
 
 def parse_memberlist(raw: dict[str, Any], variant: str = "active") -> MemberList:
+    """Parse memberlist."""
     data = raw.get("data")
     if not isinstance(data, dict):
-        raise ValueError("memberlist payload has no 'data' object")
+        raise ValueError("memberlist payload has no 'data' object")  # noqa: TRY004
     labels = raw.get("labels") or {}
 
     members = [

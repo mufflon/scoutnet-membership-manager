@@ -20,6 +20,8 @@ from karverktyg.scoutnet.models import Member
 
 @dataclass
 class EmailDraft:
+    """EmailDraft."""
+
     member_no: str
     kind: str  # "scout" | "ledare"
     to: list[str]
@@ -29,15 +31,16 @@ class EmailDraft:
 
 
 def is_ledare_applicant(member: Member, config: KarConfig, n: int | None) -> bool:
+    """Is ledare applicant."""
     if member.unit and member.unit in set(config.eighteen_plus_avdelningar()):
         return True
     if member.bracket is Bracket.ANNAT:
         return True
-    return bool(member.birth_year and n and (n - member.birth_year) >= 18)
+    return bool(member.birth_year and n and (n - member.birth_year) >= 18)  # noqa: PLR2004
 
 
 def _ledare_recipients(member: Member) -> list[str]:
-    """The person directly, never their parents (§10)."""
+    """Return the person's own address, never their parents' (§10)."""
     for f in ("contact_email", "email"):
         v = member.emails.get(f)
         if v:
@@ -52,6 +55,7 @@ def _render(source: str, ctx: dict) -> str:
 def build_draft(
     member: Member, config: KarConfig, n: int | None, templates: dict[str, Template], kar_name: str
 ) -> EmailDraft:
+    """Build draft."""
     ctx = {
         "first_name": member.first_name,
         "full_name": member.full_name,
@@ -87,4 +91,5 @@ def generate_drafts(
     templates: dict[str, Template],
     kar_name: str,
 ) -> list[EmailDraft]:
+    """Generate drafts."""
     return [build_draft(m, config, n, templates, kar_name) for m in members]

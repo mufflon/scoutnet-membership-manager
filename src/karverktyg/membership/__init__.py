@@ -1,4 +1,5 @@
-"""Membership-request email drafts (§5, §10).
+"""
+Membership-request email drafts (§5, §10).
 
 Phase 1 generates *drafts* — recipients + subject + body — for the operator to
 copy into their own mail client. Nothing is sent. Templates are stored in the

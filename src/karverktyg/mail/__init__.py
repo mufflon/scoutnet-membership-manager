@@ -1,4 +1,5 @@
-"""Email via the Gmail API (CLAUDE.md §10).
+"""
+Email via the Gmail API (CLAUDE.md §10).
 
 Two MailSender implementations: Gmail (service account, domain-wide delegation,
 scope gmail.send only) and a recording fake used in development and tests.

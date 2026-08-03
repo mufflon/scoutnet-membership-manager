@@ -8,12 +8,16 @@ from dataclasses import dataclass
 
 
 class Severity(enum.StrEnum):
+    """Severity."""
+
     SECURITY = "security"  # highest — leader in Ledare (§11)
     WARNING = "warning"
     INFO = "info"
 
 
 class FindingType(enum.StrEnum):
+    """FindingType."""
+
     SECURITY_LEDARE_LEADER = "security_ledare_leader"
     ADULT_IN_SCOUT_UNIT = "adult_in_scout_unit"
     MULTI_AVDELNING = "multi_avdelning"
@@ -23,15 +27,19 @@ class FindingType(enum.StrEnum):
 
 
 def value_hash(raw: str) -> str:
-    """Hash of the normalised offending value (§11). An acknowledgement is keyed
+    """
+    Hash of the normalised offending value (§11). An acknowledgement is keyed
     to this, so if the value changes the hash changes and the finding resurfaces.
-    A hash is not personal data."""
+    A hash is not personal data.
+    """
     normalised = "".join(raw.split()).casefold()
     return hashlib.sha256(normalised.encode()).hexdigest()[:16]
 
 
 @dataclass(frozen=True)
 class Finding:
+    """Finding."""
+
     type: FindingType
     severity: Severity
     member_no: str
@@ -44,4 +52,5 @@ class Finding:
 
     @property
     def ack_key(self) -> tuple[str, str, str]:
+        """Ack key."""
         return (self.member_no, str(self.type), self.value_hash)

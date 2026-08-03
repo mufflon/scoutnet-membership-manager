@@ -9,6 +9,8 @@ from karverktyg.config.models import TransitionKind
 
 
 class MoveStatus(enum.StrEnum):
+    """MoveStatus."""
+
     READY = "ready"  # target resolved; the move can be exported/executed
     PENDING_TARGET = "pending_target"  # new_cohort_avdelning target not yet elected
     OFF_COHORT = "off_cohort"  # birth year off the bracket; manual, excluded
@@ -18,6 +20,8 @@ class MoveStatus(enum.StrEnum):
 
 @dataclass
 class MoveEntry:
+    """MoveEntry."""
+
     member_no: str
     member_name: str  # live display only; never persisted (§9)
     birth_year: int | None
@@ -36,27 +40,35 @@ class MoveEntry:
 
     @property
     def is_override(self) -> bool:
+        """Is override."""
         return self.override_target is not None or self.override_stay_until is not None
 
 
 @dataclass
 class MasterSet:
+    """MasterSet."""
+
     cohort_year: int
     entries: list[MoveEntry] = field(default_factory=list)
 
     def ready(self) -> list[MoveEntry]:
+        """Ready."""
         return [e for e in self.entries if e.status is MoveStatus.READY]
 
     def pending(self) -> list[MoveEntry]:
+        """Pending."""
         return [e for e in self.entries if e.status is MoveStatus.PENDING_TARGET]
 
     def off_cohort(self) -> list[MoveEntry]:
+        """Off cohort."""
         return [e for e in self.entries if e.status is MoveStatus.OFF_COHORT]
 
     def excluded(self) -> list[MoveEntry]:
+        """Excluded."""
         return [e for e in self.entries if e.status is MoveStatus.EXCLUDED]
 
     def by_target(self) -> dict[str, list[MoveEntry]]:
+        """By target."""
         out: dict[str, list[MoveEntry]] = {}
         for e in self.ready():
             out.setdefault(e.target_avdelning or "", []).append(e)

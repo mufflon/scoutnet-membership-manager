@@ -1,4 +1,5 @@
-"""Health and readiness probes (CLAUDE.md §14).
+"""
+Health and readiness probes (CLAUDE.md §14).
 
 Liveness is a cheap local check. Readiness additionally verifies Postgres
 connectivity and must NOT call Scoutnet — an upstream outage must not cycle pods.
@@ -8,18 +9,21 @@ Scoutnet reachability belongs on the capabilities page, not in a probe.
 from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify
+from flask.typing import ResponseReturnValue
 from sqlalchemy import text
 
 health_bp = Blueprint("health", __name__)
 
 
 @health_bp.get("/healthz")
-def healthz():
+def healthz() -> ResponseReturnValue:
+    """Liveness: a cheap local check that the process is up."""
     return jsonify(status="ok"), 200
 
 
 @health_bp.get("/readyz")
-def readyz():
+def readyz() -> ResponseReturnValue:
+    """Readiness: verify Postgres connectivity only, never Scoutnet (§14)."""
     engine = current_app.config["ENGINE"]
     try:
         with engine.connect() as conn:

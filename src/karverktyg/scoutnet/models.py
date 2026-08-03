@@ -1,4 +1,5 @@
-"""In-memory Scoutnet models and payment classification (§4).
+"""
+In-memory Scoutnet models and payment classification (§4).
 
 These hold live data including personal fields; they are never persisted — the
 database stores only workflow state keyed on ``member_no`` (§9). ``extra_info_*``
@@ -67,6 +68,8 @@ _PARSED_FIELDS = (
 
 
 class PaymentBucket(enum.StrEnum):
+    """PaymentBucket."""
+
     NOT_BILLED = "not_billed"
     OUTSTANDING = "outstanding"
     SETTLED = "settled"
@@ -81,6 +84,7 @@ _OUTSTANDING_CODES = frozenset({"unpaid_overdue_reminded", "paid_partial_credit"
 
 
 def classify_payment(code: str | None) -> PaymentBucket:
+    """Classify payment."""
     if code is None:
         return PaymentBucket.UNKNOWN
     if code in _SETTLED_CODES:
@@ -94,8 +98,10 @@ def classify_payment(code: str | None) -> PaymentBucket:
 
 @dataclass(frozen=True)
 class Role:
-    """One role assignment from ``roles.value`` (§4). ``scope`` is "troop" or
-    "group"; ``scope_id`` is the troop_id or group_id it is scoped to."""
+    """
+    One role assignment from ``roles.value`` (§4). ``scope`` is "troop" or
+    "group"; ``scope_id`` is the troop_id or group_id it is scoped to.
+    """
 
     scope: str
     scope_id: int
@@ -105,11 +111,14 @@ class Role:
 
     @property
     def is_leader(self) -> bool:
+        """Whether this role is a leadership role (§11)."""
         return self.role_key in LEADER_ROLE_KEYS
 
 
 @dataclass
 class Member:
+    """A parsed member. Holds live data including personal fields; never persisted."""
+
     member_no: str
     first_name: str = ""
     last_name: str = ""
@@ -138,47 +147,60 @@ class Member:
     # --- Derived helpers ---------------------------------------------------
     @property
     def bracket(self) -> Bracket | None:
+        """The member's bracket, from their unit_type code."""
         return bracket_by_unit_type_code(self.unit_type_code)
 
     @property
     def full_name(self) -> str:
+        """First and last name joined."""
         return f"{self.first_name} {self.last_name}".strip()
 
     @property
     def is_role_holder(self) -> bool:
+        """Whether the member holds any role."""
         return bool(self.roles)
 
     @property
     def is_leader(self) -> bool:
+        """Whether the member holds any leadership role."""
         return any(r.is_leader for r in self.roles)
 
     def troop_ids_with_role(self) -> set[int]:
+        """Troop ids the member holds a troop-scoped role in."""
         return {r.scope_id for r in self.roles if r.scope == "troop"}
 
     def avdelning_troop_ids(self) -> set[int]:
-        """All troop_ids this member is attached to — primary ``unit`` plus any
-        troop-scoped role (§11 multi-avdelning)."""
+        """
+        All troop_ids this member is attached to — primary ``unit`` plus any
+        troop-scoped role (§11 multi-avdelning).
+        """
         ids = set(self.troop_ids_with_role())
         if self.unit_troop_id is not None:
             ids.add(self.unit_troop_id)
         return ids
 
     def current_payment(self) -> PaymentBucket:
+        """Payment bucket for the current term."""
         return classify_payment(self.current_term_code)
 
     def prev_payment(self) -> PaymentBucket:
+        """Payment bucket for the previous term."""
         return classify_payment(self.prev_term_code)
 
 
 @dataclass
 class MemberList:
+    """A parsed memberlist response for one variant."""
+
     members: list[Member]
     current_term_label: str | None = None
     prev_term_label: str | None = None
     variant: str = "active"
 
     def __len__(self) -> int:
+        """Return the number of members."""
         return len(self.members)
 
     def by_member_no(self) -> dict[str, Member]:
+        """Index of members by member number."""
         return {m.member_no: m for m in self.members}

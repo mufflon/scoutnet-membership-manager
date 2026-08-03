@@ -1,4 +1,5 @@
-"""Email templates: shipped defaults + DB overrides (§10).
+"""
+Email templates: shipped defaults + DB overrides (§10).
 
 Templates are stored in the database and editable in-app. The shipped defaults
 are the fallback and serve as worked examples. The resolver returns the DB row
@@ -17,6 +18,8 @@ from karverktyg.db.models import EmailTemplate
 
 @dataclass
 class Template:
+    """Template."""
+
     key: str
     subject: str
     body: str
@@ -65,6 +68,7 @@ DEFAULT_TEMPLATES: dict[str, Template] = {
 
 
 def get_template(session: Session, key: str) -> Template:
+    """Get template."""
     row = session.execute(
         select(EmailTemplate).where(EmailTemplate.template_key == key)
     ).scalar_one_or_none()
@@ -79,10 +83,12 @@ def get_template(session: Session, key: str) -> Template:
 
 
 def templates_by_key(session: Session) -> dict[str, Template]:
+    """Templates by key."""
     return {key: get_template(session, key) for key in DEFAULT_TEMPLATES}
 
 
 def effective_templates(session: Session) -> list[dict]:
+    """Effective templates."""
     overrides = {r.template_key: r for r in session.execute(select(EmailTemplate)).scalars()}
     out = []
     for key, dflt in DEFAULT_TEMPLATES.items():
@@ -102,6 +108,7 @@ def effective_templates(session: Session) -> list[dict]:
 def upsert_template(
     session: Session, key: str, subject: str, body: str, by: str | None = None
 ) -> None:
+    """Upsert template."""
     if key not in DEFAULT_TEMPLATES:
         raise KeyError(key)
     row = session.execute(

@@ -1,4 +1,5 @@
-"""OpenAPI spec drift detection (§14).
+"""
+OpenAPI spec drift detection (§14).
 
 Reports the vendored version and compares it against upstream. Full detection
 re-bundles the upstream document with `npx @redocly/cli bundle` and diffs paths
@@ -20,12 +21,15 @@ _NPM_LATEST = "https://registry.npmjs.org/@scouterna/scoutnet-openapi/latest"
 
 @dataclass
 class DriftResult:
+    """DriftResult."""
+
     vendored_version: str | None
     upstream_version: str | None
     drifted: bool | None  # None = upstream not checked
     note: str
 
     def render(self) -> str:
+        """Render."""
         up = self.upstream_version or "(not checked)"
         state = "DRIFT" if self.drifted else ("in sync" if self.drifted is False else "unknown")
         return (
@@ -45,7 +49,8 @@ def _fetch_upstream_version(timeout: float = 10.0) -> str | None:
         return None
 
 
-def run_drift_check(vendor_meta: Path = VENDOR_META, check_upstream: bool = True) -> DriftResult:
+def run_drift_check(vendor_meta: Path = VENDOR_META, *, check_upstream: bool = True) -> DriftResult:
+    """Run drift check."""
     vendored = None
     if vendor_meta.exists():
         with contextlib.suppress(json.JSONDecodeError):

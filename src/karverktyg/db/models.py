@@ -1,4 +1,5 @@
-"""ORM models (§9). Deliberately no personal-data columns.
+"""
+ORM models (§9). Deliberately no personal-data columns.
 
 Persisted state is workflow only, keyed on ``member_no``. Personal data (names,
 addresses, personnummer, email, phone) and even birth year are never stored —
@@ -14,12 +15,14 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
-    pass
+    """Declarative base for all ORM models."""
 
 
 class UppflyttningEntry(Base):
-    """One member's place in a computed master set, with override and approval
-    (§9). Source/target are avdelningar + troop_ids, never anything personal."""
+    """
+    One member's place in a computed master set, with override and approval
+    (§9). Source/target are avdelningar + troop_ids, never anything personal.
+    """
 
     __tablename__ = "uppflyttning_entry"
 
@@ -40,8 +43,10 @@ class UppflyttningEntry(Base):
 
 
 class FindingAck(Base):
-    """Acknowledgement of a finding, keyed to a hash of the offending value so it
-    re-surfaces if the value changes (§11). Not personal data."""
+    """
+    Acknowledgement of a finding, keyed to a hash of the offending value so it
+    re-surfaces if the value changes (§11). Not personal data.
+    """
 
     __tablename__ = "finding_ack"
 
@@ -65,8 +70,10 @@ class MessageLog(Base):
 
 
 class EmailTemplate(Base):
-    """Editable email template (§10). Overrides the shipped default for its key.
-    Template text is content, not personal data."""
+    """
+    Editable email template (§10). Overrides the shipped default for its key.
+    Template text is content, not personal data.
+    """
 
     __tablename__ = "email_template"
 

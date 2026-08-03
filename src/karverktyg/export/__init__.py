@@ -1,4 +1,5 @@
-"""Phase 1 outputs: the uppflyttning changelist (Excel) and reconciliation.
+"""
+Phase 1 outputs: the uppflyttning changelist (Excel) and reconciliation.
 
 The changelist is a permanent first-class output, not a stopgap (§7). Generated
 workbooks contain names and are streamed to the browser, never written to disk

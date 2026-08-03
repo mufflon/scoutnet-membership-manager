@@ -1,4 +1,5 @@
-"""Uppflyttning changelist as an Excel workbook (§7 Phase 1).
+"""
+Uppflyttning changelist as an Excel workbook (§7 Phase 1).
 
 Designed for the person doing the data entry: one sheet per target avdelning so
 they work through one destination at a time, member_no first (the Scoutnet search
@@ -17,7 +18,7 @@ from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 
 from karverktyg.collation import sorted_sv
-from karverktyg.uppflyttning.models import MasterSet
+from karverktyg.uppflyttning.models import MasterSet, MoveEntry
 
 _BOLD = Font(bold=True)
 
@@ -73,7 +74,7 @@ def _write_cover(
     ws.column_dimensions["B"].width = 28
 
 
-def _write_target_sheet(ws: Worksheet, entries) -> None:
+def _write_target_sheet(ws: Worksheet, entries: list[MoveEntry]) -> None:
     headers = ["Medlemsnummer", "Namn", "Från", "Till", "Klar"]
     for c, h in enumerate(headers, start=1):
         ws.cell(row=1, column=c, value=h).font = _BOLD
@@ -98,6 +99,7 @@ def build_changelist(
     ack_by: str | None = None,
     ack_at: datetime | None = None,
 ) -> bytes:
+    """Build changelist."""
     if master.off_cohort() and not ack_by:
         raise ChangelistAckRequired(
             f"{len(master.off_cohort())} off-cohort member(s) must be acknowledged "

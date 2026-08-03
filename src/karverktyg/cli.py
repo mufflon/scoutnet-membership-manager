@@ -24,19 +24,20 @@ def _canary(args: argparse.Namespace) -> int:
     from karverktyg.jobs.canary import run_canary
 
     result = run_canary(_settings(args.mode))
-    print(result.render())
+    print(result.render())  # noqa: T201
     return 0 if result.ok else 1
 
 
-def _drift(args: argparse.Namespace) -> int:
+def _drift(_args: argparse.Namespace) -> int:
     from karverktyg.jobs.spec_drift import run_drift_check
 
     result = run_drift_check()
-    print(result.render())
+    print(result.render())  # noqa: T201
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Main."""
     p = argparse.ArgumentParser(prog="karverktyg")
     sub = p.add_subparsers(dest="cmd", required=True)
 

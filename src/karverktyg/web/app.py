@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from flask import Flask, jsonify
-from sqlalchemy import create_engine
+from flask.typing import ResponseReturnValue
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.pool import StaticPool
 
 from karverktyg.config import load_config
@@ -20,10 +21,12 @@ from karverktyg.web.health import health_bp
 _STATIC = Path(__file__).parent / "static"
 
 
-def _build_engine(settings: Settings):
-    """Fixture mode gets a self-contained in-memory SQLite with the schema
+def _build_engine(settings: Settings) -> Engine:
+    """
+    Fixture mode gets a self-contained in-memory SQLite with the schema
     created, so the full app runs with no infrastructure (§6). Live modes use
-    the configured database, whose schema comes from alembic migrations."""
+    the configured database, whose schema comes from alembic migrations.
+    """
     if settings.mode is Mode.FIXTURE:
         engine = create_engine(
             "sqlite://",
@@ -37,6 +40,7 @@ def _build_engine(settings: Settings):
 
 
 def create_app(settings: Settings | None = None) -> Flask:
+    """Build the Flask app: read-only API, static frontend, health probes (§6)."""
     settings = settings or Settings()
     kar_config = load_config(settings.config_path)
 
@@ -55,15 +59,15 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.register_blueprint(health_bp)
 
     @app.get("/")
-    def index():
+    def index() -> ResponseReturnValue:
         return app.send_static_file("index.html")
 
     @app.errorhandler(ScoutnetError)
-    def _scoutnet_error(e):
+    def _scoutnet_error(e: ScoutnetError) -> ResponseReturnValue:
         return jsonify(error=str(e)), 502
 
     @app.errorhandler(CohortYearConflict)
-    def _cohort_conflict(e):
+    def _cohort_conflict(e: CohortYearConflict) -> ResponseReturnValue:
         return jsonify(error=str(e)), 409
 
     return app

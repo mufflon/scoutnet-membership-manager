@@ -1,4 +1,5 @@
-"""User-facing Swedish strings (CLAUDE.md §2).
+"""
+User-facing Swedish strings (CLAUDE.md §2).
 
 Code is English; every user-visible string lives here in one module. UI code
 calls ``t("key")``. Locale is sv_SE. Keeping them together makes the surface
@@ -51,6 +52,8 @@ STRINGS: dict[str, str] = {
 
 
 def t(key: str) -> str:
-    """Translate a key to its Swedish string. Unknown keys return the key in
-    brackets so a missing translation is visible, never silent."""
+    """
+    Translate a key to its Swedish string. Unknown keys return the key in
+    brackets so a missing translation is visible, never silent.
+    """
     return STRINGS.get(key, f"[{key}]")

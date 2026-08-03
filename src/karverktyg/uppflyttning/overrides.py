@@ -1,4 +1,5 @@
-"""Per-member overrides layered on the computed master set (§17).
+"""
+Per-member overrides layered on the computed master set (§17).
 
 Overrides survive recomputation: recompute the set, then re-apply the stored
 overrides. "Stay a year" is an expiry cohort year, so it lapses by itself.
@@ -14,6 +15,8 @@ from karverktyg.uppflyttning.models import MasterSet, MoveStatus
 
 @dataclass
 class Override:
+    """Override."""
+
     member_no: str
     target_avdelning: str | None = None
     stay_until: int | None = None  # keep in the current avdelning through this cohort year
@@ -21,6 +24,7 @@ class Override:
 
 
 def apply_overrides(master: MasterSet, overrides: list[Override], index: TroopIndex) -> MasterSet:
+    """Apply overrides."""
     by_member = {o.member_no: o for o in overrides}
     for e in master.entries:
         o = by_member.get(e.member_no)

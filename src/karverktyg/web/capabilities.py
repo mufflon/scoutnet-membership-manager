@@ -22,6 +22,7 @@ def _openapi_meta() -> dict | None:
 
 
 def capabilities(settings: Settings, config: KarConfig) -> dict:
+    """Capabilities."""
     fingerprints = settings.endpoint_key_fingerprints()
     endpoints = [
         {"endpoint": ep, "configured": h is not None, "key_hash": h}

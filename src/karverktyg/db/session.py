@@ -10,15 +10,18 @@ from sqlalchemy.orm import Session, sessionmaker
 
 
 def make_engine(database_url: str) -> Engine:
+    """Make engine."""
     return create_engine(database_url, pool_pre_ping=True, future=True)
 
 
 def make_sessionmaker(engine: Engine) -> sessionmaker[Session]:
+    """Make sessionmaker."""
     return sessionmaker(bind=engine, expire_on_commit=False, future=True)
 
 
 @contextmanager
 def get_session(factory: sessionmaker[Session]) -> Iterator[Session]:
+    """Get session."""
     session = factory()
     try:
         yield session

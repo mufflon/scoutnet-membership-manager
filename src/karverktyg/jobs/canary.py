@@ -1,4 +1,5 @@
-"""Read-only canary (§14).
+"""
+Read-only canary (§14).
 
 Seasonal software — uppflyttning runs once a year — so the point is to discover
 breakage in April rather than on the day two hundred scouts need moving. Fetches
@@ -18,11 +19,14 @@ MIN_MEMBERS = 50
 
 @dataclass
 class CanaryResult:
+    """CanaryResult."""
+
     ok: bool
     member_count: int | None = None
     checks: list[tuple[str, bool, str]] = field(default_factory=list)
 
     def render(self) -> str:
+        """Render."""
         head = f"Canary: {'OK' if self.ok else 'FAIL'} (members={self.member_count})"
         body = "\n".join(
             f"  [{'x' if p else ' '}] {name}: {detail}" for name, p, detail in self.checks
@@ -31,6 +35,7 @@ class CanaryResult:
 
 
 def run_canary(settings: Settings, min_members: int = MIN_MEMBERS) -> CanaryResult:
+    """Run canary."""
     checks: list[tuple[str, bool, str]] = []
     client = build_client(settings)
 

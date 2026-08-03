@@ -1,4 +1,5 @@
-"""Troop-id index shared by the findings and uppflyttning engines.
+"""
+Troop-id index shared by the findings and uppflyttning engines.
 
 troop_id is resolved from ``unit.raw_value`` across the live memberlist (§4,
 Phase 0 Part B), with config ``troop_id`` overrides for an avdelning too empty
@@ -15,15 +16,19 @@ from karverktyg.scoutnet.models import MemberList
 
 @dataclass
 class TroopIndex:
+    """TroopIndex."""
+
     name_to_id: dict[str, int] = field(default_factory=dict)
     id_to_name: dict[int, str] = field(default_factory=dict)
     id_to_bracket: dict[int, Bracket] = field(default_factory=dict)
 
     def ids_for_bracket(self, bracket: Bracket) -> set[int]:
+        """Ids for bracket."""
         return {tid for tid, b in self.id_to_bracket.items() if b is bracket}
 
 
 def build_troop_index(memberlist: MemberList, config: KarConfig) -> TroopIndex:
+    """Build troop index."""
     name_to_id: dict[str, int] = {}
     # Live: first observed unit.raw_value per unit name.
     for m in memberlist.members:

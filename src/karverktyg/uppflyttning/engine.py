@@ -1,4 +1,5 @@
-"""Compute the uppflyttning master set (§17).
+"""
+Compute the uppflyttning master set (§17).
 
 Only the oldest cohort of each transitioning bracket moves. Members holding a
 role (leaders elsewhere) and adults are excluded and surfaced for review, never
@@ -34,9 +35,11 @@ _AGE_LADDER = [
 
 
 def _age_bracket(age: int, config: KarConfig) -> Bracket | None:
-    """The lowest bracket whose age window contains ``age``. Lowest resolves the
+    """
+    Return the lowest bracket whose age window contains ``age``. Lowest resolves the
     Äventyrare/Utmanare boundary overlap (age 14) toward Äventyrare, so a 14-year
-    old stays and a 15-year old graduates."""
+    old stays and a 15-year old graduates.
+    """
     for b in _AGE_LADDER:
         try:
             rule = config.rule(b)
@@ -57,11 +60,13 @@ def _next_bracket(b: Bracket) -> Bracket | None:
 
 
 def _is_excluded(m: Member, n: int, eighteen_plus: set[str]) -> str | None:
-    """Reason a moving-cohort member is excluded from the auto-move set, or None.
-    Over-excluding is safe; under-excluding moves a leader (§11)."""
+    """
+    Reason a moving-cohort member is excluded from the auto-move set, or None.
+    Over-excluding is safe; under-excluding moves a leader (§11).
+    """
     if m.is_role_holder:
         return "role-holder (a leader/role elsewhere) — excluded, review"
-    if m.birth_year is not None and (n - m.birth_year) >= 18:
+    if m.birth_year is not None and (n - m.birth_year) >= 18:  # noqa: PLR2004
         return "adult (18+) — excluded, review"
     if m.unit in eighteen_plus:
         return "in an 18+ avdelning — excluded, review"
@@ -131,6 +136,7 @@ def compute_master_set(
     current_term_label: str | None = None,
     index: TroopIndex | None = None,
 ) -> MasterSet:
+    """Compute master set."""
     n = resolve_cohort_year(
         config_cohort_year_n, current_term_label or memberlist.current_term_label
     )
