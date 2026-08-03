@@ -193,6 +193,14 @@ async function renderTemplates(root) {
   }
 }
 
+const STATUS_SV = {
+  ready: "Klar för flytt",
+  pending_target: "Väntar på måldelning",
+  off_cohort: "Utanför årskull",
+  excluded: "Undantagen (ledare/vuxen)",
+  override_stay: "Stannar kvar (val)",
+};
+
 async function renderUppflyttning(root) {
   let d;
   try {
@@ -262,30 +270,43 @@ async function renderUppflyttning(root) {
         alert(e.message);
       }
     };
-    const ack = el("input", { type: "checkbox" });
+    const ack = el("input", {
+      type: "checkbox",
+      title: "Markera som granskad/hanterad – t.ex. en utanför-årskull-medlem du valt att lämna",
+    });
     if (m.acknowledged) ack.setAttribute("checked", "checked");
     ack.onchange = async () => {
       await apiSend("POST", "uppflyttning/decision", { member_no: m.member_no, acknowledged: ack.checked, by: "webb" });
       refresh();
     };
-    const clr = el("a", { href: "#" }, "återställ");
+    const clr = el("a", { href: "#", title: "Nollställ valet till den beräknade standarden" }, "återställ");
     clr.onclick = async (ev) => {
       ev.preventDefault();
       await apiSend("DELETE", "uppflyttning/decision?member_no=" + encodeURIComponent(m.member_no));
       refresh();
     };
-    const statusTxt = m.status + (m.override ? " ✎" : "");
+    const statusTxt = (STATUS_SV[m.status] || m.status) + (m.override ? " ✎" : "");
     return [m.member_no, m.name, m.source || "–", targetSel, el("span", { class: "status-" + m.status }, statusTxt), ack, clr];
   };
+  root.append(
+    el(
+      "p",
+      { class: "muted" },
+      "Till (välj): måldelning per scout – standard är den beräknade (t.ex. Spårare → samma veckodag); " +
+        "välj en annan för att flytta en individ annorlunda, eller för att lösa en rad utan måldelning. " +
+        "Granskad: bocka för att markera raden som hanterad utan att flytta någon (t.ex. utanför-årskull du valt att lämna). " +
+        "återställ: nollställ till standarden.",
+    ),
+  );
   for (const [title, list] of [
-    ["Klara", d.ready],
+    ["Klara för flytt", d.ready],
     ["Väntar på måldelning", d.pending],
     ["Utanför årskull", d.off_cohort],
     ["Undantagna (ledare/vuxna)", d.excluded],
   ]) {
     if (!list.length) continue;
     root.append(
-      el("div", { class: "card" }, el("strong", {}, title + " (" + list.length + ")"), table(["Medlemsnr", "Namn", "Från", "Till (välj)", "Status", "Klar", ""], list.map(moveRow))),
+      el("div", { class: "card" }, el("strong", {}, title + " (" + list.length + ")"), table(["Medlemsnr", "Namn", "Från", "Till (välj)", "Status", "Granskad", ""], list.map(moveRow))),
     );
   }
 }
