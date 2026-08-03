@@ -16,6 +16,7 @@ COPY src ./src
 COPY config ./config
 COPY fixtures ./fixtures
 COPY migrations ./migrations
+COPY vendor ./vendor
 COPY alembic.ini ./
 RUN uv sync --frozen --no-dev
 
