@@ -17,6 +17,9 @@ from karverktyg.settings import Mode, Settings
 from karverktyg.uppflyttning.cohort import CohortYearConflict
 from karverktyg.web.api import api_bp
 from karverktyg.web.health import health_bp
+from karverktyg.web.runs import RunBusy, RunManager
+from karverktyg.web.writes import writes_bp
+from karverktyg.write.executor import AllowlistViolation, ExecutorError
 
 _STATIC = Path(__file__).parent / "static"
 
@@ -35,23 +38,29 @@ def _build_engine(settings: Settings) -> Engine:
     configured database, whose schema comes from alembic migrations.
     """
     url = settings.database_url
-    if settings.mode is Mode.FIXTURE:
-        if not url or url.startswith("sqlite"):
-            engine = create_engine(
-                url or "sqlite://",
-                future=True,
-                connect_args={"check_same_thread": False},
-                poolclass=StaticPool,
-            )
-        else:
-            engine = make_engine(url)
+    # Fixture mode, or any mode pointed at sqlite (dev/tests), runs on an
+    # in-process SQLite with the schema created directly. Live Postgres gets its
+    # schema from alembic migrations (the deploy bootstrap), not here.
+    if settings.mode is Mode.FIXTURE or (url and url.startswith("sqlite")):
+        engine = create_engine(
+            url or "sqlite://",
+            future=True,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
         Base.metadata.create_all(engine)
         return engine
     return make_engine(url or _DEFAULT_DB)
 
 
-def create_app(settings: Settings | None = None) -> Flask:
-    """Build the Flask app: read-only API, static frontend, health probes (§6)."""
+def create_app(settings: Settings | None = None, *, client: object | None = None) -> Flask:
+    """
+    Build the Flask app: API, static frontend, health probes (§6).
+
+    ``client`` overrides the Scoutnet client — a test seam for injecting a mock
+    read_write client. In production it is None and ``build_client`` constructs
+    the mode-appropriate client, failing loudly if a live deployment lacks keys.
+    """
     settings = settings or Settings()
     kar_config = load_config(settings.config_path)
 
@@ -59,14 +68,14 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.config.update(
         SETTINGS=settings,
         KAR_CONFIG=kar_config,
-        # build_client enforces the mode (§6): read clients only, and it fails
-        # loudly here if a read_only/read_write deployment lacks its keys.
-        SCOUTNET=build_client(settings),
+        SCOUTNET=client if client is not None else build_client(settings),
         ENGINE=_build_engine(settings),
+        RUN_MANAGER=RunManager(),
     )
     app.config["SESSIONMAKER"] = make_sessionmaker(app.config["ENGINE"])
 
     app.register_blueprint(api_bp)
+    app.register_blueprint(writes_bp)
     app.register_blueprint(health_bp)
 
     @app.get("/")
@@ -80,5 +89,17 @@ def create_app(settings: Settings | None = None) -> Flask:
     @app.errorhandler(CohortYearConflict)
     def _cohort_conflict(e: CohortYearConflict) -> ResponseReturnValue:
         return jsonify(error=str(e)), 409
+
+    @app.errorhandler(AllowlistViolation)
+    def _allowlist(e: AllowlistViolation) -> ResponseReturnValue:
+        return jsonify(error=str(e)), 400
+
+    @app.errorhandler(RunBusy)
+    def _run_busy(e: RunBusy) -> ResponseReturnValue:
+        return jsonify(error=str(e)), 409
+
+    @app.errorhandler(ExecutorError)
+    def _executor_error(e: ExecutorError) -> ResponseReturnValue:
+        return jsonify(error=str(e)), 400
 
     return app

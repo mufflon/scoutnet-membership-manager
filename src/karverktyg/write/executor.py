@@ -182,6 +182,18 @@ def _chunk(items: list, size: int) -> list[list]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
+def assert_allowlist(settings: Settings, moves: list[IntendedMove]) -> None:
+    """
+    Refuse if any member is not on the write allowlist (§8, HANDOVER §4). Callable
+    synchronously by the API so a violation is a clean 400, not a dead thread.
+    """
+    offenders = sorted({m.member_no for m in moves} - set(settings.write_allowlist))
+    if offenders:
+        raise AllowlistViolation(
+            f"{len(offenders)} member(s) not on the write allowlist: {offenders[:5]}"
+        )
+
+
 def undo_available(sessionmaker: object, run_id: str) -> bool:
     """
     Whether ``run_id`` can be undone: the run exists and its snapshot is still
@@ -242,8 +254,13 @@ class WriteExecutor:
         parent_run_id: str | None = None,
         mode: RunMode = RunMode.DRY_RUN,
         now: datetime | None = None,
+        run_id: str | None = None,
     ) -> RunResult:
-        """Plan and (if ``mode`` is execute) perform a fresh run."""
+        """
+        Plan and (if ``mode`` is execute) perform a fresh run. Pass ``run_id`` to
+        pre-allocate the id (so a background caller can return it and poll before
+        the run finishes); otherwise one is generated.
+        """
         now = now or datetime.now(UTC)
         self._check_allowlist(moves)
         memberlist = self._client.memberlist("active", fresh=True)
@@ -254,7 +271,7 @@ class WriteExecutor:
             chunks = self._plan_chunks(actionable)
             return RunResult(RunMode.DRY_RUN, None, preflight, chunks, run_state="dry_run")
 
-        run_id = str(uuid.uuid4())
+        run_id = run_id or str(uuid.uuid4())
         snapshot = write_snapshot(
             self._client, self._settings, self._sm, run_id=run_id, memberlist=memberlist, now=now
         )
@@ -309,12 +326,7 @@ class WriteExecutor:
     # -- internals ----------------------------------------------------------
 
     def _check_allowlist(self, moves: list[IntendedMove]) -> None:
-        allowed = set(self._settings.write_allowlist)
-        offenders = sorted({m.member_no for m in moves} - allowed)
-        if offenders:
-            raise AllowlistViolation(
-                f"{len(offenders)} member(s) not on the write allowlist: {offenders[:5]}"
-            )
+        assert_allowlist(self._settings, moves)
 
     def _payload_for(self, items: list[PreflightItem], statuses: dict[str, str | None]) -> dict:
         """Build the update/membership body: status echoed back, troop_id moved (§8)."""

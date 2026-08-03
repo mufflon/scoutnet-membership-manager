@@ -347,8 +347,14 @@ None block this slice, but flagging for tracking:
 6. Undo + reconcile wiring + tests. ✅ — undo is a run (`kind="undo"`,
    `parent_run_id`); inverse from the journal's observed `source_troop_id`; the
    drift check excludes externally-changed members; gated on snapshot retention.
-7. Flask write endpoints + server-side progress + frontend blade (dry-run default,
-   prominent `read_write` banner).
+7. Flask write endpoints + server-side progress + frontend blade:
+   - **7a** ✅ — `writes_bp`: dry-run (sync) + execute/resume/undo as background
+     runs via a `RunManager` (single-active-run guard, local + DB), server-side
+     status polling, snapshot list/delete, off-cohort ack gate, allowlist
+     pre-check, all gated to `read_write`. Tests inject a read+write fixture
+     double (no network). Client `transport` seam + `create_app(client=...)`.
+   - **7b** — the frontend blade (dry-run default, drift report, confirm-to-
+     execute, progress polling, reconcile + undo, prominent `read_write` banner).
 8. Runbook (§16) before the slice is called done.
 
 Stage 2 (real single-member) happens only after 1–7 are green and the operator
