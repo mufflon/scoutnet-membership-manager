@@ -10,7 +10,7 @@ const TABS = [
   ["waiting", "Väntelista", renderWaiting, "Översikt"],
   ["findings", "Anmärkningar", renderFindings, "Översikt"],
   ["uppflyttning", "Uppflyttning", renderUppflyttning, "Åtgärder"],
-  ["execute", "Utför", renderExecute, "Åtgärder"],
+  ["execute", "Utför uppflyttning", renderExecute, "Åtgärder"],
   ["templates", "Mallar", renderTemplates, "Åtgärder"],
   ["apicheck", "API-koll", renderApiCheck, "Diagnostik"],
   ["capabilities", "Funktioner", renderCapabilities, "Diagnostik"],
@@ -531,7 +531,20 @@ async function renderCapabilities(root) {
     ),
   );
   root.append(el("div", { class: "card" }, el("strong", {}, "Endpoints"), table(["Endpoint", "Nyckel", "Fingeravtryck"], d.endpoints.map((e) => [e.endpoint, e.configured ? "konfigurerad" : "saknas", e.key_hash || "–"]))));
-  root.append(el("div", { class: "card" }, el("strong", {}, "Åtgärder"), table(["Åtgärd", "Aktiverad", "Förklaring"], d.actions.map((a) => [a.action, a.enabled ? "ja" : "nej", a.reason || ""]))));
+  // In fixture mode every enabled action runs against committed sample data,
+  // not live Scoutnet — make that explicit next to each one.
+  const fixtureNote = d.mode === "fixture" ? "Fixturdata (committad exempeldata, ej live)" : "";
+  root.append(
+    el(
+      "div",
+      { class: "card" },
+      el("strong", {}, "Åtgärder"),
+      table(
+        ["Åtgärd", "Aktiverad", "Förklaring"],
+        d.actions.map((a) => [a.action, a.enabled ? "ja" : "nej", a.reason || (a.enabled ? fixtureNote : "")]),
+      ),
+    ),
+  );
   const om = d.openapi;
   root.append(el("div", { class: "card" }, el("strong", {}, "OpenAPI"), el("div", { class: "muted" }, om ? `version ${om.version} · ${om.git_commit || ""} · ${om.retrieved || ""}` : "ej vendorerad ännu")));
 }
