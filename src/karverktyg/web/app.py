@@ -38,16 +38,21 @@ def _build_engine(settings: Settings) -> Engine:
     configured database, whose schema comes from alembic migrations.
     """
     url = settings.database_url
-    # Fixture mode, or any mode pointed at sqlite (dev/tests), runs on an
-    # in-process SQLite with the schema created directly. Live Postgres gets its
-    # schema from alembic migrations (the deploy bootstrap), not here.
-    if settings.mode is Mode.FIXTURE or (url and url.startswith("sqlite")):
-        engine = create_engine(
-            url or "sqlite://",
-            future=True,
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+    is_sqlite = not url or url.startswith("sqlite")
+    # Fixture mode, or any mode pointed at sqlite (dev/tests), creates the schema
+    # directly rather than via migrations. Only sqlite gets the in-process
+    # StaticPool / check_same_thread args — a real DB (e.g. fixture mode on the
+    # in-cluster Postgres) must use the normal engine, or psycopg rejects them.
+    if settings.mode is Mode.FIXTURE or is_sqlite:
+        if is_sqlite:
+            engine = create_engine(
+                url or "sqlite://",
+                future=True,
+                connect_args={"check_same_thread": False},
+                poolclass=StaticPool,
+            )
+        else:
+            engine = make_engine(url)
         Base.metadata.create_all(engine)
         return engine
     return make_engine(url or _DEFAULT_DB)

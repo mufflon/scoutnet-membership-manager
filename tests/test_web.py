@@ -29,6 +29,27 @@ def test_overview(client):
     assert d["current_term"]  # "Höst 2026"
 
 
+def test_fixture_on_postgres_url_uses_normal_engine(monkeypatch):
+    # Regression: fixture mode on a real DB (the in-cluster Postgres) must go
+    # through make_engine, not the sqlite StaticPool/check_same_thread path
+    # (which psycopg rejects — it would crash the local buildup).
+    from sqlalchemy import create_engine
+
+    import karverktyg.web.app as appmod
+
+    seen = {}
+
+    def fake_make_engine(url):
+        seen["url"] = url
+        return create_engine("sqlite://")  # stand-in so create_all succeeds
+
+    monkeypatch.setattr(appmod, "make_engine", fake_make_engine)
+    appmod._build_engine(
+        Settings(mode=Mode.FIXTURE, database_url="postgresql+psycopg://u:p@db/karverktyg")
+    )
+    assert seen["url"] == "postgresql+psycopg://u:p@db/karverktyg"
+
+
 def test_capabilities_reports_mode_and_no_writes(client):
     d = client.get("/api/capabilities").get_json()
     assert d["mode"] == "fixture"
