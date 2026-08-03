@@ -273,6 +273,7 @@ async function renderUppflyttning(root) {
       type: "checkbox",
       title: "Markera som granskad/hanterad – t.ex. en utanför-årskull-medlem du valt att lämna",
     });
+    ack.checked = !!m.acknowledged; // reflect the persisted state on (re)load
     const clr = el("a", { href: "#", title: "Nollställ valet till den beräknade standarden" }, "återställ");
     const tr = el(
       "tr",
