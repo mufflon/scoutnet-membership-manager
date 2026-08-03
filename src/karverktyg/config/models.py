@@ -42,7 +42,7 @@ def bracket_by_unit_type_code(code: int | str | None) -> Bracket | None:
         return None
     try:
         return _CODE_TO_BRACKET.get(int(code))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 

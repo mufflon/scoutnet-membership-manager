@@ -76,8 +76,10 @@ def test_membership_drafts(client):
 def test_templates_get_and_edit(client):
     got = client.get("/api/templates").get_json()["templates"]
     assert any(t["key"] == "scout_request" for t in got)
-    r = client.put("/api/templates/scout_request",
-                   json={"subject": "Hej {{ first_name }}", "body": "Nytt {{ kar }}", "by": "alex"})
+    r = client.put(
+        "/api/templates/scout_request",
+        json={"subject": "Hej {{ first_name }}", "body": "Nytt {{ kar }}", "by": "alex"},
+    )
     assert r.status_code == 200
     after = client.get("/api/templates").get_json()["templates"]
     scout = next(t for t in after if t["key"] == "scout_request")

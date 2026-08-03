@@ -26,8 +26,10 @@ def _build_engine(settings: Settings):
     the configured database, whose schema comes from alembic migrations."""
     if settings.mode is Mode.FIXTURE:
         engine = create_engine(
-            "sqlite://", future=True,
-            connect_args={"check_same_thread": False}, poolclass=StaticPool,
+            "sqlite://",
+            future=True,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
         )
         Base.metadata.create_all(engine)
         return engine

@@ -11,8 +11,18 @@ from karverktyg.scoutnet.client import (
 from karverktyg.settings import MissingCredentialError, Mode, Settings
 
 # Names that would indicate a write path. None may exist on a read client (§6).
-FORBIDDEN = ("update_membership", "register_member", "checkin", "update", "register",
-             "write", "post", "create", "delete", "cancel")
+FORBIDDEN = (
+    "update_membership",
+    "register_member",
+    "checkin",
+    "update",
+    "register",
+    "write",
+    "post",
+    "create",
+    "delete",
+    "cancel",
+)
 
 
 @pytest.mark.parametrize("cls", [FixtureClient, ReadOnlyClient])

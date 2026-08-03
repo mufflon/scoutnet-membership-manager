@@ -1,0 +1,57 @@
+# Single deployment (§14). Frontend + API share one container.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karverktyg
+  labels: { app: karverktyg }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: karverktyg }
+  template:
+    metadata:
+      labels: { app: karverktyg }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: karverktyg
+          image: karverktyg:latest   # registry unsolved (§14); set at deploy time
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef: { name: karverktyg-config }
+            - secretRef: { name: karverktyg-secrets }
+          # Liveness: cheap local check. Readiness: verifies Postgres, never
+          # Scoutnet, so an upstream outage does not cycle pods (§14).
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /readyz, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+          volumeMounts:
+            # Snapshots (§8, Phase 2 recovery path): a mounted volume, never in
+            # git or the image. Present now so the mount is stable across phases.
+            - name: snapshots
+              mountPath: /data/snapshots
+      volumes:
+        - name: snapshots
+          persistentVolumeClaim:
+            claimName: karverktyg-snapshots
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: karverktyg-snapshots
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi

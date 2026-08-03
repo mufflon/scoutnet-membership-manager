@@ -11,16 +11,28 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Personal-data substrings that must never appear in a column name or a
 # migration (§9). A cheap heuristic, not a guarantee.
-FORBIDDEN = ("name", "email", "phone", "mobile", "address", "postcode",
-             "town", "ssno", "personnummer", "birth", "dob")
+FORBIDDEN = (
+    "name",
+    "email",
+    "phone",
+    "mobile",
+    "address",
+    "postcode",
+    "town",
+    "ssno",
+    "personnummer",
+    "birth",
+    "dob",
+)
 
 
 def test_no_personal_data_columns_in_models():
     for table in Base.metadata.tables.values():
         for col in table.columns:
             lowered = col.name.lower()
-            assert not any(bad in lowered for bad in FORBIDDEN), \
+            assert not any(bad in lowered for bad in FORBIDDEN), (
                 f"personal-data-like column {table.name}.{col.name}"
+            )
 
 
 def test_no_personal_data_columns_in_migrations():
@@ -29,8 +41,9 @@ def test_no_personal_data_columns_in_migrations():
         for line in text.splitlines():
             if "sa.column(" not in line:
                 continue
-            assert not any(bad in line for bad in FORBIDDEN), \
+            assert not any(bad in line for bad in FORBIDDEN), (
                 f"personal-data-like column in {mig.name}: {line.strip()}"
+            )
 
 
 def test_ack_roundtrip():

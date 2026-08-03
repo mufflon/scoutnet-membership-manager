@@ -92,8 +92,7 @@ class Settings(BaseSettings):
             missing.append("SCOUTNET_MEMBERLIST_KEY")
         if missing:
             raise MissingCredentialError(
-                f"mode={self.mode.value} requires live credentials, missing: "
-                + ", ".join(missing)
+                f"mode={self.mode.value} requires live credentials, missing: " + ", ".join(missing)
             )
 
     def endpoint_key_fingerprints(self) -> dict[str, str | None]:

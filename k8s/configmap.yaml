@@ -1,0 +1,16 @@
+# Non-secret configuration (§13). Keys live in a Secret, never here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: karverktyg-config
+data:
+  SCOUTNET_MODE: "read_only"
+  SCOUTNET_BASE_URL: "https://scoutnet.se/api"
+  SCOUTNET_KAR_NAME: "Scoutkåren Finn"
+  SCOUTNET_ENTITY_ID: "1025"
+  SCOUTNET_CONFIG_PATH: "config/karverktyg.default.json"
+  # Cohort year N. Set explicitly each season (§17); cross-checked against the
+  # live term, which refuses to compute a master set on disagreement.
+  SCOUTNET_COHORT_YEAR: "2026"
+  SCOUTNET_CHUNK_SIZE: "25"
+  SCOUTNET_SNAPSHOT_RETENTION_DAYS: "30"

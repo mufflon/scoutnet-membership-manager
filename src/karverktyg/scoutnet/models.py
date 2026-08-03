@@ -14,26 +14,56 @@ from dataclasses import dataclass, field
 from karverktyg.config.models import Bracket, bracket_by_unit_type_code
 
 # --- Field classification (§4) --------------------------------------------
-EMAIL_FIELDS = frozenset({
-    "email", "contact_email", "contact_alt_email", "contact_scouterna-email",
-    "contact_email_dad", "contact_email_mum",
-})
-PHONE_FIELDS = frozenset({
-    "contact_home_phone", "contact_work_phone", "contact_mobile_phone",
-    "contact_mobile_dad", "contact_mobile_mum",
-    "contact_telephone_dad", "contact_telephone_mum",
-})
+EMAIL_FIELDS = frozenset(
+    {
+        "email",
+        "contact_email",
+        "contact_alt_email",
+        "contact_scouterna-email",
+        "contact_email_dad",
+        "contact_email_mum",
+    }
+)
+PHONE_FIELDS = frozenset(
+    {
+        "contact_home_phone",
+        "contact_work_phone",
+        "contact_mobile_phone",
+        "contact_mobile_dad",
+        "contact_mobile_mum",
+        "contact_telephone_dad",
+        "contact_telephone_mum",
+    }
+)
 GUARDIAN_EMAIL_FIELDS = ("contact_email_dad", "contact_email_mum")
 
 # Default set of role_keys that count as "leader" for finding purposes (§11).
 LEADER_ROLE_KEYS = frozenset({"leader", "other_leader", "assistant_leader"})
 
 # Fields we parse into typed attributes; not carried again in passthrough.
-_PARSED_FIELDS = frozenset({
-    "member_no", "first_name", "last_name", "date_of_birth", "sex", "status",
-    "unit", "unit_type", "patrol", "roles", "current_term", "prev_term",
-    "group", "group_role", "unit_role",
-}) | EMAIL_FIELDS | PHONE_FIELDS
+_PARSED_FIELDS = (
+    frozenset(
+        {
+            "member_no",
+            "first_name",
+            "last_name",
+            "date_of_birth",
+            "sex",
+            "status",
+            "unit",
+            "unit_type",
+            "patrol",
+            "roles",
+            "current_term",
+            "prev_term",
+            "group",
+            "group_role",
+            "unit_role",
+        }
+    )
+    | EMAIL_FIELDS
+    | PHONE_FIELDS
+)
 
 
 class PaymentBucket(enum.StrEnum):

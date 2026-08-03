@@ -42,10 +42,15 @@ def _config_n() -> int | None:
 
 def _ser_move(e: MoveEntry) -> dict:
     return {
-        "member_no": e.member_no, "name": e.member_name, "birth_year": e.birth_year,
-        "source": e.source_avdelning, "target": e.target_avdelning,
-        "target_troop_id": e.target_troop_id, "status": str(e.status),
-        "transition": str(e.transition), "note": e.note,
+        "member_no": e.member_no,
+        "name": e.member_name,
+        "birth_year": e.birth_year,
+        "source": e.source_avdelning,
+        "target": e.target_avdelning,
+        "target_troop_id": e.target_troop_id,
+        "status": str(e.status),
+        "transition": str(e.transition),
+        "note": e.note,
         "override": e.is_override,
     }
 
@@ -64,10 +69,11 @@ def api_dues():
 @api_bp.get("/waiting")
 def api_waiting():
     def ser(ml):
-        return [{"member_no": m.member_no, "name": m.full_name, "unit": m.unit}
-                for m in ml.members]
-    return jsonify(waiting=ser(_memberlist("waiting")),
-                   awaiting_approval=ser(_memberlist("awaiting_approval")))
+        return [{"member_no": m.member_no, "name": m.full_name, "unit": m.unit} for m in ml.members]
+
+    return jsonify(
+        waiting=ser(_memberlist("waiting")), awaiting_approval=ser(_memberlist("awaiting_approval"))
+    )
 
 
 @api_bp.get("/findings")
@@ -79,11 +85,20 @@ def api_findings():
         n = None  # age check needs N; skip it rather than fail the whole page
     findings = compute_findings(ml, _config(), n)
     findings.sort(key=lambda f: _SEVERITY_ORDER.get(str(f.severity), 9))
-    return jsonify(cohort_year=n, findings=[
-        {"type": str(f.type), "severity": str(f.severity), "member_no": f.member_no,
-         "name": f.member_name, "avdelning": f.avdelning, "detail": f.detail}
-        for f in findings
-    ])
+    return jsonify(
+        cohort_year=n,
+        findings=[
+            {
+                "type": str(f.type),
+                "severity": str(f.severity),
+                "member_no": f.member_no,
+                "name": f.member_name,
+                "avdelning": f.avdelning,
+                "detail": f.detail,
+            }
+            for f in findings
+        ],
+    )
 
 
 @api_bp.get("/uppflyttning")
@@ -108,17 +123,23 @@ def api_changelist():
     now = datetime.now(UTC)
     try:
         data = build_changelist(
-            ms, kar_name=_settings().kar_name, term_label=ml.current_term_label,
+            ms,
+            kar_name=_settings().kar_name,
+            term_label=ml.current_term_label,
             generated_at=now,
             config_version="placeholder" if _config().placeholder else "custom",
-            ack_by=ack_by, ack_at=now if ack_by else None,
+            ack_by=ack_by,
+            ack_at=now if ack_by else None,
         )
     except ChangelistAckRequired as e:
-        return jsonify(error=str(e),
-                       off_cohort=[_ser_move(x) for x in ms.off_cohort()]), 409
-    return Response(data, mimetype=_XLSX_MIME, headers={
-        "Content-Disposition": "attachment; filename=uppflyttning.xlsx",
-    })
+        return jsonify(error=str(e), off_cohort=[_ser_move(x) for x in ms.off_cohort()]), 409
+    return Response(
+        data,
+        mimetype=_XLSX_MIME,
+        headers={
+            "Content-Disposition": "attachment; filename=uppflyttning.xlsx",
+        },
+    )
 
 
 @api_bp.get("/membership/drafts")
@@ -134,11 +155,20 @@ def api_membership_drafts():
     with get_session(current_app.config["SESSIONMAKER"]) as s:
         templates = templates_by_key(s)
     drafts = generate_drafts(ml.members, _config(), n, templates, _settings().kar_name)
-    return jsonify(variant=variant, drafts=[
-        {"member_no": d.member_no, "kind": d.kind, "to": d.to,
-         "subject": d.subject, "body": d.body, "unsendable": d.unsendable}
-        for d in drafts
-    ])
+    return jsonify(
+        variant=variant,
+        drafts=[
+            {
+                "member_no": d.member_no,
+                "kind": d.kind,
+                "to": d.to,
+                "subject": d.subject,
+                "body": d.body,
+                "unsendable": d.unsendable,
+            }
+            for d in drafts
+        ],
+    )
 
 
 @api_bp.get("/templates")

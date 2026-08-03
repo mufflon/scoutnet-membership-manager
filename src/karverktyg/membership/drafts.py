@@ -49,8 +49,9 @@ def _render(source: str, ctx: dict) -> str:
     return JinjaTemplate(source, trim_blocks=True, lstrip_blocks=True).render(**ctx)
 
 
-def build_draft(member: Member, config: KarConfig, n: int | None,
-                templates: dict[str, Template], kar_name: str) -> EmailDraft:
+def build_draft(
+    member: Member, config: KarConfig, n: int | None, templates: dict[str, Template], kar_name: str
+) -> EmailDraft:
     ctx = {
         "first_name": member.first_name,
         "full_name": member.full_name,
@@ -79,6 +80,11 @@ def build_draft(member: Member, config: KarConfig, n: int | None,
     )
 
 
-def generate_drafts(members: list[Member], config: KarConfig, n: int | None,
-                    templates: dict[str, Template], kar_name: str) -> list[EmailDraft]:
+def generate_drafts(
+    members: list[Member],
+    config: KarConfig,
+    n: int | None,
+    templates: dict[str, Template],
+    kar_name: str,
+) -> list[EmailDraft]:
     return [build_draft(m, config, n, templates, kar_name) for m in members]

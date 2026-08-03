@@ -1,0 +1,41 @@
+# Scheduled read-only jobs (§14). Both run in read_only mode; neither writes.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: karverktyg-canary
+spec:
+  # Weekly by default and configurable. Seasonal software — catch breakage in
+  # April, not the day two hundred scouts need moving (§14).
+  schedule: "0 6 * * 1"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: canary
+              image: karverktyg:latest
+              args: ["karverktyg", "canary", "--mode", "read_only"]
+              envFrom:
+                - configMapRef: { name: karverktyg-config }
+                - secretRef: { name: karverktyg-secrets }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: karverktyg-spec-drift
+spec:
+  schedule: "0 7 * * 1"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: spec-drift
+              image: karverktyg:latest
+              args: ["karverktyg", "drift-check"]
+              envFrom:
+                - configMapRef: { name: karverktyg-config }

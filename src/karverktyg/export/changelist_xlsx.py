@@ -28,13 +28,20 @@ class ChangelistAckRequired(RuntimeError):
 
 def _sheet_title(name: str) -> str:
     # Excel sheet titles are <=31 chars and cannot contain : \ / ? * [ ]
-    safe = "".join(c for c in name if c not in ':\\/?*[]')
+    safe = "".join(c for c in name if c not in ":\\/?*[]")
     return safe[:31] or "Avdelning"
 
 
-def _write_cover(ws: Worksheet, master: MasterSet, kar_name: str, term_label: str | None,
-                 generated_at: datetime, config_version: str,
-                 ack_by: str | None, ack_at: datetime | None) -> None:
+def _write_cover(
+    ws: Worksheet,
+    master: MasterSet,
+    kar_name: str,
+    term_label: str | None,
+    generated_at: datetime,
+    config_version: str,
+    ack_by: str | None,
+    ack_at: datetime | None,
+) -> None:
     ws.title = "Översikt"
     rows: list[tuple[str, object]] = [
         ("Kår", kar_name),
@@ -98,8 +105,9 @@ def build_changelist(
         )
 
     wb = Workbook()
-    _write_cover(wb.active, master, kar_name, term_label, generated_at, config_version,
-                 ack_by, ack_at)
+    _write_cover(
+        wb.active, master, kar_name, term_label, generated_at, config_version, ack_by, ack_at
+    )
     for target in sorted_sv(master.by_target().keys()):
         ws = wb.create_sheet(title=_sheet_title(target))
         _write_target_sheet(ws, master.by_target()[target])

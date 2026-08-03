@@ -69,8 +69,12 @@ def get_template(session: Session, key: str) -> Template:
         select(EmailTemplate).where(EmailTemplate.template_key == key)
     ).scalar_one_or_none()
     if row is not None:
-        return Template(key=key, subject=row.subject, body=row.body,
-                        description=DEFAULT_TEMPLATES.get(key, Template(key, "", "")).description)
+        return Template(
+            key=key,
+            subject=row.subject,
+            body=row.body,
+            description=DEFAULT_TEMPLATES.get(key, Template(key, "", "")).description,
+        )
     return DEFAULT_TEMPLATES[key]  # KeyError on an unknown key is intentional
 
 
@@ -79,24 +83,25 @@ def templates_by_key(session: Session) -> dict[str, Template]:
 
 
 def effective_templates(session: Session) -> list[dict]:
-    overrides = {
-        r.template_key: r for r in session.execute(select(EmailTemplate)).scalars()
-    }
+    overrides = {r.template_key: r for r in session.execute(select(EmailTemplate)).scalars()}
     out = []
     for key, dflt in DEFAULT_TEMPLATES.items():
         r = overrides.get(key)
-        out.append({
-            "key": key,
-            "subject": r.subject if r else dflt.subject,
-            "body": r.body if r else dflt.body,
-            "description": dflt.description,
-            "edited": r is not None,
-        })
+        out.append(
+            {
+                "key": key,
+                "subject": r.subject if r else dflt.subject,
+                "body": r.body if r else dflt.body,
+                "description": dflt.description,
+                "edited": r is not None,
+            }
+        )
     return out
 
 
-def upsert_template(session: Session, key: str, subject: str, body: str,
-                    by: str | None = None) -> None:
+def upsert_template(
+    session: Session, key: str, subject: str, body: str, by: str | None = None
+) -> None:
     if key not in DEFAULT_TEMPLATES:
         raise KeyError(key)
     row = session.execute(

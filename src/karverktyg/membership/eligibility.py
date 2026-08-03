@@ -16,8 +16,7 @@ BRACKET_LABEL_SV = {
 }
 
 # Order age brackets low to high; skip Annat (not age-based).
-_LADDER = [Bracket.SPARARE, Bracket.UPPTACKARE, Bracket.AVENTYRARE,
-           Bracket.UTMANARE, Bracket.ROVER]
+_LADDER = [Bracket.SPARARE, Bracket.UPPTACKARE, Bracket.AVENTYRARE, Bracket.UTMANARE, Bracket.ROVER]
 
 
 def bracket_label(bracket: Bracket | None) -> str | None:
@@ -34,8 +33,9 @@ def pronoun_sv(sex_code: str | None) -> str:
     return "hen"
 
 
-def eligible_bracket(birth_year: int | None, cohort_year_n: int | None,
-                     config: KarConfig) -> Bracket | None:
+def eligible_bracket(
+    birth_year: int | None, cohort_year_n: int | None, config: KarConfig
+) -> Bracket | None:
     """The bracket whose age window the applicant's age falls in (§17 age model)."""
     if birth_year is None or cohort_year_n is None:
         return None
@@ -45,8 +45,11 @@ def eligible_bracket(birth_year: int | None, cohort_year_n: int | None,
             rule = config.rule(b)
         except KeyError:
             continue
-        if (rule.age_min is not None and rule.age_max is not None
-                and rule.age_min <= age <= rule.age_max):
+        if (
+            rule.age_min is not None
+            and rule.age_max is not None
+            and rule.age_min <= age <= rule.age_max
+        ):
             return b
     return None
 

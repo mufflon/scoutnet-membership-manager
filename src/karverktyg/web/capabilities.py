@@ -33,8 +33,11 @@ def capabilities(settings: Settings, config: KarConfig) -> dict:
         {"action": "view_findings", "enabled": True, "reason": None},
         {"action": "compute_uppflyttning", "enabled": True, "reason": None},
         {"action": "export_changelist", "enabled": True, "reason": None},
-        {"action": "execute_writes", "enabled": False,
-         "reason": "read_write mode is not available in Phase 1 (§7)"},
+        {
+            "action": "execute_writes",
+            "enabled": False,
+            "reason": "read_write mode is not available in Phase 1 (§7)",
+        },
     ]
     return {
         "app_version": settings.app_version,

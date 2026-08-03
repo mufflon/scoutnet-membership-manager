@@ -1,0 +1,24 @@
+# Human authentication is handled at the ingress (§14). The app trusts no
+# client-supplied identity header unless the ingress is documented as stripping
+# and setting it. Wire your kår's auth (OAuth2 proxy / basic auth / SSO) here.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: karverktyg
+  annotations:
+    # Example: require auth in front of everything. Replace with your mechanism.
+    # nginx.ingress.kubernetes.io/auth-url: "https://auth.example.se/oauth2/auth"
+    # nginx.ingress.kubernetes.io/auth-signin: "https://auth.example.se/oauth2/start"
+    {}
+spec:
+  rules:
+    - host: karverktyg.example.se
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: karverktyg
+                port:
+                  number: 80

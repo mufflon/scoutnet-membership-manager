@@ -23,7 +23,7 @@ def overview(memberlist: MemberList, settings: Settings) -> dict:
         "prev_term": memberlist.prev_term_label,
         "avdelning_count": len({m.unit for m in memberlist.members if m.unit}),
         "note_current_term": "Höst-terminen är ännu inte fakturerad – "
-                             "betalvyn gäller föregående termin.",
+        "betalvyn gäller föregående termin.",
     }
 
 
@@ -36,12 +36,14 @@ def dues_by_avdelning(memberlist: MemberList) -> list[dict]:
         av = m.unit or "(ingen avdelning)"
         buckets.setdefault(av, Counter())[m.prev_payment().value] += 1
         if m.prev_payment() in _ACTIONABLE:
-            outstanding.setdefault(av, []).append({
-                "member_no": m.member_no,
-                "name": m.full_name,
-                "status": m.prev_term_code,
-                "bucket": m.prev_payment().value,
-            })
+            outstanding.setdefault(av, []).append(
+                {
+                    "member_no": m.member_no,
+                    "name": m.full_name,
+                    "status": m.prev_term_code,
+                    "bucket": m.prev_payment().value,
+                }
+            )
     return [
         {
             "avdelning": av,

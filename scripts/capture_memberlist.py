@@ -67,9 +67,7 @@ def read_config() -> tuple[str, str, str, str, dict[str, str]]:
     missing = [v for v in REQUIRED_VARS if not os.environ.get(v)]
     if missing:
         die(
-            "missing required environment variable(s): "
-            + ", ".join(missing)
-            + "\n\nRun it like:\n"
+            "missing required environment variable(s): " + ", ".join(missing) + "\n\nRun it like:\n"
             "    SCOUTNET_ENTITY_ID=<entity id> SCOUTNET_API_KEY=<key> \\\n"
             "        python3 scripts/capture_memberlist.py\n\n"
             "See the module docstring for what each variable is."
@@ -197,9 +195,11 @@ def analyse(payload: object) -> None:
     members = data
     member_count = len(members)
     print(f"\nMember entries in 'data': {member_count}")
-    print("(top-level keys are member numbers; a dict cannot hold duplicate keys, "
-          "so a member cannot appear twice at this level — any multi-membership "
-          "must show up as list-typed fields below)")
+    print(
+        "(top-level keys are member numbers; a dict cannot hold duplicate keys, "
+        "so a member cannot appear twice at this level — any multi-membership "
+        "must show up as list-typed fields below)"
+    )
 
     # Are member_no keys mirrored by a member_no field inside each entry?
     entry_types: Counter[str] = Counter()
@@ -250,8 +250,10 @@ def analyse(payload: object) -> None:
         print(f"'labels' is {type_name(labels)} (expected object).")
 
     print("\n" + "=" * 72)
-    print("Field NAMES above are safe to share. Do NOT paste the raw capture "
-          "file — it contains real personal data and is gitignored.")
+    print(
+        "Field NAMES above are safe to share. Do NOT paste the raw capture "
+        "file — it contains real personal data and is gitignored."
+    )
     print("=" * 72)
 
 

@@ -24,10 +24,12 @@ def test_roles_both_shapes_parse(memberlist):
 
 
 def test_empty_roles_never_crashes():
-    ml = parse_memberlist({
-        "data": {"1": {"member_no": {"value": "1"}, "roles": {"value": []}}},
-        "labels": {},
-    })
+    ml = parse_memberlist(
+        {
+            "data": {"1": {"member_no": {"value": "1"}, "roles": {"value": []}}},
+            "labels": {},
+        }
+    )
     assert ml.members[0].roles == []
 
 

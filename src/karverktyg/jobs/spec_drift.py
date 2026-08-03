@@ -28,8 +28,10 @@ class DriftResult:
     def render(self) -> str:
         up = self.upstream_version or "(not checked)"
         state = "DRIFT" if self.drifted else ("in sync" if self.drifted is False else "unknown")
-        return (f"Spec drift: {state}\n  vendored: {self.vendored_version}\n"
-                f"  upstream: {up}\n  {self.note}")
+        return (
+            f"Spec drift: {state}\n  vendored: {self.vendored_version}\n"
+            f"  upstream: {up}\n  {self.note}"
+        )
 
 
 def _fetch_upstream_version(timeout: float = 10.0) -> str | None:
@@ -50,7 +52,10 @@ def run_drift_check(vendor_meta: Path = VENDOR_META, check_upstream: bool = True
             vendored = json.loads(vendor_meta.read_text("utf-8")).get("version")
     upstream = _fetch_upstream_version() if check_upstream else None
     drifted = None if upstream is None else (upstream != vendored)
-    note = ("Full path/field diff requires re-bundling upstream with redocly (§14). "
-            "Never auto-updates the vendored copy.")
-    return DriftResult(vendored_version=vendored, upstream_version=upstream,
-                       drifted=drifted, note=note)
+    note = (
+        "Full path/field diff requires re-bundling upstream with redocly (§14). "
+        "Never auto-updates the vendored copy."
+    )
+    return DriftResult(
+        vendored_version=vendored, upstream_version=upstream, drifted=drifted, note=note
+    )

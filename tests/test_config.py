@@ -35,7 +35,9 @@ def test_transition_kinds(config):
 
 def _base_config() -> dict:
     return {
-        "name": "T", "group_id": "1", "brackets": [
+        "name": "T",
+        "group_id": "1",
+        "brackets": [
             {"bracket": "sparare", "age_min": 8, "age_max": 9, "transition": "same_weekday"},
             {"bracket": "utmanare", "transition": "never_auto", "structural_checks": False},
         ],

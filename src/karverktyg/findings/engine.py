@@ -65,52 +65,85 @@ def compute_findings(
         # 1. Security: a leader role scoped to the Ledare avdelning (§11, top).
         for r in m.roles:
             if r.scope == "troop" and r.scope_id in ledare_ids and r.is_leader:
-                findings.append(_finding(
-                    FindingType.SECURITY_LEDARE_LEADER, Severity.SECURITY, m, m.unit,
-                    f"Leader role '{r.role_name}' in the Ledare avdelning grants edit "
-                    "rights over every adult in the kår.",
-                    f"{r.scope_id}:{r.role_key}",
-                ))
+                findings.append(
+                    _finding(
+                        FindingType.SECURITY_LEDARE_LEADER,
+                        Severity.SECURITY,
+                        m,
+                        m.unit,
+                        f"Leader role '{r.role_name}' in the Ledare avdelning grants edit "
+                        "rights over every adult in the kår.",
+                        f"{r.scope_id}:{r.role_key}",
+                    )
+                )
                 break
 
         # 4. No avdelning at all.
         if not m.unit:
-            findings.append(_finding(
-                FindingType.NO_AVDELNING, Severity.WARNING, m, None,
-                "Member has no avdelning; needs manual resolution.",
-                m.member_no,
-            ))
+            findings.append(
+                _finding(
+                    FindingType.NO_AVDELNING,
+                    Severity.WARNING,
+                    m,
+                    None,
+                    "Member has no avdelning; needs manual resolution.",
+                    m.member_no,
+                )
+            )
 
         # 2 & 3. Structural checks — Spårare/Upptäckare/Äventyrare only.
         if m.bracket in structural:
             if cohort_year_n and m.birth_year and (cohort_year_n - m.birth_year) >= 18:
-                findings.append(_finding(
-                    FindingType.ADULT_IN_SCOUT_UNIT, Severity.WARNING, m, m.unit,
-                    f"Turns {cohort_year_n - m.birth_year} in cohort year {cohort_year_n} "
-                    "while in a scout avdelning.",
-                    str(m.birth_year),
-                ))
+                findings.append(
+                    _finding(
+                        FindingType.ADULT_IN_SCOUT_UNIT,
+                        Severity.WARNING,
+                        m,
+                        m.unit,
+                        f"Turns {cohort_year_n - m.birth_year} in cohort year {cohort_year_n} "
+                        "while in a scout avdelning.",
+                        str(m.birth_year),
+                    )
+                )
             member_troops = {t for t in m.avdelning_troop_ids() if t not in rover_ids}
             if len(member_troops) > 1:
                 names = sorted(index.id_to_name.get(t, str(t)) for t in member_troops)
-                findings.append(_finding(
-                    FindingType.MULTI_AVDELNING, Severity.WARNING, m, m.unit,
-                    "In more than one avdelning: " + ", ".join(names)
-                    + " — flag for review, never auto-move.",
-                    ",".join(str(t) for t in sorted(member_troops)),
-                ))
+                findings.append(
+                    _finding(
+                        FindingType.MULTI_AVDELNING,
+                        Severity.WARNING,
+                        m,
+                        m.unit,
+                        "In more than one avdelning: "
+                        + ", ".join(names)
+                        + " — flag for review, never auto-move.",
+                        ",".join(str(t) for t in sorted(member_troops)),
+                    )
+                )
 
         # 5. Data quality — everyone.
         for raw in m.phones.values():
             if not phone_looks_valid(raw):
-                findings.append(_finding(
-                    FindingType.BAD_PHONE, Severity.INFO, m, m.unit,
-                    "Phone number does not parse as a valid Swedish number.", raw,
-                ))
+                findings.append(
+                    _finding(
+                        FindingType.BAD_PHONE,
+                        Severity.INFO,
+                        m,
+                        m.unit,
+                        "Phone number does not parse as a valid Swedish number.",
+                        raw,
+                    )
+                )
         for raw in m.emails.values():
             if not email_looks_valid(raw):
-                findings.append(_finding(
-                    FindingType.BAD_EMAIL, Severity.INFO, m, m.unit,
-                    "Email address does not look valid.", raw,
-                ))
+                findings.append(
+                    _finding(
+                        FindingType.BAD_EMAIL,
+                        Severity.INFO,
+                        m,
+                        m.unit,
+                        "Email address does not look valid.",
+                        raw,
+                    )
+                )
     return findings

@@ -118,12 +118,48 @@ POLICY = {
 # Fields whose faked value legitimately looks like PII — exempt from the scan.
 FAKED_POLICIES = {"NAME", "SSNO", "DOB", "STREET", "POSTCODE", "TOWN", "EMAIL", "PHONE"}
 
-FIRST_NAMES = ["Alva", "Björn", "Cornelia", "David", "Ebba", "Filip", "Greta",
-               "Hugo", "Iris", "Jonas", "Klara", "Love", "Maja", "Noel", "Olga",
-               "Pelle", "Ronja", "Sixten", "Tuva", "Uno", "Vera", "William"]
-LAST_NAMES = ["Andersson", "Bergström", "Cederqvist", "Dahl", "Ekström",
-              "Forsberg", "Gustafsson", "Holmberg", "Isaksson", "Johansson",
-              "Karlsson", "Lindqvist", "Möller", "Nyström", "Öberg", "Persson"]
+FIRST_NAMES = [
+    "Alva",
+    "Björn",
+    "Cornelia",
+    "David",
+    "Ebba",
+    "Filip",
+    "Greta",
+    "Hugo",
+    "Iris",
+    "Jonas",
+    "Klara",
+    "Love",
+    "Maja",
+    "Noel",
+    "Olga",
+    "Pelle",
+    "Ronja",
+    "Sixten",
+    "Tuva",
+    "Uno",
+    "Vera",
+    "William",
+]
+LAST_NAMES = [
+    "Andersson",
+    "Bergström",
+    "Cederqvist",
+    "Dahl",
+    "Ekström",
+    "Forsberg",
+    "Gustafsson",
+    "Holmberg",
+    "Isaksson",
+    "Johansson",
+    "Karlsson",
+    "Lindqvist",
+    "Möller",
+    "Nyström",
+    "Öberg",
+    "Persson",
+]
 TOWNS = ["Lund", "Dalby", "Södra Sandby", "Genarp", "Veberöd", "Staffanstorp"]
 STREETS = ["Exempelgatan", "Provvägen", "Testallén", "Fiktivgränd", "Scoutstigen"]
 
@@ -133,6 +169,7 @@ class ScrubError(Exception):
 
 
 # --- Faking helpers -------------------------------------------------------
+
 
 def luhn_check_digit(digits: str) -> str:
     total = 0
@@ -205,8 +242,8 @@ def fake_email(rng: Random, new_member_no: str, tag: str) -> str:
 
 
 def is_female(member: dict) -> bool | None:
-    raw = (member.get("sex") or {})
-    token = f"{raw.get('value','')}{raw.get('raw_value','')}".lower()
+    raw = member.get("sex") or {}
+    token = f"{raw.get('value', '')}{raw.get('raw_value', '')}".lower()
     if any(t in token for t in ("kvinn", "flick", "female", "girl")) or token in ("2", "k", "f"):
         return True
     if any(t in token for t in ("man", "pojk", "male", "boy")) or token in ("1", "m"):
@@ -215,6 +252,7 @@ def is_female(member: dict) -> bool | None:
 
 
 # --- Core scrub -----------------------------------------------------------
+
 
 def scrub_field(field: str, wrapper: dict, ctx: dict) -> dict:
     policy = POLICY.get(field)
@@ -295,16 +333,19 @@ def scrub(capture: dict) -> dict:
     unknown = {f for m in data.values() if isinstance(m, dict) for f in m} - set(POLICY)
     if unknown:
         raise ScrubError(
-            "unclassified field(s) — refusing to guess, add a policy: "
-            + ", ".join(sorted(unknown))
+            "unclassified field(s) — refusing to guess, add a policy: " + ", ".join(sorted(unknown))
         )
 
     no_map = build_member_no_map(list(data))
     out_data: dict[str, dict] = {}
     for i, (old_no, member) in enumerate(sorted(data.items())):
         rng = Random(f"scoutnet-fixture::{i}")
-        ctx = {"rng": rng, "new_member_no": no_map[old_no],
-               "female": is_female(member), "dob": None}
+        ctx = {
+            "rng": rng,
+            "new_member_no": no_map[old_no],
+            "female": is_female(member),
+            "dob": None,
+        }
         # DOB before SSNO so the personnummer stays consistent with it.
         order = sorted(member, key=lambda f: POLICY.get(f) != "DOB")
         scrubbed = {f: scrub_field(f, member[f], ctx) for f in order}
@@ -367,12 +408,12 @@ def verify_no_pii(out: dict) -> None:
         detail = ", ".join(f"{k} (×{n})" for k, n in hits.most_common())
         raise ScrubError(
             "PII-shaped values survived in fields that should have none — "
-            "a field is misclassified. Aborting rather than committing a leak: "
-            + detail
+            "a field is misclassified. Aborting rather than committing a leak: " + detail
         )
 
 
 # --- CLI ------------------------------------------------------------------
+
 
 def newest_capture() -> Path:
     caps = sorted(CAPTURES_DIR.glob("*.raw.json"))
@@ -397,8 +438,9 @@ def main() -> None:
         sys.exit(1)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(out, ensure_ascii=False, indent=2, sort_keys=False) + "\n",
-                           encoding="utf-8")
+    args.output.write_text(
+        json.dumps(out, ensure_ascii=False, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+    )
 
     policy_counts: Counter[str] = Counter(POLICY[f] for m in out["data"].values() for f in m)
     print(f"Scrubbed {src.name} -> {args.output}")

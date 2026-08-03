@@ -41,7 +41,7 @@ def _raw(wrapper: Any) -> Any:
 def _int_or_none(v: Any) -> int | None:
     try:
         return int(v)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -125,8 +125,9 @@ def parse_memberlist(raw: dict[str, Any], variant: str = "active") -> MemberList
         raise ValueError("memberlist payload has no 'data' object")
     labels = raw.get("labels") or {}
 
-    members = [parse_member(mno, fields) for mno, fields in data.items()
-               if isinstance(fields, dict)]
+    members = [
+        parse_member(mno, fields) for mno, fields in data.items() if isinstance(fields, dict)
+    ]
 
     ml = MemberList(
         members=members,

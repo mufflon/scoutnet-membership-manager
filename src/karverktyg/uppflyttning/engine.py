@@ -42,8 +42,11 @@ def _age_bracket(age: int, config: KarConfig) -> Bracket | None:
             rule = config.rule(b)
         except KeyError:
             continue
-        if (rule.age_min is not None and rule.age_max is not None
-                and rule.age_min <= age <= rule.age_max):
+        if (
+            rule.age_min is not None
+            and rule.age_max is not None
+            and rule.age_min <= age <= rule.age_max
+        ):
             return b
     return None
 
@@ -65,8 +68,14 @@ def _is_excluded(m: Member, n: int, eighteen_plus: set[str]) -> str | None:
     return None
 
 
-def _base(m: Member, transition: TransitionKind, status: MoveStatus,
-          target_name: str | None, target_id: int | None, note: str) -> MoveEntry:
+def _base(
+    m: Member,
+    transition: TransitionKind,
+    status: MoveStatus,
+    target_name: str | None,
+    target_id: int | None,
+    note: str,
+) -> MoveEntry:
     return MoveEntry(
         member_no=m.member_no,
         member_name=m.full_name,
@@ -81,8 +90,9 @@ def _base(m: Member, transition: TransitionKind, status: MoveStatus,
     )
 
 
-def _resolve_target(m: Member, transition: TransitionKind, config: KarConfig,
-                    index: TroopIndex, n: int) -> MoveEntry:
+def _resolve_target(
+    m: Member, transition: TransitionKind, config: KarConfig, index: TroopIndex, n: int
+) -> MoveEntry:
     if transition in (TransitionKind.SAME_WEEKDAY, TransitionKind.MERGE):
         source = config.avdelning(m.unit) if m.unit else None
         target_name = source.default_target if source else None
@@ -92,13 +102,25 @@ def _resolve_target(m: Member, transition: TransitionKind, config: KarConfig,
 
     target_id = index.name_to_id.get(target_name) if target_name else None
     if target_name is None:
-        return _base(m, transition, MoveStatus.PENDING_TARGET, None, None,
-                     f"no Utmanare avdelning has cohort_year {n}; operator must create "
-                     "and elect it before this cohort can move")
+        return _base(
+            m,
+            transition,
+            MoveStatus.PENDING_TARGET,
+            None,
+            None,
+            f"no Utmanare avdelning has cohort_year {n}; operator must create "
+            "and elect it before this cohort can move",
+        )
     if target_id is None:
-        return _base(m, transition, MoveStatus.PENDING_TARGET, target_name, None,
-                     f"target {target_name!r} has no resolvable troop_id (too empty to "
-                     "appear in the memberlist?); supply its troop_id in config")
+        return _base(
+            m,
+            transition,
+            MoveStatus.PENDING_TARGET,
+            target_name,
+            None,
+            f"target {target_name!r} has no resolvable troop_id (too empty to "
+            "appear in the memberlist?); supply its troop_id in config",
+        )
     return _base(m, transition, MoveStatus.READY, target_name, target_id, "")
 
 
@@ -109,8 +131,9 @@ def compute_master_set(
     current_term_label: str | None = None,
     index: TroopIndex | None = None,
 ) -> MasterSet:
-    n = resolve_cohort_year(config_cohort_year_n, current_term_label
-                            or memberlist.current_term_label)
+    n = resolve_cohort_year(
+        config_cohort_year_n, current_term_label or memberlist.current_term_label
+    )
     if index is None:
         index = build_troop_index(memberlist, config)
     eighteen_plus = set(config.eighteen_plus_avdelningar())
@@ -128,8 +151,16 @@ def compute_master_set(
             continue
 
         if m.birth_year is None:
-            entries.append(_base(m, rule.transition, MoveStatus.OFF_COHORT, None, None,
-                                 "unknown birth year — cannot place in a cohort"))
+            entries.append(
+                _base(
+                    m,
+                    rule.transition,
+                    MoveStatus.OFF_COHORT,
+                    None,
+                    None,
+                    "unknown birth year — cannot place in a cohort",
+                )
+            )
             continue
 
         age = n - m.birth_year
@@ -142,10 +173,18 @@ def compute_master_set(
         if correct_bracket is not target_bracket:
             # too young for the bracket, or more than one step over (e.g. a
             # 2014-born still in Spårare) — manual, excluded from the move set
-            entries.append(_base(m, rule.transition, MoveStatus.OFF_COHORT, None, None,
-                                 f"born {m.birth_year} → age {age} in cohort {n} maps to "
-                                 f"{correct_bracket or 'no bracket'}, not one step up from "
-                                 f"{bracket}"))
+            entries.append(
+                _base(
+                    m,
+                    rule.transition,
+                    MoveStatus.OFF_COHORT,
+                    None,
+                    None,
+                    f"born {m.birth_year} → age {age} in cohort {n} maps to "
+                    f"{correct_bracket or 'no bracket'}, not one step up from "
+                    f"{bracket}",
+                )
+            )
             continue
 
         # Aged into the next bracket — this is the moving cohort.
@@ -156,8 +195,10 @@ def compute_master_set(
 
         entries.append(_resolve_target(m, rule.transition, config, index, n))
 
-    entries.sort(key=lambda e: (
-        sort_key(e.target_avdelning or "~"),
-        sort_key(e.member_name),
-    ))
+    entries.sort(
+        key=lambda e: (
+            sort_key(e.target_avdelning or "~"),
+            sort_key(e.member_name),
+        )
+    )
     return MasterSet(cohort_year=n, entries=entries)

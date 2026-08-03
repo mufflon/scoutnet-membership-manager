@@ -24,8 +24,9 @@ class CanaryResult:
 
     def render(self) -> str:
         head = f"Canary: {'OK' if self.ok else 'FAIL'} (members={self.member_count})"
-        body = "\n".join(f"  [{'x' if p else ' '}] {name}: {detail}"
-                         for name, p, detail in self.checks)
+        body = "\n".join(
+            f"  [{'x' if p else ' '}] {name}: {detail}" for name, p, detail in self.checks
+        )
         return f"{head}\n{body}"
 
 

@@ -34,25 +34,38 @@ def test_resolve_cohort_year_guard():
 
 # --- engine ----------------------------------------------------------------
 def _mk(member_no, unit, code, troop, birth_year, roles=()):
-    m = Member(member_no=member_no, unit=unit, unit_type_code=code,
-               unit_troop_id=troop, birth_year=birth_year)
+    m = Member(
+        member_no=member_no,
+        unit=unit,
+        unit_type_code=code,
+        unit_troop_id=troop,
+        birth_year=birth_year,
+    )
     m.roles = list(roles)
     return m
 
 
 def _synthetic():
     # codes: sparare 2, upptackare 3, aventyrare 4. troop ids arbitrary.
-    return MemberList(members=[
-        _mk("s_move", "Hajarna", 2, 100, 2016),      # age 10 -> Upptäckare
-        _mk("s_stay", "Hajarna", 2, 100, 2017),      # age 9 -> stays
-        _mk("u_resident", "Kämparna", 3, 200, 2015),  # populates index; age 11 stays
-        _mk("u_move", "Kämparna", 3, 200, 2014),      # age 12 -> merge to Vikingarna
-        _mk("a_resident", "Vikingarna", 4, 300, 2013),
-        _mk("a_move", "Vikingarna", 4, 300, 2011),    # age 15 -> Utmanare (pending)
-        _mk("s_leader", "Hajarna", 2, 100, 2016,
-            roles=[Role("troop", 999, 3, "other_leader", "Ledare")]),  # excluded
-        _mk("s_offcohort", "Hajarna", 2, 100, 2010),  # age 16, two+ steps -> off_cohort
-    ])
+    return MemberList(
+        members=[
+            _mk("s_move", "Hajarna", 2, 100, 2016),  # age 10 -> Upptäckare
+            _mk("s_stay", "Hajarna", 2, 100, 2017),  # age 9 -> stays
+            _mk("u_resident", "Kämparna", 3, 200, 2015),  # populates index; age 11 stays
+            _mk("u_move", "Kämparna", 3, 200, 2014),  # age 12 -> merge to Vikingarna
+            _mk("a_resident", "Vikingarna", 4, 300, 2013),
+            _mk("a_move", "Vikingarna", 4, 300, 2011),  # age 15 -> Utmanare (pending)
+            _mk(
+                "s_leader",
+                "Hajarna",
+                2,
+                100,
+                2016,
+                roles=[Role("troop", 999, 3, "other_leader", "Ledare")],
+            ),  # excluded
+            _mk("s_offcohort", "Hajarna", 2, 100, 2010),  # age 16, two+ steps -> off_cohort
+        ]
+    )
 
 
 def test_master_set_moves(config):

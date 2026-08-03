@@ -31,8 +31,9 @@ def apply_overrides(master: MasterSet, overrides: list[Override], index: TroopIn
         if o.stay_until is not None and o.stay_until >= master.cohort_year:
             e.override_stay_until = o.stay_until
             e.status = MoveStatus.OVERRIDE_STAY
-            e.note = (f"override by {o.by}: stay in {e.source_avdelning} through "
-                      f"cohort {o.stay_until}")
+            e.note = (
+                f"override by {o.by}: stay in {e.source_avdelning} through cohort {o.stay_until}"
+            )
             continue
         if o.target_avdelning:
             e.override_target = o.target_avdelning
