@@ -41,6 +41,11 @@ GUARDIAN_EMAIL_FIELDS = ("contact_email_dad", "contact_email_mum")
 # Default set of role_keys that count as "leader" for finding purposes (§11).
 LEADER_ROLE_KEYS = frozenset({"leader", "other_leader", "assistant_leader"})
 
+# Patrol-scoped roles (Patrulledare, Vice patrulledare) reuse the leader role
+# keys but are youth roles held inside a patrol — never adult leadership. They
+# move up with the rest of their cohort like any other scout (§11, §17).
+PATROL_SCOPE = "patrol"
+
 # Fields we parse into typed attributes; not carried again in passthrough.
 _PARSED_FIELDS = (
     frozenset(
@@ -111,8 +116,14 @@ class Role:
 
     @property
     def is_leader(self) -> bool:
-        """Whether this role is a leadership role (§11)."""
-        return self.role_key in LEADER_ROLE_KEYS
+        """
+        Whether this is an *adult* leadership role (§11).
+
+        A patrol-scoped role (Patrulledare, Vice patrulledare) reuses a leader
+        role key but is a youth role within a patrol, so it never counts as
+        leadership — the holder moves up with their cohort like anyone else.
+        """
+        return self.scope != PATROL_SCOPE and self.role_key in LEADER_ROLE_KEYS
 
 
 @dataclass
