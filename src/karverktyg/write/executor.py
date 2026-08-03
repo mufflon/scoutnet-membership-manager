@@ -142,11 +142,18 @@ class _ReadWrite(Protocol):
     def update_membership(self, payload: dict) -> dict: ...
 
 
-def drift_check(moves: list[IntendedMove], memberlist: MemberList) -> list[PreflightItem]:
+def drift_check(
+    moves: list[IntendedMove], memberlist: MemberList, *, exclude_leaders: bool = True
+) -> list[PreflightItem]:
     """
     Compare each intended move to current live state (§8). ``will_apply`` only
-    when the member is still in the expected source, still active and not a
-    leader; ``already_applied`` when already at target; ``drifted`` otherwise.
+    when the member is still in the expected source and still active;
+    ``already_applied`` when already at target; ``drifted`` otherwise.
+
+    ``exclude_leaders`` (default true) also drifts a member who now holds a
+    leader role — the right guard for automatic uppflyttning (§17), which never
+    moves leaders. A deliberate, allowlisted single move (the stage-2 verify) or
+    an undo passes ``False`` so the operator can move a chosen leader on purpose.
     """
     by_no = memberlist.by_member_no()
     items: list[PreflightItem] = []
@@ -160,7 +167,7 @@ def drift_check(moves: list[IntendedMove], memberlist: MemberList) -> list[Prefl
             items.append(
                 PreflightItem(mv, Category.ALREADY_APPLIED, cur, status, "already at target")
             )
-        elif m.is_leader:
+        elif exclude_leaders and m.is_leader:
             items.append(
                 PreflightItem(mv, Category.DRIFTED, cur, status, "now holds a leader role")
             )
@@ -255,16 +262,18 @@ class WriteExecutor:
         mode: RunMode = RunMode.DRY_RUN,
         now: datetime | None = None,
         run_id: str | None = None,
+        exclude_leaders: bool = True,
     ) -> RunResult:
         """
         Plan and (if ``mode`` is execute) perform a fresh run. Pass ``run_id`` to
         pre-allocate the id (so a background caller can return it and poll before
-        the run finishes); otherwise one is generated.
+        the run finishes); otherwise one is generated. ``exclude_leaders`` gates
+        the leader drift rule (§17) — false for a deliberate single-member move.
         """
         now = now or datetime.now(UTC)
         self._check_allowlist(moves)
         memberlist = self._client.memberlist("active", fresh=True)
-        preflight = drift_check(moves, memberlist)
+        preflight = drift_check(moves, memberlist, exclude_leaders=exclude_leaders)
         actionable = [p for p in preflight if p.category is Category.WILL_APPLY]
 
         if mode is RunMode.DRY_RUN:
@@ -327,7 +336,13 @@ class WriteExecutor:
             raise ExecutorError(f"cannot undo run {run_id!r}: its snapshot is no longer retained")
         inverse = build_inverse_moves(self._sm, run_id)
         return self.run(
-            inverse, kind="undo", parent_run_id=run_id, mode=mode, now=now, run_id=new_run_id
+            inverse,
+            kind="undo",
+            parent_run_id=run_id,
+            mode=mode,
+            now=now,
+            run_id=new_run_id,
+            exclude_leaders=False,  # reversing a deliberate move must not re-block on leader status
         )
 
     # -- internals ----------------------------------------------------------

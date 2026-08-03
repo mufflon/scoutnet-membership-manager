@@ -234,6 +234,31 @@ def test_drift_check_categories():
     assert by_no["600"].category is Category.DRIFTED  # not in roster at all
 
 
+def test_drift_check_can_include_leaders():
+    members = MemberList(members=[Member(member_no="500", unit_troop_id=10, status_code="2")])
+    members.members[0].roles = [Role("troop", 10, 1, "leader", "L")]
+    moves = [IntendedMove("500", 10, 20)]
+    # Default excludes leaders (uppflyttning rule); explicit single move includes them.
+    assert drift_check(moves, members)[0].category is Category.DRIFTED
+    assert drift_check(moves, members, exclude_leaders=False)[0].category is Category.WILL_APPLY
+
+
+def test_execute_moves_a_leader_only_when_not_excluded(tmp_path):
+    client = FakeReadWrite({"100": {"troop_id": 10, "leader": True}})
+    ex = WriteExecutor(client, _settings(tmp_path, allowlist=["100"]), _factory())
+    moves = [IntendedMove("100", 10, 20)]
+
+    default = ex.run(moves, kind="uppflyttning", mode=RunMode.EXECUTE, now=NOW)
+    assert default.journal == {}  # leader excluded -> nothing to do
+    assert client._members["100"]["troop_id"] == 10
+
+    verify = ex.run(
+        moves, kind="stage2_verify", mode=RunMode.EXECUTE, now=NOW, exclude_leaders=False
+    )
+    assert verify.journal == {"done": 1}
+    assert client._members["100"]["troop_id"] == 20  # the deliberate move applied
+
+
 def test_undo_restores_moved_members(tmp_path):
     client = FakeReadWrite({"100": {"troop_id": 10}, "200": {"troop_id": 10}})
     sm = _factory()

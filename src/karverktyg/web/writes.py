@@ -237,9 +237,13 @@ def api_verify() -> ResponseReturnValue:
     moves = [IntendedMove(member_no, member.unit_troop_id, target, label="verify")]
     assert_allowlist(_settings(), moves)  # clean 400 on violation (errorhandler)
     executor = _executor()
+    # A deliberate single-member test may target a leader (e.g. the operator's own
+    # account), so it does not apply the uppflyttning leader-exclusion (§17).
     if data.get("mode") != "execute":
-        return jsonify(_ser_result(executor.run(moves, kind="stage2_verify")))
-    return _launch("stage2_verify", None, moves, executor)
+        return jsonify(
+            _ser_result(executor.run(moves, kind="stage2_verify", exclude_leaders=False))
+        )
+    return _launch("stage2_verify", None, moves, executor, exclude_leaders=False)
 
 
 @writes_bp.post("/write/runs/<run_id>/resume")
@@ -353,14 +357,26 @@ def _busy() -> bool:
 
 
 def _launch(
-    kind: str, cohort_year: int | None, moves: list[IntendedMove], executor: WriteExecutor
+    kind: str,
+    cohort_year: int | None,
+    moves: list[IntendedMove],
+    executor: WriteExecutor,
+    *,
+    exclude_leaders: bool = True,
 ) -> ResponseReturnValue:
     if _busy():
         return jsonify(error="a write run is already in progress"), _HTTP_CONFLICT
     run_id = str(uuid.uuid4())
 
     def _job() -> None:
-        executor.run(moves, kind=kind, cohort_year=cohort_year, mode=RunMode.EXECUTE, run_id=run_id)
+        executor.run(
+            moves,
+            kind=kind,
+            cohort_year=cohort_year,
+            mode=RunMode.EXECUTE,
+            run_id=run_id,
+            exclude_leaders=exclude_leaders,
+        )
 
     current_app.config["RUN_MANAGER"].launch(_job)
     return jsonify(run_id=run_id, status="started"), _HTTP_ACCEPTED
