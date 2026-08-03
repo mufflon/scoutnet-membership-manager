@@ -170,24 +170,39 @@ the `0002` pattern.
 ### Lifecycle
 1. **Allowlist check.** Refuse immediately if any `member_no` in the intent is
    not on the configured allowlist (§8, invariant 2). Test asserts refusal.
-2. **Snapshot.** Capture every active member's placement + leadership to the
-   volume *before the first request* (§8, `write_snapshot`; no personal data). A
-   run cannot proceed if the snapshot write fails.
-3. **Journal.** Persist the full intended operation set (`state = pending`) before
-   any request (§8 "journal first").
-4. **Chunk loop**, serial, one chunk at a time (hard rule 5), `chunk_delay_s`
+2. **One fresh live read**, reused for the next two steps (no double fetch).
+3. **Snapshot.** From that read, capture every active member's placement +
+   leadership to the volume *before the first request* (§8, `write_snapshot`; no
+   personal data). A run cannot proceed if the snapshot write fails.
+4. **Pre-flight drift check.** Diff the approved plan against that same live
+   read and categorise each intended move:
+   - **will_apply** — member still in the expected source avdelning, still active;
+   - **already_applied** — already at the target (a no-op; the idempotency the
+     resume path relies on);
+   - **drifted** — somewhere *unexpected*, now a leader, status changed, or gone.
+
+   Drift must be **acknowledged and the drifted members excluded** before
+   execution, so a scout hand-moved in Scoutnet since the changelist was reviewed
+   is surfaced up front rather than written over. Same diff shape as the post-run
+   reconciler, run *before* instead of after.
+5. **Journal.** Persist the full intended operation set (`state = pending`) before
+   any request (§8 "journal first"). `source_troop_id` comes from the observed
+   snapshot read, so undo reverses to what *was*, not to what the plan assumed.
+6. **Chunk loop**, serial, one chunk at a time (hard rule 5), `chunk_delay_s`
    between chunks (default 1.0s), `chunk_size` default 1:
-   - re-read status for the chunk's members, build payload, `state = in_flight`;
+   - **re-read status** for the chunk's members immediately before writing and
+     echo it back unchanged — only `troop_id` moves (§8); `state = in_flight`;
    - `POST`; on 200 mark `done`; on **any** non-200 / timeout / connection error /
      malformed body mark the chunk `failed`, set run `state = failed`, and
      **stop** — no auto-retry, no next chunk (§8 error handling).
-5. **Reconcile** on completion (§ below).
+7. **Reconcile** on completion (§ below).
 
 ### Dry-run (default, hard rule 4)
-`mode = dry_run` runs steps 1–3 and the re-read, renders the exact payload per
-chunk, and stops before the `POST`. Executing requires an explicit, separate
-confirmation. Dry-run and execute are the same code path with a single guarded
-send — never two implementations.
+`mode = dry_run` runs steps 1–5 and the per-chunk re-read, and its output *is*
+the pre-flight drift report plus the exact payload it would `POST` per chunk — it
+stops before the send. Executing requires an explicit, separate confirmation.
+Dry-run and execute are the same code path with a single guarded send — never two
+implementations.
 
 ### Resume (§8)
 After a crash the operator sees where the run stopped (journal state) and chooses
@@ -311,11 +326,18 @@ None block this slice, but flagging for tracking:
 
 ## 11. Proposed build order
 
-1. Branch `phase-2` off `phase-1`.
-2. Settings + `ReadWriteClient` + mode gate + capabilities wiring + tests.
-3. `0003` migration + ORM models + bootstrap `_MEANINGFUL` wiring + tests.
-4. Snapshot writer + retention + tests.
-5. Executor (dry-run first), journal, chunk loop, resume + mock (stage 1) + tests.
+1. Branch `phase-2` off `phase-1`. ✅
+2. Settings + `ReadWriteClient` + mode gate + capabilities wiring + tests. ✅
+3. `0003` migration + ORM models + bootstrap `_MEANINGFUL` wiring + tests. ✅
+4. Snapshot writer + retention + tests. ✅
+5. Executor, split into two reviewable commits:
+   - **5a** — executor core: allowlist → live read → {snapshot + pre-flight
+     drift} → journal → serial chunk loop (dry-run default, per-chunk status
+     re-read) → status→`confirmed` mapping → resume. Tested against a fake
+     in-process `ReadWriteClient` double. No network.
+   - **5b** — the stage-1 **mock Scoutnet server** generated from the bundled
+     schema: full-run integration incl. crash/resume/failure paths and the
+     shape-only malformed-payload test.
 6. Undo + reconcile wiring + tests.
 7. Flask write endpoints + server-side progress + frontend blade (dry-run default,
    prominent `read_write` banner).
