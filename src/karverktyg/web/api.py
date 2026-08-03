@@ -78,6 +78,14 @@ def _master_set(ml: MemberList) -> MasterSet:
     return ms
 
 
+def _entry_for(ml: MemberList, member_no: str) -> dict | None:
+    """The recomputed, decision-applied row for one member (for in-place UI updates)."""
+    for e in _master_set(ml).entries:
+        if e.member_no == member_no:
+            return _ser_move(e)
+    return None
+
+
 def _ser_move(e: MoveEntry) -> dict:
     return {
         "member_no": e.member_no,
@@ -234,7 +242,7 @@ def api_set_decision() -> ResponseReturnValue:
             acknowledged=data.get("acknowledged"),
             by=data.get("by"),
         )
-    return jsonify(status="ok")
+    return jsonify(status="ok", entry=_entry_for(ml, str(member_no)))
 
 
 @api_bp.delete("/uppflyttning/decision")
@@ -247,7 +255,7 @@ def api_clear_decision() -> ResponseReturnValue:
         return jsonify(error="member_no is required"), 400
     with get_session(current_app.config["SESSIONMAKER"]) as s:
         clear_decision(s, n, member_no)
-    return jsonify(status="ok")
+    return jsonify(status="ok", entry=_entry_for(ml, member_no))
 
 
 @api_bp.get("/uppflyttning/changelist.xlsx")

@@ -201,6 +201,14 @@ const STATUS_SV = {
   override_stay: "Stannar kvar (val)",
 };
 
+const statusText = (e) => (STATUS_SV[e.status] || e.status) + (e.override ? " ✎" : "");
+
+function flash(node) {
+  node.style.transition = "background-color 0.15s";
+  node.style.backgroundColor = "rgba(47, 125, 63, 0.18)";
+  setTimeout(() => (node.style.backgroundColor = ""), 600);
+}
+
 async function renderUppflyttning(root) {
   let d;
   try {
@@ -254,40 +262,69 @@ async function renderUppflyttning(root) {
   }
   root.append(electCard);
 
-  // Per-scout row: choose target, acknowledge/handle, or reset to the computed default.
+  // Per-scout row. Every control persists async and updates ONLY its own row
+  // from the server's reply — no full re-render.
   const moveRow = (m) => {
-    const targetSel = el("select", {});
-    targetSel.append(el("option", { value: "" }, m.target ? "Behåll: " + m.target : "– välj måldelning –"));
-    for (const c of d.avdelningar) {
-      const o = el("option", { value: c.avdelning }, c.avdelning);
-      targetSel.append(o);
-    }
-    targetSel.onchange = async () => {
-      try {
-        await apiSend("POST", "uppflyttning/decision", { member_no: m.member_no, target_avdelning: targetSel.value, by: "webb" });
-        refresh();
-      } catch (e) {
-        alert(e.message);
-      }
-    };
+    const statusSpan = el("span", { class: "status-" + m.status }, statusText(m));
+    const defaultOpt = el("option", { value: "" }, m.target ? "Behåll: " + m.target : "– välj måldelning –");
+    const targetSel = el("select", {}, defaultOpt);
+    for (const c of d.avdelningar) targetSel.append(el("option", { value: c.avdelning }, c.avdelning));
     const ack = el("input", {
       type: "checkbox",
       title: "Markera som granskad/hanterad – t.ex. en utanför-årskull-medlem du valt att lämna",
     });
-    if (m.acknowledged) ack.setAttribute("checked", "checked");
-    ack.onchange = async () => {
-      await apiSend("POST", "uppflyttning/decision", { member_no: m.member_no, acknowledged: ack.checked, by: "webb" });
-      refresh();
-    };
     const clr = el("a", { href: "#", title: "Nollställ valet till den beräknade standarden" }, "återställ");
+    const tr = el(
+      "tr",
+      {},
+      el("td", { html: esc(m.member_no) }),
+      el("td", { html: esc(m.name) }),
+      el("td", { html: esc(m.source || "–") }),
+      el("td", {}, targetSel),
+      el("td", {}, statusSpan),
+      el("td", {}, ack),
+      el("td", {}, clr),
+    );
+
+    const apply = (entry) => {
+      if (!entry) return;
+      statusSpan.className = "status-" + entry.status;
+      statusSpan.textContent = statusText(entry);
+      ack.checked = !!entry.acknowledged;
+      tr.style.opacity = entry.acknowledged ? "0.55" : "";
+      defaultOpt.textContent = entry.target ? "Behåll: " + entry.target : "– välj måldelning –";
+      targetSel.value = "";
+      flash(tr);
+    };
+    const post = async (body) => {
+      try {
+        const r = await apiSend("POST", "uppflyttning/decision", { member_no: m.member_no, by: "webb", ...body });
+        apply(r.entry);
+        return true;
+      } catch (e) {
+        alert(e.message);
+        return false;
+      }
+    };
+    targetSel.onchange = () => {
+      if (targetSel.value) post({ target_avdelning: targetSel.value });
+    };
+    ack.onchange = async () => {
+      if (!(await post({ acknowledged: ack.checked }))) ack.checked = !ack.checked;
+    };
     clr.onclick = async (ev) => {
       ev.preventDefault();
-      await apiSend("DELETE", "uppflyttning/decision?member_no=" + encodeURIComponent(m.member_no));
-      refresh();
+      try {
+        const r = await apiSend("DELETE", "uppflyttning/decision?member_no=" + encodeURIComponent(m.member_no));
+        apply(r.entry);
+      } catch (e) {
+        alert(e.message);
+      }
     };
-    const statusTxt = (STATUS_SV[m.status] || m.status) + (m.override ? " ✎" : "");
-    return [m.member_no, m.name, m.source || "–", targetSel, el("span", { class: "status-" + m.status }, statusTxt), ack, clr];
+    if (m.acknowledged) tr.style.opacity = "0.55";
+    return tr;
   };
+
   root.append(
     el(
       "p",
@@ -298,6 +335,7 @@ async function renderUppflyttning(root) {
         "återställ: nollställ till standarden.",
     ),
   );
+  const headers = ["Medlemsnr", "Namn", "Från", "Till (välj)", "Status", "Granskad", ""];
   for (const [title, list] of [
     ["Klara för flytt", d.ready],
     ["Väntar på måldelning", d.pending],
@@ -305,9 +343,12 @@ async function renderUppflyttning(root) {
     ["Undantagna (ledare/vuxna)", d.excluded],
   ]) {
     if (!list.length) continue;
-    root.append(
-      el("div", { class: "card" }, el("strong", {}, title + " (" + list.length + ")"), table(["Medlemsnr", "Namn", "Från", "Till (välj)", "Status", "Granskad", ""], list.map(moveRow))),
-    );
+    const t = el("table");
+    t.append(el("thead", {}, el("tr", {}, ...headers.map((h) => el("th", {}, h)))));
+    const tb = el("tbody");
+    for (const m of list) tb.append(moveRow(m));
+    t.append(tb);
+    root.append(el("div", { class: "card" }, el("strong", {}, title + " (" + list.length + ")"), el("div", { class: "table-wrap" }, t)));
   }
 }
 
