@@ -808,17 +808,29 @@ async function renderVerify(root) {
       el("div", { class: "banner-sub" }, "Flytta EN medlem (helst platshållarkontot) för att bekräfta att troop_id fungerar, verifiera i Scoutnet, och ångra sedan."),
     ),
   );
+  const memberLabel = (m) => (m.name ? `${m.name} (${m.member_no})` : m.member_no);
+
   root.append(
     el(
       "div",
       { class: "card" },
-      el("strong", {}, "Tillåtna medlemsnummer (allowlist)"),
-      el("div", { class: "muted" }, (info.allowlist.length ? info.allowlist.join(", ") : "(tom — inga skrivningar tillåtna)")),
+      el("strong", {}, "Tillåtna medlemmar (allowlist)"),
+      el(
+        "div",
+        { class: "muted" },
+        info.allowlist.length
+          ? info.allowlist.map(memberLabel).join(", ")
+          : "(tom — inga skrivningar tillåtna)",
+      ),
       el("div", { class: "muted", style: "font-size:.82rem;" }, "Konfigureras via SCOUTNET_WRITE_ALLOWLIST (deployment) — kan inte ändras här."),
     ),
   );
 
-  const memberIn = el("input", { type: "text", placeholder: "medlemsnr", style: "width:10rem;" });
+  // Members are limited to the allowlist, so pick from a dropdown (first = default).
+  const memberSel = el("select", {});
+  for (const m of info.allowlist || []) {
+    memberSel.append(el("option", { value: m.member_no }, memberLabel(m)));
+  }
   const targetSel = el("select", {});
   targetSel.append(el("option", { value: "" }, "– välj måldelning –"));
   for (const a of info.avdelningar || []) {
@@ -830,12 +842,12 @@ async function renderVerify(root) {
   execBtn.disabled = true;
   let willApply = 0;
 
-  const body = () => ({ member_no: memberIn.value.trim(), target_troop_id: Number(targetSel.value) });
-  const valid = () => memberIn.value.trim() && targetSel.value !== "";
+  const body = () => ({ member_no: memberSel.value, target_troop_id: Number(targetSel.value) });
+  const valid = () => memberSel.value && targetSel.value !== "";
 
   dryBtn.onclick = async () => {
     if (!valid()) {
-      progress.replaceChildren(el("p", { class: "err" }, "Ange medlemsnr och mål-troop_id."));
+      progress.replaceChildren(el("p", { class: "err" }, "Välj medlem och måldelning."));
       return;
     }
     progress.replaceChildren(el("p", { class: "muted" }, "Kör torrkörning…"));
@@ -848,7 +860,8 @@ async function renderVerify(root) {
     }
   };
   execBtn.onclick = async () => {
-    if (!confirm("Utför testflytt av medlem " + memberIn.value.trim() + "? Detta skriver till Scoutnet.")) return;
+    const chosen = memberSel.options[memberSel.selectedIndex]?.textContent || memberSel.value;
+    if (!confirm("Utför testflytt av " + chosen + "? Detta skriver till Scoutnet.")) return;
     dryBtn.disabled = true;
     execBtn.disabled = true;
     try {
@@ -864,7 +877,7 @@ async function renderVerify(root) {
       "div",
       { class: "card" },
       el("strong", {}, "Testflytt av en medlem"),
-      el("div", { style: "margin:.5rem 0;" }, el("label", {}, "Medlemsnr "), memberIn, " ", el("label", {}, "Till avdelning "), targetSel),
+      el("div", { style: "margin:.5rem 0;" }, el("label", {}, "Medlem "), memberSel, " ", el("label", {}, "Till avdelning "), targetSel),
       el("div", {}, dryBtn, " ", execBtn),
     ),
     progress,

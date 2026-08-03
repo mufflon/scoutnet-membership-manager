@@ -196,18 +196,19 @@ def api_verify_info() -> ResponseReturnValue:
     """
     if (err := _read_write_or_403()) is not None:
         return err
-    index = build_troop_index(
-        current_app.config["SCOUTNET"].memberlist("active"), current_app.config["KAR_CONFIG"]
-    )
+    memberlist = current_app.config["SCOUTNET"].memberlist("active")
+    index = build_troop_index(memberlist, current_app.config["KAR_CONFIG"])
+    by_no = memberlist.by_member_no()
     avdelningar = sorted(
         ({"avdelning": name, "troop_id": tid} for name, tid in index.name_to_id.items()),
         key=lambda a: a["avdelning"],
     )
-    return jsonify(
-        allowlist=list(_settings().write_allowlist),
-        mode=_settings().mode.value,
-        avdelningar=avdelningar,
-    )
+    # Allowlisted members with names resolved from Scoutnet, for the picker.
+    allowlist = [
+        {"member_no": m, "name": by_no[m].full_name if m in by_no else None}
+        for m in _settings().write_allowlist
+    ]
+    return jsonify(allowlist=allowlist, mode=_settings().mode.value, avdelningar=avdelningar)
 
 
 @writes_bp.post("/write/verify")

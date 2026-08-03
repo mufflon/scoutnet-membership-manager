@@ -176,7 +176,8 @@ def test_verify_single_member_dry_run_and_execute(tmp_path):
     c = app.test_client()
 
     info = c.get("/api/write/verify").get_json()
-    assert "1001" in info["allowlist"]
+    assert any(a["member_no"] == "1001" for a in info["allowlist"])
+    assert any(a["avdelning"] == "Hajarna" for a in info["avdelningar"])
 
     dry = c.post("/api/write/verify", json={"member_no": "1001", "target_troop_id": 99999})
     d = dry.get_json()
