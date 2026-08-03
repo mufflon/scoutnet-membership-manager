@@ -25,6 +25,9 @@ _VARIANT_PARAMS = {
     "awaiting_approval": {"awaiting_approval": "1"},
 }
 DEFAULT_FIXTURE = Path("fixtures/memberlist.scrubbed.json")
+# Synthetic sample so the membership-draft feature is demoable before a real
+# waiting/awaiting capture exists. Fully fabricated.
+_WAITING_SAMPLE = Path("fixtures/memberlist-waiting.sample.json")
 
 
 class ScoutnetError(RuntimeError):
@@ -42,9 +45,13 @@ class FixtureClient:
     def memberlist(self, variant: str = "active") -> MemberList:
         if variant not in _VARIANT_PARAMS:
             raise ScoutnetError(f"unknown variant {variant!r}")
-        if variant != "active":
-            return MemberList(members=[], variant=variant)
-        return parse_memberlist(self._raw, "active")
+        if variant == "active":
+            return parse_memberlist(self._raw, "active")
+        # waiting / awaiting_approval: serve the synthetic sample if present.
+        if _WAITING_SAMPLE.exists():
+            raw = json.loads(_WAITING_SAMPLE.read_text(encoding="utf-8"))
+            return parse_memberlist(raw, variant)
+        return MemberList(members=[], variant=variant)
 
     def organisation_group(self) -> dict[str, Any]:
         """Synthesised aggregate so fixture mode is self-contained and looks

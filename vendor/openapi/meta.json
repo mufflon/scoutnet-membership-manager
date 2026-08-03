@@ -1,0 +1,7 @@
+{
+  "_note": "Sidecar for the vendored Scoutnet OpenAPI (CLAUDE.md §4, §12). PLACEHOLDER — the bundled spec is not vendored yet. Populate git_commit/retrieved and add bundled.yaml alongside this file via the vendoring step; the drift-check job compares against it and never auto-updates it.",
+  "version": "0.4.1",
+  "git_commit": null,
+  "retrieved": null,
+  "source": "https://github.com/Scouterna/scoutnet-api"
+}

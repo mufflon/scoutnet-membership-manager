@@ -1,0 +1,44 @@
+{
+  "_comment": "SYNTHETIC sample of the waiting/awaiting variant for fixture-mode demos. Entirely fabricated — no real people. Used only so the membership-request draft feature is demonstrable before a real waiting/awaiting capture exists.",
+  "data": {
+    "900101": {
+      "member_no": {"value": "900101"},
+      "first_name": {"value": "Alva"},
+      "last_name": {"value": "Exempel"},
+      "date_of_birth": {"value": "2018-04-11"},
+      "sex": {"value": "Kvinna", "raw_value": "2"},
+      "unit": {"value": "Hajarna", "raw_value": "10155"},
+      "unit_type": {"value": "Spårarscouter", "raw_value": "2"},
+      "contact_email_mum": {"value": "mamma.exempel@example.org"},
+      "contact_email_dad": {"value": "pappa.exempel@example.org"},
+      "current_term": {"value": "Väntar", "raw_value": "not_invoiced"},
+      "roles": {"value": []}
+    },
+    "900102": {
+      "member_no": {"value": "900102"},
+      "first_name": {"value": "Björn"},
+      "last_name": {"value": "Provperson"},
+      "date_of_birth": {"value": "2014-09-02"},
+      "sex": {"value": "Man", "raw_value": "1"},
+      "unit": {"value": "Kämparna", "raw_value": "10158"},
+      "unit_type": {"value": "Upptäckarscouter", "raw_value": "3"},
+      "contact_email_mum": {"value": "for00alder@example.org"},
+      "current_term": {"value": "Väntar", "raw_value": "not_invoiced"},
+      "roles": {"value": []}
+    },
+    "900103": {
+      "member_no": {"value": "900103"},
+      "first_name": {"value": "Cecilia"},
+      "last_name": {"value": "Testledare"},
+      "date_of_birth": {"value": "1988-02-20"},
+      "sex": {"value": "Kvinna", "raw_value": "2"},
+      "unit": {"value": "Ledare", "raw_value": "10172"},
+      "unit_type": {"value": "Annat", "raw_value": "7"},
+      "contact_email": {"value": "cecilia.testledare@example.org"},
+      "email": {"value": "cecilia.testledare@example.org"},
+      "current_term": {"value": "Väntar", "raw_value": "not_invoiced"},
+      "roles": {"value": []}
+    }
+  },
+  "labels": {"current_term": "Höst 2026", "prev_term": "Vår 2026"}
+}

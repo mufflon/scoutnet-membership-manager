@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -62,3 +62,19 @@ class MessageLog(Base):
     member_no: Mapped[str] = mapped_column(String(32), index=True)
     message_type: Mapped[str] = mapped_column(String(48))
     sent_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class EmailTemplate(Base):
+    """Editable email template (§10). Overrides the shipped default for its key.
+    Template text is content, not personal data."""
+
+    __tablename__ = "email_template"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    template_key: Mapped[str] = mapped_column(String(48), unique=True, index=True)
+    subject: Mapped[str] = mapped_column(String(256))
+    body: Mapped[str] = mapped_column(Text)
+    updated_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )

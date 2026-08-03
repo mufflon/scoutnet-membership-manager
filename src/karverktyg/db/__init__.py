@@ -6,11 +6,18 @@ written here — they are fetched live and joined at render time. A test asserts
 no personal-data column exists.
 """
 
-from karverktyg.db.models import Base, FindingAck, MessageLog, UppflyttningEntry
+from karverktyg.db.models import (
+    Base,
+    EmailTemplate,
+    FindingAck,
+    MessageLog,
+    UppflyttningEntry,
+)
 from karverktyg.db.session import get_session, make_engine, make_sessionmaker
 
 __all__ = [
     "Base",
+    "EmailTemplate",
     "FindingAck",
     "MessageLog",
     "UppflyttningEntry",

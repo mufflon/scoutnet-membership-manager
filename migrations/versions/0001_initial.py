@@ -48,9 +48,19 @@ def upgrade() -> None:
         sa.Column("message_type", sa.String(length=48), nullable=False),
         sa.Column("sent_at", sa.DateTime(), server_default=sa.func.now()),
     )
+    op.create_table(
+        "email_template",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("template_key", sa.String(length=48), nullable=False, unique=True, index=True),
+        sa.Column("subject", sa.String(length=256), nullable=False),
+        sa.Column("body", sa.Text(), nullable=False),
+        sa.Column("updated_by", sa.String(length=64), nullable=True),
+        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now()),
+    )
 
 
 def downgrade() -> None:
+    op.drop_table("email_template")
     op.drop_table("message_log")
     op.drop_table("finding_ack")
     op.drop_table("uppflyttning_entry")
