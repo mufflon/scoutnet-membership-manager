@@ -31,7 +31,7 @@ class FakeReadWrite:
         self.calls: list[dict] = []  # update_membership payloads, in order
         self.raise_on: dict[str, Exception] = {}  # member_no -> exception to raise
 
-    def memberlist(self, variant: str = "active") -> MemberList:  # noqa: ARG002 - fake ignores variant
+    def memberlist(self, variant: str = "active", *, fresh: bool = False) -> MemberList:  # noqa: ARG002 - fake ignores variant/fresh
         members = []
         for mno, st in self._members.items():
             m = Member(

@@ -105,15 +105,17 @@ class FixtureClient:
 class ReadOnlyClient:
     """Live read-only access to Scoutnet. HTTP Basic, per-endpoint key (§4)."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, transport: httpx.BaseTransport | None = None) -> None:
         self._entity_id = settings.entity_id or ""
         self._memberlist_key = settings.memberlist_key
         self._org_key = settings.organisation_group_key
         self._cache: dict[str, tuple[float, MemberList]] = {}
+        # ``transport`` is a test seam (httpx.MockTransport); None in production.
         self._http = httpx.Client(
             base_url=settings.base_url.rstrip("/"),
             timeout=settings.http_timeout_s,
             headers={"Accept": "application/json"},
+            transport=transport,
         )
 
     # Retry only when the connection itself fails; a read timeout means the
@@ -138,14 +140,21 @@ class ReadOnlyClient:
         resp.raise_for_status()
         return resp.json()
 
-    def memberlist(self, variant: str = "active") -> MemberList:
-        """Fetch a live memberlist variant, served from a short TTL cache (§4)."""
+    def memberlist(self, variant: str = "active", *, fresh: bool = False) -> MemberList:
+        """
+        Fetch a live memberlist variant, served from a short TTL cache (§4).
+
+        ``fresh=True`` bypasses the cache — used by the write executor for the
+        per-chunk status re-read and post-run reconciliation, which must see
+        current data, not a value cached up to 90 s ago (§8).
+        """
         if variant not in _VARIANT_PARAMS:
             raise ScoutnetError(f"unknown variant {variant!r}")
         now = time.monotonic()
-        cached = self._cache.get(variant)
-        if cached is not None and now - cached[0] < _MEMBERLIST_TTL_S:
-            return cached[1]
+        if not fresh:
+            cached = self._cache.get(variant)
+            if cached is not None and now - cached[0] < _MEMBERLIST_TTL_S:
+                return cached[1]
         raw = self._get("/group/memberlist", self._memberlist_key, _VARIANT_PARAMS[variant])
         ml = parse_memberlist(raw, variant)
         self._cache[variant] = (now, ml)
@@ -171,8 +180,8 @@ class ReadWriteClient(ReadOnlyClient):
     is surfaced to the operator, never retried automatically (§8).
     """
 
-    def __init__(self, settings: Settings) -> None:
-        super().__init__(settings)
+    def __init__(self, settings: Settings, *, transport: httpx.BaseTransport | None = None) -> None:
+        super().__init__(settings, transport=transport)
         self._write_key = settings.update_membership_key
 
     def update_membership(self, payload: dict[str, Any]) -> dict[str, Any]:

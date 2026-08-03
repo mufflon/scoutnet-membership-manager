@@ -40,6 +40,7 @@ karverktyg = "karverktyg.cli:main"
 [dependency-groups]
 dev = [
     "pytest==9.1.1",
+    "pyyaml==6.0.2",
     "ruff==0.16.1",
 ]
 

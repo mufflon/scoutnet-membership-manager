@@ -138,7 +138,7 @@ class RunResult:
 class _ReadWrite(Protocol):
     """A read/write Scoutnet client — the real ``ReadWriteClient`` or a fake."""
 
-    def memberlist(self, variant: str = "active") -> MemberList: ...
+    def memberlist(self, variant: str = "active", *, fresh: bool = False) -> MemberList: ...
     def update_membership(self, payload: dict) -> dict: ...
 
 
@@ -204,7 +204,7 @@ class WriteExecutor:
         """Plan and (if ``mode`` is execute) perform a fresh run."""
         now = now or datetime.now(UTC)
         self._check_allowlist(moves)
-        memberlist = self._client.memberlist("active")
+        memberlist = self._client.memberlist("active", fresh=True)
         preflight = drift_check(moves, memberlist)
         actionable = [p for p in preflight if p.category is Category.WILL_APPLY]
 
@@ -283,7 +283,7 @@ class WriteExecutor:
             self._mark_chunk(run_id, chunk_id, "in_flight", bump=True)
             try:
                 # Re-read status immediately before writing and echo it back (§8).
-                live = self._client.memberlist("active").by_member_no()
+                live = self._client.memberlist("active", fresh=True).by_member_no()
                 statuses = {
                     mno: (live[mno].status_code if mno in live else None) for mno in member_nos
                 }
@@ -318,8 +318,8 @@ class WriteExecutor:
         )
 
     def _reconcile(self, items: list[PreflightItem]) -> dict:
-        """Post-run: re-read and confirm each member reached its target (§8)."""
-        by_no = self._client.memberlist("active").by_member_no()
+        """Post-run: re-read (fresh) and confirm each member reached its target (§8)."""
+        by_no = self._client.memberlist("active", fresh=True).by_member_no()
         applied, mismatch = 0, []
         for item in items:
             m = by_no.get(item.move.member_no)

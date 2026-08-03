@@ -334,13 +334,16 @@ None block this slice, but flagging for tracking:
 3. `0003` migration + ORM models + bootstrap `_MEANINGFUL` wiring + tests. ✅
 4. Snapshot writer + retention + tests. ✅
 5. Executor, split into two reviewable commits:
-   - **5a** — executor core: allowlist → live read → {snapshot + pre-flight
+   - **5a** ✅ — executor core: allowlist → live read → {snapshot + pre-flight
      drift} → journal → serial chunk loop (dry-run default, per-chunk status
      re-read) → status→`confirmed` mapping → resume. Tested against a fake
      in-process `ReadWriteClient` double. No network.
-   - **5b** — the stage-1 **mock Scoutnet server** generated from the bundled
-     schema: full-run integration incl. crash/resume/failure paths and the
-     shape-only malformed-payload test.
+   - **5b** ✅ — the stage-1 **mock Scoutnet server** whose request contract is
+     read from the vendored spec (via `pyyaml`, dev-only), driven through
+     `httpx.MockTransport`: full-run integration over the real `ReadWriteClient`
+     incl. crash/resume/failure paths and the shape-only malformed-payload test.
+     Fresh-read wiring (client `fresh=` cache bypass) landed here, closing the
+     5a reconcile/re-read caveat.
 6. Undo + reconcile wiring + tests.
 7. Flask write endpoints + server-side progress + frontend blade (dry-run default,
    prominent `read_write` banner).
