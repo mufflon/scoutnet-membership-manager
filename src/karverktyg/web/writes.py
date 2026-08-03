@@ -17,8 +17,9 @@ from sqlalchemy import select
 from karverktyg.db import WriteJournal, WriteRun, get_session
 from karverktyg.roster import build_troop_index
 from karverktyg.settings import Mode, Settings
+from karverktyg.uppflyttning import scope_master_set
 from karverktyg.uppflyttning.models import MasterSet
-from karverktyg.web.api import _master_set, _memberlist
+from karverktyg.web.api import _group_from, _master_set, _memberlist
 from karverktyg.web.runs import run_active_in_db
 from karverktyg.write import (
     IntendedMove,
@@ -165,7 +166,9 @@ def api_uppflyttning_run() -> ResponseReturnValue:
     execute = data.get("mode") == "execute"
 
     ml = _memberlist()
-    ms = _master_set(ml)
+    # Scoped to the selected transition group so a run only writes what the
+    # operator is looking at — never a transition they did not choose (§7 A).
+    ms = scope_master_set(_master_set(ml), _group_from(data.get("group")))
     moves = _moves_from_master(ms)
 
     # Off-cohort acknowledgement gate before an execute run (§17).

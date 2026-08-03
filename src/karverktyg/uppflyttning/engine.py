@@ -226,3 +226,27 @@ def compute_master_set(  # noqa: C901 - per-member classification is inherently 
         )
     )
     return MasterSet(cohort_year=n, entries=entries)
+
+
+# The operator runs one transition group at a time (§7 Deferred architecture A).
+MISPLACED_GROUP = "misplaced"
+
+
+def scope_master_set(master: MasterSet, group: str | None) -> MasterSet:
+    """
+    Narrow the master set to one group so it can be viewed, exported and written
+    on its own. ``group`` is a TransitionKind value (its correctly-aged movers,
+    with off-cohort members excluded), or ``"misplaced"`` (the off-cohort members
+    of any bracket — wrong age, handled per person), or None/"all" for everything.
+    """
+    if group in (None, "all"):
+        return master
+    if group == MISPLACED_GROUP:
+        entries = [e for e in master.entries if e.status is MoveStatus.OFF_COHORT]
+    else:
+        entries = [
+            e
+            for e in master.entries
+            if str(e.transition) == group and e.status is not MoveStatus.OFF_COHORT
+        ]
+    return MasterSet(cohort_year=master.cohort_year, entries=entries)

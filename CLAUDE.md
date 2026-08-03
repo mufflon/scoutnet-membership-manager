@@ -662,23 +662,42 @@ Treat this as a spike producing written options, not a build.
 Forward work agreed after Phase A, in three workstreams. **A is discussed next; B
 and C are parked here.**
 
-**A. Uppflyttning multi-target rework — next, and time-sensitive.** A **second
-Äventyrare avdelning** exists for the upcoming scout year, which breaks today's
-"only-one-avdelning-in-the-bracket → auto-target" assumption:
+**A. Uppflyttning multi-target rework — in progress.** A **second Äventyrare
+avdelning** exists for the upcoming scout year (permanent, unlike the yearly-new
+Utmanare avdelning), which breaks the "only one avdelning in the bracket →
+auto-target" assumption.
 
-- **Per-source merge routing.** Upptäckare → Äventyrare is no longer "everyone to
-  Vikingarna": each Upptäckare avdelning routes to a specific Äventyrare avdelning
-  (e.g. Kämparna → Vikingarna, Spejarna → the new one, Utforskarna → decide
-  manually). The exact split is **pending the ledarteamsgrupp**; build the
-  mechanism (per-source targets + a manual per-avdelning selection) so it is ready.
-- **Target inference** so config stays low-maintenance: explicit hint → same-weekday
-  match in the next bracket → the sole avdelning of the next bracket → else pending
-  and demand a decision. (Prototyped as `infer_target_name` in `uppflyttning.engine`
-  this session, then reverted to keep the bug batch clean — reinstate here.)
-- **Select which transitions to run** — toggle each (Spårare→Upptäckare,
-  Upptäckare→Äventyrare, Äventyrare→Utmanare) or run exactly one at a time
-  (operator leans run-one). The escape hatch: run the clean Äventyrare→Utmanare
-  move now, handle the messy Upptäckare→Äventyrare by hand.
+**Built this session.** A **transition-group selector**: the operator works one
+group at a time — Spårare→Upptäckare (`same_weekday`), Upptäckare→Äventyrare
+(`merge`), Äventyrare→Utmanare (`new_cohort_avdelning`), or **Felplacerade**
+(`misplaced`). `scope_master_set` narrows the master set by group, and the
+selection scopes the **view, the changelist export and the executor run** together
+— a run only writes the group being looked at. Off-cohort (wrong-age) members are
+their own `misplaced` group now, not mixed into the age transitions. This is the
+escape hatch for this year: run the clean Spårare→Upptäckare and Äventyrare→Utmanare
+groups, and leave Upptäckare→Äventyrare (ambiguous with two Äventyrare avdelningar)
+for later / by hand.
+
+**Follow-up — the target-resolution rule (agreed definition).** Per source, in
+order:
+
+1. **A configured flow hint** (e.g. the same-weekday match, Hajarna Mon → the Mon
+   Upptäckare) → resolve to that target.
+2. **No hint but exactly one possible target** → propose it as the default (still
+   overridable per member).
+3. **No hint and multiple targets** → **the operator must select per person**, via
+   the existing per-member override dropdown.
+4. **Exception: Äventyrare→Utmanare** always uses its single cohort-level election
+   (it creates one new avdelning for the whole cohort — a cohort decision, not a
+   per-person one).
+
+So Spårare→Upptäckare stays automatic (weekday hint); Upptäckare→Äventyrare is
+auto-defaulted today (one Vikingarna) and becomes must-select-per-person once the
+second Äventyrare avdelning exists. Building it means switching `merge` off the
+config `default_target` onto inference (reinstate the reverted `infer_target_name`
+in `uppflyttning.engine`) so two Äventyrare correctly read as ambiguous, and
+dropping the per-source `default_target`s from config.
+
 - **Even-split projection stats** — where a target is ambiguous across N avdelningar,
   distribute count/N to each for the §20 projection figures only (never for an
   actual move; config will not be kept perfectly current).

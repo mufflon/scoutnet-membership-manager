@@ -156,6 +156,18 @@ def test_uppflyttning_reset(client):
     assert after["decisions_count"] == 0 and after["elected_target"] is None
 
 
+def test_uppflyttning_group_scoping(client):
+    full = client.get("/api/uppflyttning").get_json()
+    assert full["group"] == "all"
+    assert full["groups"]["misplaced"] >= 1  # the fixture's off-cohort members
+    # A transition group excludes off-cohort; misplaced holds only off-cohort.
+    sw = client.get("/api/uppflyttning?group=same_weekday").get_json()
+    assert sw["group"] == "same_weekday"
+    assert len(sw["ready"]) > 0 and len(sw["off_cohort"]) == 0
+    mis = client.get("/api/uppflyttning?group=misplaced").get_json()
+    assert len(mis["off_cohort"]) == full["groups"]["misplaced"] and len(mis["ready"]) == 0
+
+
 def test_elect_target_manual_troop_id_guards(client):
     # The group id is rejected outright — §17, with a test asserting it.
     r = client.post("/api/uppflyttning/target", json={"avdelning": "Ny", "troop_id": 1025})

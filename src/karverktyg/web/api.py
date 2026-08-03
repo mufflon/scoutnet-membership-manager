@@ -30,8 +30,10 @@ from karverktyg.scoutnet.client import ScoutnetError
 from karverktyg.scoutnet.models import MemberList
 from karverktyg.settings import Settings
 from karverktyg.uppflyttning import (
+    MISPLACED_GROUP,
     ElectedTarget,
     MasterSet,
+    MoveStatus,
     apply_overrides,
     clear_all_decisions,
     clear_decision,
@@ -39,6 +41,7 @@ from karverktyg.uppflyttning import (
     compute_master_set,
     get_decisions,
     get_elected_target,
+    scope_master_set,
     set_elected_target,
     upsert_decision,
 )
@@ -415,11 +418,35 @@ def api_fortroende_pdf() -> ResponseReturnValue:
     )
 
 
+_TRANSITION_GROUPS = ("same_weekday", "merge", "new_cohort_avdelning")
+_VALID_GROUPS = frozenset({*_TRANSITION_GROUPS, MISPLACED_GROUP})
+
+
+def _group_from(value: str | None) -> str | None:
+    """Validate a transition-group value; None / 'all' / unknown => the whole set."""
+    return value if value in _VALID_GROUPS else None
+
+
+def _group_counts(master: MasterSet) -> dict[str, int]:
+    """Member count per group from the full master set, for the selector (§7 A)."""
+    counts: dict[str, int] = {}
+    for e in master.entries:
+        key = MISPLACED_GROUP if e.status is MoveStatus.OFF_COHORT else str(e.transition)
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
 @api_bp.get("/uppflyttning")
 def api_uppflyttning() -> ResponseReturnValue:
-    """The computed uppflyttning master set, grouped by status and target (§17)."""
+    """
+    The computed master set, optionally scoped to one transition group via
+    ``?group=`` so the operator works one transition at a time (§7 A). Off-cohort
+    members surface as their own ``misplaced`` group, not mixed into the age moves.
+    """
     ml = _memberlist()
-    ms = _master_set(ml)
+    full = _master_set(ml)
+    group = _group_from(request.args.get("group"))
+    ms = scope_master_set(full, group)
     index = build_troop_index(ml, _config())
     utmanare_candidates = sorted(
         (
@@ -442,6 +469,8 @@ def api_uppflyttning() -> ResponseReturnValue:
     )
     return jsonify(
         cohort_year=ms.cohort_year,
+        group=group or "all",
+        groups=_group_counts(full),
         ready=[_ser_move(e) for e in ms.ready()],
         pending=[_ser_move(e) for e in ms.pending()],
         off_cohort=[_ser_move(e) for e in ms.off_cohort()],
@@ -585,7 +614,7 @@ def api_clear_decision() -> ResponseReturnValue:
 def api_changelist() -> ResponseReturnValue:
     """Stream the changelist workbook; 409 until off-cohort is acknowledged (§17)."""
     ml = _memberlist()
-    ms = _master_set(ml)
+    ms = scope_master_set(_master_set(ml), _group_from(request.args.get("group")))
     ack_by = request.args.get("ack_by")
     now = datetime.now(UTC)
     try:

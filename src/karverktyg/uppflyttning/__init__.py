@@ -14,7 +14,11 @@ from karverktyg.uppflyttning.decisions import (
     get_decisions,
     upsert_decision,
 )
-from karverktyg.uppflyttning.engine import compute_master_set
+from karverktyg.uppflyttning.engine import (
+    MISPLACED_GROUP,
+    compute_master_set,
+    scope_master_set,
+)
 from karverktyg.uppflyttning.models import ElectedTarget, MasterSet, MoveEntry, MoveStatus
 from karverktyg.uppflyttning.overrides import Override, apply_overrides
 from karverktyg.uppflyttning.targets import (
@@ -24,6 +28,7 @@ from karverktyg.uppflyttning.targets import (
 )
 
 __all__ = [
+    "MISPLACED_GROUP",
     "CohortYearConflict",
     "ElectedTarget",
     "MasterSet",
@@ -38,6 +43,7 @@ __all__ = [
     "get_decisions",
     "get_elected_target",
     "resolve_cohort_year",
+    "scope_master_set",
     "set_elected_target",
     "upsert_decision",
 ]

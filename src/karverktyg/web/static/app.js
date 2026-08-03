@@ -332,10 +332,37 @@ function flash(node) {
   setTimeout(() => (node.style.backgroundColor = ""), 600);
 }
 
+// Which transition group the operator is working (shared by Uppflyttning + Utför).
+let UPP_GROUP = "all";
+const UPP_GROUP_LABEL = {
+  all: "Alla transitioner",
+  same_weekday: "Spårare → Upptäckare",
+  merge: "Upptäckare → Äventyrare",
+  new_cohort_avdelning: "Äventyrare → Utmanare",
+  misplaced: "Felplacerade (fel ålder)",
+};
+
+// A row of buttons to pick one transition group at a time. Only groups that have
+// members are shown (plus "Alla"). Selecting one reloads the blade scoped to it.
+function groupSelector(groups) {
+  const total = Object.values(groups || {}).reduce((a, b) => a + b, 0);
+  const wrap = el("div", { class: "card" }, el("strong", {}, "Välj transition att arbeta med"));
+  const row = el("div", { style: "margin-top:.4rem;display:flex;gap:.4rem;flex-wrap:wrap" });
+  for (const g of ["all", "same_weekday", "merge", "new_cohort_avdelning", "misplaced"]) {
+    const count = g === "all" ? total : groups[g] || 0;
+    if (g !== "all" && count === 0) continue;
+    const b = el("button", { class: "action", style: g === UPP_GROUP ? "outline:2px solid;font-weight:bold" : "" }, `${UPP_GROUP_LABEL[g]} (${count})`);
+    b.onclick = () => { UPP_GROUP = g; refresh(); };
+    row.append(b);
+  }
+  wrap.append(row);
+  return wrap;
+}
+
 async function renderUppflyttning(root) {
   let d;
   try {
-    d = await api("uppflyttning");
+    d = await api("uppflyttning?group=" + UPP_GROUP);
   } catch (e) {
     root.append(el("p", { class: "err" }, "Kan inte beräkna: " + e.message));
     return;
@@ -370,7 +397,9 @@ async function renderUppflyttning(root) {
     ),
   );
 
-  root.append(el("p", {}, "Uppflyttningsår N = ", el("strong", {}, esc(d.cohort_year)), ". ", el("a", { href: "/api/uppflyttning/changelist.xlsx" }, "Exportera changelist (Excel)")));
+  root.append(groupSelector(d.groups));
+  root.append(el("h3", {}, UPP_GROUP_LABEL[d.group] + " · uppflyttningsår " + esc(d.cohort_year)));
+  root.append(el("p", {}, el("a", { href: "/api/uppflyttning/changelist.xlsx?group=" + d.group }, "Exportera changelist (Excel)"), el("span", { class: "muted" }, " – enbart vald grupp")));
   root.append(
     el(
       "div",
@@ -840,24 +869,17 @@ async function renderExecute(root) {
     return;
   }
 
-  root.append(
-    el(
-      "div",
-      { class: "banner banner-fail" },
-      el("div", {}, el("strong", {}, "⚠ READ_WRITE — skrivning mot Scoutnet")),
-      el("div", { class: "banner-sub" }, "Torrkörning är standard. Utförande skriver på riktigt, en medlem i taget, och kan ångras så länge ögonblicksbilden finns kvar."),
-    ),
-  );
-
   // Off-cohort acknowledgement gate (§17): must be ticked before executing.
   let upp;
   try {
-    upp = await api("uppflyttning");
+    upp = await api("uppflyttning?group=" + UPP_GROUP);
   } catch (e) {
     root.append(el("p", { class: "err" }, "Kan inte beräkna uppflyttningen: " + e.message));
     return;
   }
   rememberAvdelningar(upp.avdelningar);
+  root.append(groupSelector(upp.groups));
+  root.append(el("h3", {}, "Utför: " + UPP_GROUP_LABEL[upp.group] + " · uppflyttningsår " + esc(upp.cohort_year)));
   let ackedBy = null;
   const offCount = upp.off_cohort.length;
 
@@ -872,7 +894,7 @@ async function renderExecute(root) {
   const runDry = async () => {
     previewOut.replaceChildren(el("p", { class: "muted" }, "Kör torrkörning…"));
     try {
-      const r = await apiSend("POST", "uppflyttning/run", { mode: "dry_run" });
+      const r = await apiSend("POST", "uppflyttning/run", { mode: "dry_run", group: UPP_GROUP });
       willApply = preview(previewOut, r);
       execBtn.disabled = willApply === 0 || (offCount > 0 && !ackedBy);
     } catch (e) {
@@ -903,13 +925,13 @@ async function renderExecute(root) {
   runDry(); // show the changes immediately, no click needed
 
   execBtn.onclick = async () => {
-    if (!confirm("Utför uppflyttningen? " + willApply + " medlem(mar) skrivs till Scoutnet.")) return;
+    if (!confirm("Utför " + UPP_GROUP_LABEL[upp.group] + "? " + willApply + " medlem(mar) skrivs till Scoutnet.")) return;
     // Lock the blade's controls the moment we commit: the run is server-side and
     // serialised, so a stray second click must not fire another request.
     dryBtn.disabled = true;
     execBtn.disabled = true;
     try {
-      const r = await apiSend("POST", "uppflyttning/run", { mode: "execute", ack_by: ackedBy });
+      const r = await apiSend("POST", "uppflyttning/run", { mode: "execute", ack_by: ackedBy, group: UPP_GROUP });
       pollRun(progress, r.run_id);
     } catch (e) {
       progress.replaceChildren(el("p", { class: "err" }, e.message));
@@ -968,12 +990,7 @@ async function renderVerify(root) {
   const info = await api("write/verify");
   rememberAvdelningar(info.avdelningar);
   root.append(
-    el(
-      "div",
-      { class: "banner banner-fail" },
-      el("div", {}, el("strong", {}, "⚠ Testskrivning mot Scoutnet")),
-      el("div", { class: "banner-sub" }, "Flytta EN medlem (helst platshållarkontot) för att bekräfta att avdelnings-id fungerar, verifiera i Scoutnet, och ångra sedan."),
-    ),
+    el("p", { class: "muted" }, "Flytta EN medlem (helst platshållarkontot) för att bekräfta att avdelnings-id fungerar, verifiera i Scoutnet, och ångra sedan."),
   );
   const memberLabel = (m) => (m.name ? `${m.name} (${m.member_no})` : m.member_no);
 
