@@ -8,7 +8,7 @@
     { "bracket": "sparare",    "age_min": 8,  "age_max": 9,  "transition": "same_weekday",          "structural_checks": true },
     { "bracket": "upptackare", "age_min": 10, "age_max": 11, "transition": "merge",                 "structural_checks": true },
     { "bracket": "aventyrare", "age_min": 12, "age_max": 14, "transition": "new_cohort_avdelning",  "structural_checks": true },
-    { "bracket": "utmanare",   "age_min": 14, "age_max": 18, "transition": "never_auto",            "structural_checks": false },
+    { "bracket": "utmanare",   "age_min": 15, "age_max": 18, "transition": "never_auto",            "structural_checks": false },
     { "bracket": "rover",      "age_min": null, "age_max": null, "transition": "never_auto",        "structural_checks": false },
     { "bracket": "annat",      "age_min": null, "age_max": null, "transition": "none",              "structural_checks": false }
   ],

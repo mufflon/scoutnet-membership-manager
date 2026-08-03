@@ -13,6 +13,7 @@ class MoveStatus(enum.StrEnum):
     PENDING_TARGET = "pending_target"  # new_cohort_avdelning target not yet elected
     OFF_COHORT = "off_cohort"  # birth year off the bracket; manual, excluded
     EXCLUDED = "excluded"  # role-holder / adult; surfaced for review, not moved
+    OVERRIDE_STAY = "override_stay"  # operator override: keep in place this year
 
 
 @dataclass
