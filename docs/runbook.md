@@ -49,6 +49,10 @@ snapshot is retained. If anything looks wrong, stop — nothing is lost.
    `--idempotency` re-applies the same move once and confirms Scoutnet treats it
    as a no-op (the assumption the crash-resume path relies on).
 
+   The same test is available in the UI under **Verifiera skrivning** (read_write
+   only): it shows the allowlist, lets you dry-run then execute a single-member
+   move, and offers undo — the site equivalent of the commands above.
+
 ## 2. Configuration for a write deployment
 
 Set these (Secret for the key, ConfigMap for the rest):

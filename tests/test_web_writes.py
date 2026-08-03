@@ -169,3 +169,43 @@ def test_unknown_run_is_404(tmp_path):
     app, _ = _rw_app(tmp_path)
     c = app.test_client()
     assert c.get("/api/write/runs/nope").status_code == 404
+
+
+def test_verify_single_member_dry_run_and_execute(tmp_path):
+    app, double = _rw_app(tmp_path)
+    c = app.test_client()
+
+    info = c.get("/api/write/verify").get_json()
+    assert "1001" in info["allowlist"]
+
+    dry = c.post("/api/write/verify", json={"member_no": "1001", "target_troop_id": 99999})
+    d = dry.get_json()
+    assert d["run_state"] == "dry_run"
+    assert d["chunks"][0]["payload"] == {"1001": {"status": "confirmed", "troop_id": 99999}}
+    assert double.overrides == {}  # dry-run writes nothing
+
+    started = c.post(
+        "/api/write/verify", json={"member_no": "1001", "target_troop_id": 99999, "mode": "execute"}
+    )
+    assert started.status_code == 202
+    app.config["RUN_MANAGER"].wait(timeout=5)
+    assert double.overrides["1001"] == 99999
+
+
+def test_verify_refuses_off_allowlist_and_gates_on_mode(tmp_path):
+    app, _ = _rw_app(tmp_path, allowlist=("1001",))
+    c = app.test_client()
+    # 1002 is not on the allowlist -> 400
+    assert (
+        c.post(
+            "/api/write/verify", json={"member_no": "1002", "target_troop_id": 99999}
+        ).status_code
+        == 400
+    )
+    # gated outside read_write
+    fx = create_app(Settings(mode=Mode.FIXTURE, database_url="sqlite://")).test_client()
+    assert (
+        fx.post("/api/write/verify", json={"member_no": "1001", "target_troop_id": 1}).status_code
+        == 403
+    )
+    assert fx.get("/api/write/verify").status_code == 403

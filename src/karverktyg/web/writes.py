@@ -186,6 +186,49 @@ def api_uppflyttning_run() -> ResponseReturnValue:
     return _launch("uppflyttning", ms.cohort_year, moves, executor)
 
 
+@writes_bp.get("/write/verify")
+def api_verify_info() -> ResponseReturnValue:
+    """
+    What the verify blade shows read-only: the allowlist and mode (§8). The
+    allowlist is deployment config (SCOUTNET_WRITE_ALLOWLIST) and is not editable
+    here — keys and allowlist never come from the UI (hard rule 7, §13).
+    """
+    if (err := _read_write_or_403()) is not None:
+        return err
+    return jsonify(allowlist=list(_settings().write_allowlist), mode=_settings().mode.value)
+
+
+@writes_bp.post("/write/verify")
+def api_verify() -> ResponseReturnValue:
+    """
+    Stage-2 single-member move (§8): dry-run (sync) or background execute, on one
+    allowlisted member. The web equivalent of the ``verify-write`` CLI; undo and
+    status reuse the shared run endpoints.
+    """
+    if (err := _read_write_or_403()) is not None:
+        return err
+    data = request.get_json(silent=True) or {}
+    member_no = str(data.get("member_no") or "").strip()
+    raw_target = data.get("target_troop_id")
+    if not member_no or raw_target is None:
+        return jsonify(error="member_no and target_troop_id are required"), _HTTP_BAD_REQUEST
+    try:
+        target = int(raw_target)
+    except TypeError, ValueError:
+        return jsonify(error="target_troop_id must be an integer"), _HTTP_BAD_REQUEST
+
+    client = current_app.config["SCOUTNET"]
+    member = client.memberlist("active", fresh=True).by_member_no().get(member_no)
+    if member is None:
+        return jsonify(error=f"member {member_no} not in active roster"), _HTTP_NOT_FOUND
+    moves = [IntendedMove(member_no, member.unit_troop_id, target, label="verify")]
+    assert_allowlist(_settings(), moves)  # clean 400 on violation (errorhandler)
+    executor = _executor()
+    if data.get("mode") != "execute":
+        return jsonify(_ser_result(executor.run(moves, kind="stage2_verify")))
+    return _launch("stage2_verify", None, moves, executor)
+
+
 @writes_bp.post("/write/runs/<run_id>/resume")
 def api_resume(run_id: str) -> ResponseReturnValue:
     """Resume an interrupted/failed run from its journal (background, §8)."""

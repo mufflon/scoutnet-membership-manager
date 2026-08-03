@@ -8,6 +8,7 @@ const TABS = [
   ["uppflyttning", "Uppflyttning", renderUppflyttning],
   ["execute", "Utför", renderExecute],
   ["findings", "Anmärkningar", renderFindings],
+  ["verify", "Verifiera skrivning", renderVerify],
   ["templates", "Mallar", renderTemplates],
   ["apicheck", "API-koll", renderApiCheck],
   ["capabilities", "Funktioner", renderCapabilities],
@@ -765,6 +766,89 @@ async function renderExecute(root) {
   } catch {
     /* history is best-effort */
   }
+}
+
+// --- Verifiera skrivning (stage-2 single-member check, §8) -----------------
+
+async function renderVerify(root) {
+  const cap = await api("capabilities");
+  if (!cap.read_write_active) {
+    root.append(
+      el(
+        "div",
+        { class: "card" },
+        el("strong", {}, "Verifiera skrivning (stage 2)"),
+        el("p", { class: "muted" }, "Endast i read_write-läge (nuvarande: " + esc(cap.mode) + ")."),
+      ),
+    );
+    return;
+  }
+  const info = await api("write/verify");
+  root.append(
+    el(
+      "div",
+      { class: "banner banner-fail" },
+      el("div", {}, el("strong", {}, "⚠ Testskrivning mot Scoutnet")),
+      el("div", { class: "banner-sub" }, "Flytta EN medlem (helst platshållarkontot) för att bekräfta att troop_id fungerar, verifiera i Scoutnet, och ångra sedan."),
+    ),
+  );
+  root.append(
+    el(
+      "div",
+      { class: "card" },
+      el("strong", {}, "Tillåtna medlemsnummer (allowlist)"),
+      el("div", { class: "muted" }, (info.allowlist.length ? info.allowlist.join(", ") : "(tom — inga skrivningar tillåtna)")),
+      el("div", { class: "muted", style: "font-size:.82rem;" }, "Konfigureras via SCOUTNET_WRITE_ALLOWLIST (deployment) — kan inte ändras här."),
+    ),
+  );
+
+  const memberIn = el("input", { type: "text", placeholder: "medlemsnr", style: "width:10rem;" });
+  const targetIn = el("input", { type: "number", placeholder: "mål-troop_id", style: "width:10rem;" });
+  const progress = el("div", {});
+  const dryBtn = el("button", { class: "action" }, "Testa (torrkörning)");
+  const execBtn = el("button", { class: "danger" }, "Utför testflytt");
+  execBtn.disabled = true;
+  let willApply = 0;
+
+  const body = () => ({ member_no: memberIn.value.trim(), target_troop_id: Number(targetIn.value) });
+  const valid = () => memberIn.value.trim() && targetIn.value !== "";
+
+  dryBtn.onclick = async () => {
+    if (!valid()) {
+      progress.replaceChildren(el("p", { class: "err" }, "Ange medlemsnr och mål-troop_id."));
+      return;
+    }
+    progress.replaceChildren(el("p", { class: "muted" }, "Kör torrkörning…"));
+    try {
+      const r = await apiSend("POST", "write/verify", { ...body(), mode: "dry_run" });
+      willApply = preview(progress, r);
+      execBtn.disabled = willApply === 0;
+    } catch (e) {
+      progress.replaceChildren(el("p", { class: "err" }, e.message));
+    }
+  };
+  execBtn.onclick = async () => {
+    if (!confirm("Utför testflytt av medlem " + memberIn.value.trim() + "? Detta skriver till Scoutnet.")) return;
+    dryBtn.disabled = true;
+    execBtn.disabled = true;
+    try {
+      const r = await apiSend("POST", "write/verify", { ...body(), mode: "execute" });
+      pollRun(progress, r.run_id); // status card offers undo when done
+    } catch (e) {
+      progress.replaceChildren(el("p", { class: "err" }, e.message));
+    }
+  };
+
+  root.append(
+    el(
+      "div",
+      { class: "card" },
+      el("strong", {}, "Testflytt av en medlem"),
+      el("div", { style: "margin:.5rem 0;" }, el("label", {}, "Medlemsnr "), memberIn, " ", el("label", {}, "Till troop_id "), targetIn),
+      el("div", {}, dryBtn, " ", execBtn),
+    ),
+    progress,
+  );
 }
 
 let renderGen = 0;
