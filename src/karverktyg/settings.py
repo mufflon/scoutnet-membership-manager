@@ -32,6 +32,13 @@ class MissingCredentialError(RuntimeError):
     """Raised at startup when a key required by the active mode is absent."""
 
 
+# Fingerprint method for endpoint keys (§12) — kept as constants so the UI can
+# state exactly how to reproduce it. Fingerprint = ALGO(key UTF-8 bytes) hex,
+# truncated to CHARS characters.
+FINGERPRINT_ALGO = "sha256"
+FINGERPRINT_CHARS = 8
+
+
 def _truncated_hash(secret: SecretStr | None) -> str | None:
     """
     Return a short, non-reversible fingerprint of a key for the capabilities page
@@ -39,8 +46,8 @@ def _truncated_hash(secret: SecretStr | None) -> str | None:
     """
     if secret is None:
         return None
-    digest = hashlib.sha256(secret.get_secret_value().encode()).hexdigest()
-    return digest[:8]
+    digest = hashlib.new(FINGERPRINT_ALGO, secret.get_secret_value().encode()).hexdigest()
+    return digest[:FINGERPRINT_CHARS]
 
 
 class Settings(BaseSettings):

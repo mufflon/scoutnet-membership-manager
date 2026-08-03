@@ -40,6 +40,20 @@ def test_api_check_read_only_ok_and_disabled():
     assert r["all_ok"] is True  # disabled is not a failure
 
 
+def test_fingerprint_method_reproduces_shown_hash():
+    import hashlib
+
+    s = Settings(
+        mode=Mode.READ_ONLY, entity_id="1", memberlist_key="secret-key", organisation_group_key=None
+    )
+    r = api_check(s, _Stub(members=[1]))
+    fp = r["fingerprint"]
+    assert (fp["algo"], fp["chars"], fp["over"]) == ("sha256", 8, "utf-8")
+    row = next(c for c in r["checks"] if c["endpoint"] == "group/memberlist")
+    expected = hashlib.new(fp["algo"], b"secret-key").hexdigest()[: fp["chars"]]
+    assert row["key_hash"] == expected  # the documented recipe replicates it
+
+
 def test_api_check_read_only_failure_is_flagged():
     s = Settings(
         mode=Mode.READ_ONLY, entity_id="1", memberlist_key="bad", organisation_group_key="y"

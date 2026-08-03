@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import httpx
 
 from karverktyg.scoutnet.client import ScoutnetError
-from karverktyg.settings import Mode, Settings
+from karverktyg.settings import FINGERPRINT_ALGO, FINGERPRINT_CHARS, Mode, Settings
 
 if TYPE_CHECKING:
     from karverktyg.scoutnet.client import FixtureClient, ReadOnlyClient
@@ -78,6 +78,8 @@ def api_check(settings: Settings, client: FixtureClient | ReadOnlyClient) -> dic
         "fixture": is_fixture,
         "all_ok": all(c["status"] != "fail" for c in checks),
         "checks": checks,
+        # How the fingerprint column is computed, so it can be reproduced.
+        "fingerprint": {"algo": FINGERPRINT_ALGO, "chars": FINGERPRINT_CHARS, "over": "utf-8"},
     }
 
 

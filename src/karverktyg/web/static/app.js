@@ -472,17 +472,35 @@ async function renderApiCheck(root) {
   }
 
   const pill = (c) => el("span", { class: "chk chk-" + c.status }, CHK_SV[c.status] || c.status);
-  root.append(
-    el(
-      "div",
-      { class: "card" + (anyFail ? "" : " ok-frame") },
-      el("strong", {}, "Endpoint-kontroller"),
-      table(
-        ["Endpoint", "Nyckel (env)", "Status", "Svar / detalj", "Fingeravtryck"],
-        d.checks.map((c) => [c.endpoint, c.key_env, pill(c), c.detail, c.key_hash || "–"]),
-      ),
+  const fp = d.fingerprint || { algo: "sha256", chars: 8, over: "utf-8" };
+  const fpHead = "Fingeravtryck (" + fp.algo + "[:" + fp.chars + "])";
+  const card = el(
+    "div",
+    { class: "card" + (anyFail ? "" : " ok-frame") },
+    el("strong", {}, "Endpoint-kontroller"),
+    table(
+      ["Endpoint", "Nyckel (env)", "Status", "Svar / detalj", fpHead],
+      d.checks.map((c) => [c.endpoint, c.key_env, pill(c), c.detail, c.key_hash || "–"]),
     ),
   );
+  // Explain the fingerprint so it can be replicated against a candidate key.
+  card.append(
+    el(
+      "div",
+      { class: "muted", style: "font-size:.82rem;margin-top:.5rem;" },
+      "Fingeravtryck = " + fp.algo + "(nyckelns " + fp.over + "-bytes), hex, första " + fp.chars + " tecken. Reproducera:",
+    ),
+    el(
+      "pre",
+      {},
+      "python3 -c \"import hashlib,sys;print(hashlib." +
+        fp.algo +
+        "(sys.argv[1].encode()).hexdigest()[:" +
+        fp.chars +
+        '])" DIN_NYCKEL',
+    ),
+  );
+  root.append(card);
 }
 
 async function renderCapabilities(root) {
@@ -504,15 +522,21 @@ async function renderCapabilities(root) {
   root.append(el("div", { class: "card" }, el("strong", {}, "OpenAPI"), el("div", { class: "muted" }, om ? `version ${om.version} · ${om.git_commit || ""} · ${om.retrieved || ""}` : "ej vendorerad ännu")));
 }
 
+let renderGen = 0;
+
 async function show(key) {
+  const gen = ++renderGen; // guards against overlapping renders double-appending
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.k === key));
   const root = $("#content");
   root.replaceChildren(el("p", { class: "muted" }, "Laddar…"));
   const tab = TABS.find((t) => t[0] === key) || TABS[0];
+  const container = el("div"); // build off-screen, swap in atomically
   try {
-    root.replaceChildren();
-    await tab[2](root);
+    await tab[2](container);
+    if (gen !== renderGen) return; // a newer navigation superseded this one
+    root.replaceChildren(container);
   } catch (e) {
+    if (gen !== renderGen) return;
     root.replaceChildren(el("p", { class: "err" }, "Fel: " + e.message));
   }
   location.hash = key;
