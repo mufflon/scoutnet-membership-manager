@@ -3,7 +3,7 @@
 
 // [key, label, render, group]. The nav renders one row grouped under these
 // section labels; Diagnostik holds the debug/programming views.
-const NAV_GROUPS = ["Översikt", "Åtgärder", "Diagnostik"];
+const NAV_GROUPS = ["Översikt", "Åtgärder", "Konfiguration", "Diagnostik"];
 const TABS = [
   ["overview", "Översikt", renderOverview, "Översikt"],
   ["dues", "Medlemsavgifter", renderDues, "Översikt"],
@@ -11,7 +11,7 @@ const TABS = [
   ["findings", "Anmärkningar", renderFindings, "Översikt"],
   ["uppflyttning", "Uppflyttning", renderUppflyttning, "Åtgärder"],
   ["execute", "Utför uppflyttning", renderExecute, "Åtgärder"],
-  ["templates", "Mallar", renderTemplates, "Åtgärder"],
+  ["templates", "Mallar", renderTemplates, "Konfiguration"],
   ["apicheck", "API-koll", renderApiCheck, "Diagnostik"],
   ["capabilities", "Funktioner", renderCapabilities, "Diagnostik"],
   ["verify", "Verifiera skrivning", renderVerify, "Diagnostik"],
