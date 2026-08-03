@@ -198,11 +198,14 @@ the `0002` pattern.
 7. **Reconcile** on completion (§ below).
 
 ### Dry-run (default, hard rule 4)
-`mode = dry_run` runs steps 1–5 and the per-chunk re-read, and its output *is*
-the pre-flight drift report plus the exact payload it would `POST` per chunk — it
-stops before the send. Executing requires an explicit, separate confirmation.
-Dry-run and execute are the same code path with a single guarded send — never two
-implementations.
+`mode = dry_run` runs the allowlist check, the live read and the pre-flight drift
+check, then builds the exact per-chunk payloads it *would* `POST` — its output is
+the drift report plus those payloads. It performs **no side effects**: no
+snapshot file, no journal rows, no send. Snapshot and journal are execute-only
+bookkeeping and don't affect *what* would be sent, so the preview stays faithful
+while sharing the payload-building path with execute. Executing is a separate,
+explicit confirmation; the actual Scoutnet write is the one guarded operation,
+never a second implementation.
 
 ### Resume (§8)
 After a crash the operator sees where the run stopped (journal state) and chooses

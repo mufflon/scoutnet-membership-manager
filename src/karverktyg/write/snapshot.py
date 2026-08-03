@@ -112,11 +112,13 @@ def write_snapshot(
     run_id: str | None = None,
     variant: str = "active",
     now: datetime | None = None,
+    memberlist: MemberList | None = None,
 ) -> SnapshotInfo:
     """
     Capture a snapshot to the volume and index it in the DB. Raises
     ``SnapshotError`` if no ``snapshot_dir`` is configured — a bulk run must not
-    proceed without its recovery artifact (§8).
+    proceed without its recovery artifact (§8). Pass ``memberlist`` to reuse a
+    read the caller already made (the executor's single pre-flight read).
     """
     if settings.snapshot_dir is None:
         raise SnapshotError(
@@ -124,7 +126,8 @@ def write_snapshot(
         )
     now = now or datetime.now(UTC)
     snapshot_id = str(uuid.uuid4())
-    memberlist = client.memberlist(variant)
+    if memberlist is None:
+        memberlist = client.memberlist(variant)
     payload = build_snapshot_payload(memberlist, run_id=run_id, variant=variant, taken_at=now)
 
     directory = Path(settings.snapshot_dir)
