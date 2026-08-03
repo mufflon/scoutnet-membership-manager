@@ -31,6 +31,24 @@ snapshot is retained. If anything looks wrong, stop — nothing is lost.
    account), then check it by hand in the Scoutnet UI. Only proceed once this is
    confirmed. Record the verified mapping.
 
+   With the placeholder's `member_no` on the allowlist and its current avdelning
+   noted, run (dry-run first — it writes nothing):
+
+   ```bash
+   karverktyg verify-write --member <placeholder_no> --to <target_troop_id>
+   karverktyg verify-write --member <placeholder_no> --to <target_troop_id> --execute --idempotency
+   ```
+
+   Check in the Scoutnet UI that the placeholder is now in the target avdelning,
+   then undo with the printed command:
+
+   ```bash
+   karverktyg verify-write --undo-run <run_id> --execute
+   ```
+
+   `--idempotency` re-applies the same move once and confirms Scoutnet treats it
+   as a no-op (the assumption the crash-resume path relies on).
+
 ## 2. Configuration for a write deployment
 
 Set these (Secret for the key, ConfigMap for the rest):
