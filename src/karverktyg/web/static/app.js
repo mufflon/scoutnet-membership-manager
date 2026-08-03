@@ -49,13 +49,20 @@ function refresh() {
 }
 
 async function copyText(text, btn) {
+  const orig = btn.textContent;
   try {
     await navigator.clipboard.writeText(text);
     btn.textContent = "Kopierat!";
   } catch {
     btn.textContent = "Kunde inte kopiera";
   }
-  setTimeout(() => (btn.textContent = "Kopiera"), 1500);
+  setTimeout(() => (btn.textContent = orig), 1500);
+}
+
+function copyButton(label, text) {
+  const b = el("button", { class: "action", style: "margin: 0.2rem 0.4rem 0 0;" }, label);
+  b.onclick = () => copyText(text, b);
+  return b;
 }
 
 function table(headers, rows) {
@@ -132,16 +139,22 @@ async function renderWaiting(root) {
     detail.style.display = "none";
     const draft = drafts[a.member_no];
     if (draft) {
-      const to = draft.to.join(", ") || "(ingen adress – kan inte skickas)";
+      const recipients = draft.to.join(", ");
+      const to = recipients || "(ingen adress – kan inte skickas)";
       const full = "Till: " + to + "\nÄmne: " + draft.subject + "\n\n" + draft.body;
-      const copyBtn = el("button", { class: "action" }, "Kopiera");
-      copyBtn.onclick = () => copyText(full, copyBtn);
+      const buttons = el("div", {});
+      if (recipients) buttons.append(copyButton("Kopiera mottagare", recipients));
+      buttons.append(
+        copyButton("Kopiera ämne", draft.subject),
+        copyButton("Kopiera text", draft.body),
+        copyButton("Kopiera allt", full),
+      );
       cell.append(
         el("div", {}, el("span", { class: "tag" }, draft.kind === "ledare" ? "Ledare" : "Scout"), draft.unsendable ? el("span", { class: "err" }, " · ingen adress") : ""),
         el("div", { class: "muted" }, "Till: " + to),
         el("div", { class: "muted" }, "Ämne: " + esc(draft.subject)),
         el("pre", { html: esc(draft.body) }),
-        copyBtn,
+        buttons,
       );
     } else {
       cell.append(el("p", { class: "muted" }, "Inget utkast."));
