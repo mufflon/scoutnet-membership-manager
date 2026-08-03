@@ -283,6 +283,24 @@ Batch, keyed by member number. `status` is **required on every entry**.
 Documented as atomic: any error rejects the entire request. On 400 the response
 is keyed by member number with per-member error strings.
 
+### Read client behaviour
+
+How the read client calls the API, learned from live use (§6 modes still apply):
+
+- **Retry only connection failures.** A read timeout means Scoutnet accepted the
+  request but is slow to answer — retrying only multiplies the wait. Retry
+  `ConnectError` / `ConnectTimeout` a few times with a short fixed wait; let read
+  timeouts fail fast.
+- **Short in-process memberlist cache (~90 s).** The active / waiting /
+  awaiting_approval lists are cached per variant so navigating between blades
+  does not re-fetch a multi-second list each time. This is read-only data that
+  changes slowly; the operator reloads for fresh data.
+- **Per-variant fail-soft.** `waiting` and `awaiting_approval` are separate calls
+  and one can stall while the other is fine (observed: `awaiting_approval`
+  reliably read-times-out for this kår while `waiting` returns quickly). A
+  variant that errors or times out must degrade to an inline "unavailable"
+  notice and load **independently** — it must never block or 500 the whole blade.
+
 ## 5. Feasibility — read before proposing features
 
 **Feasible now, read-only:**
@@ -586,6 +604,21 @@ deleted; a completed run's journal is deleted after a short retention window.
 An explicit, tested cleanup step in the workflow — not a background sweep that
 might not run.
 
+### Deploy bootstrap
+
+An idempotent bootstrap runs on every deploy and brings the database to the
+current schema, reusing it when possible: empty → migrate; alembic-managed →
+upgrade; unmanaged but schema-compatible → adopt in place; incompatible and not
+migratable → preserve the meaningful data (email templates, finding acks,
+message log), rebuild the schema, and drop everything else.
+
+**Uppflyttning working state is never preserved across a migration or rebuild.**
+The per-cohort-year decisions and target elections (`uppflyttning_entry`,
+`cohort_target`) are scratch data, and a version bump may itself be prompted by
+an incompatibility — so they are cleared whenever migrations are actually
+applied. A redeploy that applies no migration leaves them untouched, so
+in-progress decisions survive ordinary restarts.
+
 ## 10. Email
 
 Gmail API, service account with domain-wide delegation, scope
@@ -676,6 +709,15 @@ a role-holder can sit in a scout avdelning. For move-exclusion take the
 **union** of both signals; over-excluding is safe, under-excluding moves a
 leader.
 
+**Patrol-scoped roles are not leadership — classify by scope, not key.**
+Patrulledare and Vice patrulledare are patrol-level *youth* roles held inside an
+avdelning's patrull. In the API they reuse the `leader` / `vice_leader` role
+keys, but their `scope` is `patrol` (real adult leaders are scoped `troop` or
+`group`). A `patrol`-scoped role therefore never counts as a leader — not for
+the union above, and not for the `young_leader` check. A Patrulledare is an
+ordinary scout who moves up with their cohort like anyone else. (In the
+2026 data this was ~25 scouts wrongly held back before the scope rule.)
+
 Findings are computed live on every page load and never stored.
 
 **Acknowledgement is the only persisted state, and it is keyed to the value,
@@ -695,7 +737,20 @@ What **this deployment** can do:
 - Vendored OpenAPI version, upstream git hash, retrieval date
 - Application version and build number
 
+The key fingerprint names its method — `sha256[:8]` of the key's UTF-8 bytes —
+so an operator can reproduce it against a candidate key without the tool ever
+revealing the key.
+
 Permissions are **per deployment**, not per user.
+
+**API-koll (endpoint self-test).** A dedicated blade probes each configured
+endpoint key with a *real* read and tabulates the result per endpoint: OK / FEL
+/ Avstängd (blank key = deliberately off) / Fixtur. It is green when every
+configured key answers. A misconfigured key must be impossible to miss — it
+raises a site-wide, clickable banner shown on **every** blade that links here,
+plus a per-failure info box carrying the exact error. In fixture mode every
+check is green, but the blade says loudly that it is serving committed sample
+data, not testing live keys.
 
 ## 13. Configuration
 
@@ -1056,9 +1111,11 @@ who set it.
 ### Leaders
 
 Members holding a leader-class role, and members of the Ledare avdelning, are
-excluded from all age-based moves. Take the union of both signals per §11. A
-scout who also holds an assistant-leader role elsewhere is flagged for review
-rather than auto-moved.
+excluded from all age-based moves. Take the union of both signals per §11 —
+including its scope rule: patrol-scoped roles (Patrulledare / Vice patrulledare)
+are youth roles, not leadership, and move with their cohort. A scout who also
+holds an assistant-leader role elsewhere is flagged for review rather than
+auto-moved.
 
 ### Yearly maintenance
 
