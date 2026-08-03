@@ -231,10 +231,13 @@ def api_verify() -> ResponseReturnValue:
         return jsonify(error="target_troop_id must be an integer"), _HTTP_BAD_REQUEST
 
     client = current_app.config["SCOUTNET"]
-    member = client.memberlist("active", fresh=True).by_member_no().get(member_no)
+    memberlist = client.memberlist("active", fresh=True)
+    member = memberlist.by_member_no().get(member_no)
     if member is None:
         return jsonify(error=f"member {member_no} not in active roster"), _HTTP_NOT_FOUND
-    moves = [IntendedMove(member_no, member.unit_troop_id, target, label="verify")]
+    index = build_troop_index(memberlist, current_app.config["KAR_CONFIG"])
+    label = next((name for name, tid in index.name_to_id.items() if tid == target), "")
+    moves = [IntendedMove(member_no, member.unit_troop_id, target, label=label)]
     assert_allowlist(_settings(), moves)  # clean 400 on violation (errorhandler)
     executor = _executor()
     # A deliberate single-member test may target a leader (e.g. the operator's own

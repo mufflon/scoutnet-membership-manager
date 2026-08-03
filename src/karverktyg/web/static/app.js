@@ -563,6 +563,17 @@ const RUNSTATE_SV = {
   aborted: "Avbruten",
 };
 
+// troop_id -> avdelning name, remembered from any blade that fetches the list,
+// so from/to render as "Namn (troop_id)" like the member picker.
+const AVD_BY_TROOP = {};
+const rememberAvdelningar = (list) => {
+  for (const a of list || []) AVD_BY_TROOP[a.troop_id] = a.avdelning;
+};
+const troopName = (tid) => {
+  if (tid == null || tid === "") return "–";
+  return AVD_BY_TROOP[tid] ? `${AVD_BY_TROOP[tid]} (${tid})` : String(tid);
+};
+
 function preview(out, r) {
   // Group the pre-flight rows by category so the operator sees, before writing,
   // exactly what will happen and what is being skipped (§8 drift check).
@@ -586,8 +597,8 @@ function preview(out, r) {
         { class: "card" },
         el("strong", {}, CAT_SV[cat] + " (" + rows.length + ")"),
         table(
-          ["Medlemsnr", "Till (troop)", "Avdelning", "Nuvarande", "Anledning"],
-          rows.map((p) => [p.member_no, p.target_troop_id, p.label || "–", p.current_troop_id ?? "–", p.reason || ""]),
+          ["Medlemsnr", "Från", "Till", "Anledning"],
+          rows.map((p) => [p.member_no, troopName(p.current_troop_id), troopName(p.target_troop_id), p.reason || ""]),
         ),
       ),
     );
@@ -696,6 +707,7 @@ async function renderExecute(root) {
     root.append(el("p", { class: "err" }, "Kan inte beräkna uppflyttningen: " + e.message));
     return;
   }
+  rememberAvdelningar(upp.avdelningar);
   let ackedBy = null;
   const offCount = upp.off_cohort.length;
 
@@ -800,6 +812,7 @@ async function renderVerify(root) {
     return;
   }
   const info = await api("write/verify");
+  rememberAvdelningar(info.avdelningar);
   root.append(
     el(
       "div",
