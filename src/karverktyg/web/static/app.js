@@ -6,6 +6,7 @@ const TABS = [
   ["dues", "Medlemsavgifter", renderDues],
   ["waiting", "Väntelista", renderWaiting],
   ["uppflyttning", "Uppflyttning", renderUppflyttning],
+  ["execute", "Utför", renderExecute],
   ["findings", "Anmärkningar", renderFindings],
   ["templates", "Mallar", renderTemplates],
   ["apicheck", "API-koll", renderApiCheck],
@@ -529,6 +530,241 @@ async function renderCapabilities(root) {
   root.append(el("div", { class: "card" }, el("strong", {}, "Åtgärder"), table(["Åtgärd", "Aktiverad", "Förklaring"], d.actions.map((a) => [a.action, a.enabled ? "ja" : "nej", a.reason || ""]))));
   const om = d.openapi;
   root.append(el("div", { class: "card" }, el("strong", {}, "OpenAPI"), el("div", { class: "muted" }, om ? `version ${om.version} · ${om.git_commit || ""} · ${om.retrieved || ""}` : "ej vendorerad ännu")));
+}
+
+// --- Utför (write path, §8) -----------------------------------------------
+
+const CAT_SV = {
+  will_apply: "Kommer att flyttas",
+  already_applied: "Redan på plats (hoppas över)",
+  drifted: "Avviker – hoppas över",
+};
+const RUNSTATE_SV = {
+  running: "Kör…",
+  done: "Klar",
+  failed: "Misslyckades",
+  aborted: "Avbruten",
+};
+
+function preview(out, r) {
+  // Group the pre-flight rows by category so the operator sees, before writing,
+  // exactly what will happen and what is being skipped (§8 drift check).
+  const byCat = { will_apply: [], already_applied: [], drifted: [] };
+  for (const p of r.preflight) (byCat[p.category] || (byCat[p.category] = [])).push(p);
+  out.replaceChildren(
+    el(
+      "div",
+      { class: "grid" },
+      stat(byCat.will_apply.length, "Kommer att flyttas"),
+      stat(byCat.already_applied.length, "Redan på plats"),
+      stat(byCat.drifted.length, "Avviker (hoppas över)"),
+    ),
+  );
+  for (const cat of ["will_apply", "drifted", "already_applied"]) {
+    const rows = byCat[cat] || [];
+    if (!rows.length) continue;
+    out.append(
+      el(
+        "div",
+        { class: "card" },
+        el("strong", {}, CAT_SV[cat] + " (" + rows.length + ")"),
+        table(
+          ["Medlemsnr", "Till (troop)", "Avdelning", "Nuvarande", "Anledning"],
+          rows.map((p) => [p.member_no, p.target_troop_id, p.label || "–", p.current_troop_id ?? "–", p.reason || ""]),
+        ),
+      ),
+    );
+  }
+  return byCat.will_apply.length;
+}
+
+function runStatusCard(area, s) {
+  const j = s.journal || {};
+  const counts = Object.entries(j).map(([k, v]) => `${k}: ${v}`).join(" · ") || "–";
+  const card = el(
+    "div",
+    { class: "card" },
+    el("strong", {}, "Körning " + s.run_id.slice(0, 8) + " · " + (RUNSTATE_SV[s.state] || s.state)),
+    el("div", { class: "muted" }, s.kind + " · " + counts),
+  );
+  const failed = (s.members || []).filter((m) => m.state === "failed");
+  if (failed.length) {
+    const b = el("button", { class: "action" }, "Återuppta från felad chunk");
+    b.onclick = async () => {
+      try {
+        await apiSend("POST", "write/runs/" + s.run_id + "/resume");
+        pollRun(area, s.run_id);
+      } catch (e) {
+        alert(e.message);
+      }
+    };
+    card.append(
+      table(["Medlemsnr", "Fel"], failed.map((m) => [m.member_no, m.error || ""])),
+      el("div", { style: "margin-top:.5rem;" }, b),
+    );
+  }
+  if (s.state === "done" && s.undo_available) {
+    const undoBtn = el("button", {}, "Ångra körningen (förhandsgranska)");
+    const undoOut = el("div", {});
+    undoBtn.onclick = async () => {
+      try {
+        const r = await apiSend("POST", "write/runs/" + s.run_id + "/undo"); // dry-run
+        const n = preview(undoOut, r);
+        const go = el("button", { class: "danger", style: "margin-top:.5rem;" }, "Utför ångra (" + n + ")");
+        go.disabled = n === 0;
+        go.onclick = async () => {
+          if (!confirm("Ångra körningen? " + n + " medlem(mar) flyttas tillbaka.")) return;
+          go.disabled = true;
+          const r2 = await apiSend("POST", "write/runs/" + s.run_id + "/undo?mode=execute");
+          pollRun(area, r2.run_id); // poll the new undo run to completion
+        };
+        undoOut.append(go);
+      } catch (e) {
+        undoOut.replaceChildren(el("p", { class: "err" }, e.message));
+      }
+    };
+    card.append(el("div", { style: "margin-top:.5rem;" }, undoBtn), undoOut);
+  }
+  area.replaceChildren(card);
+}
+
+async function pollRun(area, runId) {
+  const tick = async () => {
+    let s;
+    try {
+      s = await api("write/runs/" + runId);
+    } catch {
+      area.replaceChildren(el("p", { class: "muted" }, "Startar körning…"));
+      setTimeout(tick, 1000);
+      return;
+    }
+    runStatusCard(area, s);
+    if (s.state === "running") setTimeout(tick, 1000);
+  };
+  tick();
+}
+
+async function renderExecute(root) {
+  const cap = await api("capabilities");
+  if (!cap.read_write_active) {
+    const reason =
+      (cap.actions.find((a) => a.action === "execute_writes") || {}).reason ||
+      "Skrivning kräver read_write-läge.";
+    root.append(
+      el(
+        "div",
+        { class: "card" },
+        el("strong", {}, "Utför uppflyttning"),
+        el("p", { class: "muted" }, "Ej tillgängligt i detta läge (" + esc(cap.mode) + "). " + esc(reason)),
+        el("p", { class: "muted" }, "Granska och exportera changelist under fliken Uppflyttning."),
+      ),
+    );
+    return;
+  }
+
+  root.append(
+    el(
+      "div",
+      { class: "banner banner-fail" },
+      el("div", {}, el("strong", {}, "⚠ READ_WRITE — skrivning mot Scoutnet")),
+      el("div", { class: "banner-sub" }, "Torrkörning är standard. Utförande skriver på riktigt, en medlem i taget, och kan ångras så länge ögonblicksbilden finns kvar."),
+    ),
+  );
+
+  // Off-cohort acknowledgement gate (§17): must be ticked before executing.
+  let upp;
+  try {
+    upp = await api("uppflyttning");
+  } catch (e) {
+    root.append(el("p", { class: "err" }, "Kan inte beräkna uppflyttningen: " + e.message));
+    return;
+  }
+  let ackedBy = null;
+  const offCount = upp.off_cohort.length;
+
+  const previewOut = el("div", {});
+  const progress = el("div", {});
+  const execBtn = el("button", { class: "danger" }, "Utför (skriv till Scoutnet)");
+  execBtn.disabled = true;
+  let willApply = 0;
+
+  const dryBtn = el("button", { class: "action" }, "Förhandsgranska (torrkörning)");
+  dryBtn.onclick = async () => {
+    previewOut.replaceChildren(el("p", { class: "muted" }, "Kör torrkörning…"));
+    try {
+      const r = await apiSend("POST", "uppflyttning/run", { mode: "dry_run" });
+      willApply = preview(previewOut, r);
+      execBtn.disabled = willApply === 0 || (offCount > 0 && !ackedBy);
+    } catch (e) {
+      previewOut.replaceChildren(el("p", { class: "err" }, e.message));
+    }
+  };
+
+  const controls = el("div", { class: "card" }, el("strong", {}, "Uppflyttning år " + esc(upp.cohort_year)));
+  if (offCount > 0) {
+    const ack = el("input", { type: "checkbox" });
+    ack.onchange = () => {
+      ackedBy = ack.checked ? "webb" : null;
+      execBtn.disabled = willApply === 0 || !ackedBy;
+    };
+    controls.append(
+      el(
+        "label",
+        { class: "muted", style: "display:block;margin:.4rem 0;" },
+        ack,
+        " Jag har granskat de " + offCount + " medlemmarna utanför årskull (fliken Uppflyttning) och vill fortsätta.",
+      ),
+    );
+  }
+  controls.append(el("div", { style: "margin-top:.4rem;" }, dryBtn, " ", execBtn));
+  root.append(controls, previewOut, progress);
+
+  execBtn.onclick = async () => {
+    if (!confirm("Utför uppflyttningen? " + willApply + " medlem(mar) skrivs till Scoutnet.")) return;
+    // Lock the blade's controls the moment we commit: the run is server-side and
+    // serialised, so a stray second click must not fire another request.
+    dryBtn.disabled = true;
+    execBtn.disabled = true;
+    try {
+      const r = await apiSend("POST", "uppflyttning/run", { mode: "execute", ack_by: ackedBy });
+      pollRun(progress, r.run_id);
+    } catch (e) {
+      progress.replaceChildren(el("p", { class: "err" }, e.message));
+    }
+  };
+
+  // Run history + snapshots.
+  try {
+    const runs = (await api("write/runs")).runs || [];
+    if (runs.length) {
+      root.append(
+        el(
+          "div",
+          { class: "card" },
+          el("strong", {}, "Tidigare körningar"),
+          table(
+            ["Körning", "Typ", "Läge", "Status"],
+            runs.map((r) => [r.run_id.slice(0, 8), r.kind, r.mode, RUNSTATE_SV[r.state] || r.state]),
+          ),
+        ),
+      );
+    }
+    const snaps = (await api("write/snapshots")).snapshots || [];
+    if (snaps.length) {
+      const rows = snaps.map((s) => {
+        const del = el("button", {}, "Radera");
+        del.onclick = async () => {
+          if (!confirm("Radera ögonblicksbilden? Ångra av dess körning blir omöjlig.")) return;
+          await apiSend("DELETE", "write/snapshots/" + s.id);
+          refresh();
+        };
+        return [s.taken_at, (s.size_bytes / 1024).toFixed(1) + " kB", s.run_id ? s.run_id.slice(0, 8) : "–", del];
+      });
+      root.append(el("div", { class: "card" }, el("strong", {}, "Ögonblicksbilder"), table(["Tidpunkt", "Storlek", "Körning", ""], rows)));
+    }
+  } catch {
+    /* history is best-effort */
+  }
 }
 
 let renderGen = 0;

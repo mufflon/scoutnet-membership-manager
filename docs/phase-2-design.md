@@ -353,8 +353,13 @@ None block this slice, but flagging for tracking:
      status polling, snapshot list/delete, off-cohort ack gate, allowlist
      pre-check, all gated to `read_write`. Tests inject a read+write fixture
      double (no network). Client `transport` seam + `create_app(client=...)`.
-   - **7b** — the frontend blade (dry-run default, drift report, confirm-to-
-     execute, progress polling, reconcile + undo, prominent `read_write` banner).
+   - **7b** ✅ — the "Utför" frontend blade: gated in non-write modes; dry-run
+     drift report; off-cohort ack gate; confirm-to-execute that **locks the
+     blade's controls** (a second click can't fire another request — the backend
+     already refuses concurrent runs with 409, this is UX); server-side progress
+     polling; run-status card with resume-on-failure and undo (preview →
+     execute → poll); run history + snapshot list/delete; prominent `read_write`
+     banner. Verified end-to-end in a browser against a read_write fixture double.
 8. Runbook (§16) before the slice is called done.
 
 Stage 2 (real single-member) happens only after 1–7 are green and the operator

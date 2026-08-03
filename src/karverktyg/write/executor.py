@@ -306,7 +306,12 @@ class WriteExecutor:
         return self._drive(run_id, sorted(pending.items()), now)
 
     def undo(
-        self, run_id: str, *, mode: RunMode = RunMode.DRY_RUN, now: datetime | None = None
+        self,
+        run_id: str,
+        *,
+        mode: RunMode = RunMode.DRY_RUN,
+        now: datetime | None = None,
+        new_run_id: str | None = None,
     ) -> RunResult:
         """
         Reverse a completed run (§8). An undo is itself a run — same snapshot,
@@ -321,7 +326,9 @@ class WriteExecutor:
         if not undo_available(self._sm, run_id):
             raise ExecutorError(f"cannot undo run {run_id!r}: its snapshot is no longer retained")
         inverse = build_inverse_moves(self._sm, run_id)
-        return self.run(inverse, kind="undo", parent_run_id=run_id, mode=mode, now=now)
+        return self.run(
+            inverse, kind="undo", parent_run_id=run_id, mode=mode, now=now, run_id=new_run_id
+        )
 
     # -- internals ----------------------------------------------------------
 

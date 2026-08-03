@@ -219,12 +219,13 @@ def api_undo(run_id: str) -> ResponseReturnValue:
         return jsonify(_ser_result(executor.undo(run_id, mode=RunMode.DRY_RUN)))
     if _busy():
         return jsonify(error="a write run is already in progress"), _HTTP_CONFLICT
+    new_run_id = str(uuid.uuid4())
 
     def _job() -> None:
-        executor.undo(run_id, mode=RunMode.EXECUTE)
+        executor.undo(run_id, mode=RunMode.EXECUTE, new_run_id=new_run_id)
 
     current_app.config["RUN_MANAGER"].launch(_job)
-    return jsonify(parent_run_id=run_id, status="undoing"), _HTTP_ACCEPTED
+    return jsonify(run_id=new_run_id, parent_run_id=run_id, status="undoing"), _HTTP_ACCEPTED
 
 
 @writes_bp.get("/write/runs")
