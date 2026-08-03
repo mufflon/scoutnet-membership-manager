@@ -32,7 +32,7 @@ from typing import Protocol
 import httpx
 from sqlalchemy import select, update
 
-from karverktyg.db import WriteJournal, WriteRun, get_session
+from karverktyg.db import Snapshot, WriteJournal, WriteRun, get_session
 from karverktyg.scoutnet.client import ScoutnetError
 from karverktyg.scoutnet.models import MemberList
 from karverktyg.settings import Settings
@@ -182,6 +182,47 @@ def _chunk(items: list, size: int) -> list[list]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
+def undo_available(sessionmaker: object, run_id: str) -> bool:
+    """
+    Whether ``run_id`` can be undone: the run exists and its snapshot is still
+    retained (§8). Once the snapshot is purged, undo is gone and the UI says so.
+    """
+    with get_session(sessionmaker) as s:
+        run = s.get(WriteRun, run_id)
+        snap = s.execute(select(Snapshot).where(Snapshot.run_id == run_id)).scalars().first()
+    return run is not None and snap is not None
+
+
+def build_inverse_moves(sessionmaker: object, run_id: str) -> list[IntendedMove]:
+    """
+    The inverse of the moves ``run_id`` actually applied (§8). Only ``done``
+    journal rows are reversed, and each target is the member's **observed prior**
+    ``source_troop_id`` — never the intended change. A row with no prior troop
+    is skipped (the endpoint cannot restore an absent placement); the pre-flight
+    drift check then excludes any member since moved elsewhere.
+    """
+    with get_session(sessionmaker) as s:
+        rows = (
+            s.execute(
+                select(WriteJournal).where(
+                    WriteJournal.run_id == run_id, WriteJournal.state == "done"
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return [
+            IntendedMove(
+                member_no=r.member_no,
+                source_troop_id=r.intended_troop_id,  # where this run left them
+                target_troop_id=r.source_troop_id,  # put them back (observed prior)
+                label="undo",
+            )
+            for r in rows
+            if r.source_troop_id is not None
+        ]
+
+
 class WriteExecutor:
     """Runs a bulk write with the §8 safety sequence. One instance per run."""
 
@@ -198,6 +239,7 @@ class WriteExecutor:
         *,
         kind: str,
         cohort_year: int | None = None,
+        parent_run_id: str | None = None,
         mode: RunMode = RunMode.DRY_RUN,
         now: datetime | None = None,
     ) -> RunResult:
@@ -216,10 +258,15 @@ class WriteExecutor:
         snapshot = write_snapshot(
             self._client, self._settings, self._sm, run_id=run_id, memberlist=memberlist, now=now
         )
-        self._create_run(run_id, kind, cohort_year, snapshot.id, now)
+        self._create_run(run_id, kind, cohort_year, snapshot.id, now, parent_run_id)
         chunk_items = _chunk(actionable, self._settings.chunk_size)
         self._write_journal(run_id, chunk_items)
-        return self._drive(run_id, list(enumerate(chunk_items)), now)
+        result = self._drive(run_id, list(enumerate(chunk_items)), now)
+        # Surface the drift report and snapshot on the execute result too, so the
+        # operator/UI can see what was excluded and which snapshot backs the run.
+        result.preflight = preflight
+        result.snapshot_id = snapshot.id
+        return result
 
     def resume(self, run_id: str, *, now: datetime | None = None) -> RunResult:
         """
@@ -240,6 +287,24 @@ class WriteExecutor:
             )
         self._set_run_state(run_id, "running")
         return self._drive(run_id, sorted(pending.items()), now)
+
+    def undo(
+        self, run_id: str, *, mode: RunMode = RunMode.DRY_RUN, now: datetime | None = None
+    ) -> RunResult:
+        """
+        Reverse a completed run (§8). An undo is itself a run — same snapshot,
+        journal, chunking, dry-run-first, reconcile — with ``kind="undo"`` and
+        ``parent_run_id`` set. The inverse is computed from *observed prior*
+        state (the journal's ``source_troop_id``), and the pre-flight drift check
+        excludes any member whose current placement no longer matches what this
+        run set, so a later external edit is never overwritten.
+
+        Only available while the run's snapshot is retained (§8).
+        """
+        if not undo_available(self._sm, run_id):
+            raise ExecutorError(f"cannot undo run {run_id!r}: its snapshot is no longer retained")
+        inverse = build_inverse_moves(self._sm, run_id)
+        return self.run(inverse, kind="undo", parent_run_id=run_id, mode=mode, now=now)
 
     # -- internals ----------------------------------------------------------
 
@@ -340,7 +405,13 @@ class WriteExecutor:
     # -- persistence --------------------------------------------------------
 
     def _create_run(
-        self, run_id: str, kind: str, cohort_year: int | None, snapshot_id: str, now: datetime
+        self,
+        run_id: str,
+        kind: str,
+        cohort_year: int | None,
+        snapshot_id: str,
+        now: datetime,
+        parent_run_id: str | None = None,
     ) -> None:
         with get_session(self._sm) as s:
             s.add(
@@ -348,6 +419,7 @@ class WriteExecutor:
                     id=run_id,
                     kind=kind,
                     cohort_year=cohort_year,
+                    parent_run_id=parent_run_id,
                     mode=RunMode.EXECUTE.value,
                     state="running",
                     snapshot_id=snapshot_id,

@@ -344,7 +344,9 @@ None block this slice, but flagging for tracking:
      incl. crash/resume/failure paths and the shape-only malformed-payload test.
      Fresh-read wiring (client `fresh=` cache bypass) landed here, closing the
      5a reconcile/re-read caveat.
-6. Undo + reconcile wiring + tests.
+6. Undo + reconcile wiring + tests. ✅ — undo is a run (`kind="undo"`,
+   `parent_run_id`); inverse from the journal's observed `source_troop_id`; the
+   drift check excludes externally-changed members; gated on snapshot retention.
 7. Flask write endpoints + server-side progress + frontend blade (dry-run default,
    prominent `read_write` banner).
 8. Runbook (§16) before the slice is called done.

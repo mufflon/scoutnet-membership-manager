@@ -234,6 +234,76 @@ def test_drift_check_categories():
     assert by_no["600"].category is Category.DRIFTED  # not in roster at all
 
 
+def test_undo_restores_moved_members(tmp_path):
+    client = FakeReadWrite({"100": {"troop_id": 10}, "200": {"troop_id": 10}})
+    sm = _factory()
+    ex = WriteExecutor(client, _settings(tmp_path, allowlist=["100", "200"]), sm)
+    moves = [IntendedMove("100", 10, 20), IntendedMove("200", 10, 20)]
+
+    run = ex.run(moves, kind="uppflyttning", mode=RunMode.EXECUTE, now=NOW)
+    assert client._members["100"]["troop_id"] == 20  # moved
+
+    undo = ex.undo(run.run_id, mode=RunMode.EXECUTE, now=NOW)
+
+    assert undo.run_state == "done"
+    assert client._members["100"]["troop_id"] == 10  # back where they were
+    assert client._members["200"]["troop_id"] == 10
+
+
+def test_undo_excludes_externally_changed_member(tmp_path):
+    client = FakeReadWrite({"100": {"troop_id": 10}, "200": {"troop_id": 10}})
+    sm = _factory()
+    ex = WriteExecutor(client, _settings(tmp_path, allowlist=["100", "200"]), sm)
+    moves = [IntendedMove("100", 10, 20), IntendedMove("200", 10, 20)]
+    run = ex.run(moves, kind="uppflyttning", mode=RunMode.EXECUTE, now=NOW)
+
+    # Someone moves 200 elsewhere in Scoutnet after the run.
+    client._members["200"]["troop_id"] = 30
+
+    undo = ex.undo(run.run_id, mode=RunMode.EXECUTE, now=NOW)
+
+    assert client._members["100"]["troop_id"] == 10  # restored
+    assert client._members["200"]["troop_id"] == 30  # left alone, not overwritten
+    drifted = {p.move.member_no for p in undo.preflight if p.category is Category.DRIFTED}
+    assert "200" in drifted
+
+
+def test_undo_dry_run_shows_inverse_and_exclusions(tmp_path):
+    client = FakeReadWrite({"100": {"troop_id": 10}, "200": {"troop_id": 10}})
+    sm = _factory()
+    ex = WriteExecutor(client, _settings(tmp_path, allowlist=["100", "200"]), sm)
+    run = ex.run(
+        [IntendedMove("100", 10, 20), IntendedMove("200", 10, 20)],
+        kind="uppflyttning",
+        mode=RunMode.EXECUTE,
+        now=NOW,
+    )
+    client._members["200"]["troop_id"] = 30  # external change
+
+    preview = ex.undo(run.run_id, mode=RunMode.DRY_RUN, now=NOW)
+
+    cats = {p.move.member_no: p.category for p in preview.preflight}
+    assert cats["100"] is Category.WILL_APPLY  # will be restored to 10
+    assert cats["200"] is Category.DRIFTED  # excluded, with a reason
+    planned = {mno for c in preview.chunks for mno in c.member_nos}
+    assert planned == {"100"}  # only the restorable one is in the plan
+    assert client._members["100"]["troop_id"] == 20  # dry-run changed nothing
+
+
+def test_undo_unavailable_after_snapshot_purge(tmp_path):
+    from karverktyg.write import delete_snapshot, list_snapshots
+
+    client = FakeReadWrite({"100": {"troop_id": 10}})
+    sm = _factory()
+    ex = WriteExecutor(client, _settings(tmp_path, allowlist=["100"]), sm)
+    run = ex.run([IntendedMove("100", 10, 20)], kind="uppflyttning", mode=RunMode.EXECUTE, now=NOW)
+
+    delete_snapshot(sm, list_snapshots(sm)[0].id)  # snapshot purged
+
+    with pytest.raises(ExecutorError):
+        ex.undo(run.run_id, mode=RunMode.EXECUTE, now=NOW)
+
+
 def test_only_will_apply_members_are_sent(tmp_path):
     # 200 is already at target -> excluded from the send; 100 will apply.
     client = FakeReadWrite({"100": {"troop_id": 10}, "200": {"troop_id": 20}})

@@ -17,7 +17,9 @@ from karverktyg.write.executor import (
     RunMode,
     RunResult,
     WriteExecutor,
+    build_inverse_moves,
     drift_check,
+    undo_available,
     write_status_token,
 )
 from karverktyg.write.snapshot import (
@@ -43,11 +45,13 @@ __all__ = [
     "SnapshotError",
     "SnapshotInfo",
     "WriteExecutor",
+    "build_inverse_moves",
     "build_snapshot_payload",
     "delete_snapshot",
     "drift_check",
     "list_snapshots",
     "purge_snapshots",
+    "undo_available",
     "write_snapshot",
     "write_status_token",
 ]
