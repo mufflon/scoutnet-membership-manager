@@ -439,8 +439,9 @@ A test asserts that write methods are absent in `fixture` and `read_only`.
    or image layers. Environment variables only. Fail loudly at startup when a
    key is missing.
 2. **No real member data in the repo or git history.** Fixtures scrubbed or
-   synthetic. The one sanctioned exception is snapshots (§8), which live on a
-   mounted volume and never in git or an image.
+   synthetic. Snapshots (§8) hold no personal data either — only `member_no`
+   and placement — so there is no longer any sanctioned personal-data exception;
+   snapshot files still live on a mounted volume, never in git or an image.
 3. **`cancelled` is banned from the codebase.** It is a valid enum value that
    would cancel memberships. Unreachable, with a test asserting so.
 4. **Dry-run is the default** on every write path. Executing requires explicit
@@ -603,14 +604,29 @@ failed chunk or abort.
 
 ### Snapshots
 
-Before the first request of any bulk run, fetch and write a **full memberlist
-snapshot** to a mounted volume. This is the recovery path if a run damages the
-register.
+Before the first request of any bulk run, capture the current placement of
+**every** active member — movers and non-movers alike — to a file on a mounted
+volume. This is the recovery/undo "before" board: if a run touches someone it
+should not, the snapshot lets you detect and reverse it. The intended change
+(the "delta") lives in the write journal, not here.
 
-Snapshots contain complete personal data including personal numbers. They are
-the one place that rule is relaxed, so:
+**A snapshot holds no personal data.** The tool can only ever write `status`,
+`troop_id` and `patrol_id` (§4), so those three fields plus `member_no` are the
+entire restorable state — names, personnummer, dates of birth and addresses are
+never at risk and are never written to a snapshot. Leadership (which troops or
+the group a member holds a leader-scoped role in) is recorded too, as a
+belt-and-suspenders audit record — the tool never moves leaders, but if anything
+goes awry we still know who led what. This supersedes an earlier design in which
+snapshots held the full memberlist including personnummer.
 
-- Volume only. Never in git, never in an image, never in Postgres.
+- **A file, not the database, and deliberately so.** The snapshot is an
+  out-of-band reference file so it survives a database migration or rebuild —
+  the exact situation in which you might need to read an old state. It is
+  self-describing (embeds run, timestamp, member count) and readable on its own.
+  The DB `snapshot` row is only an index for the UI.
+- Volume only for the file; never in git, never in an image. The index row in
+  Postgres carries no personal data (only `member_no` and placement, like every
+  other table).
 - **Retention is time-based, not count-based.** Keep everything younger than a
   configurable window (default 30 days), and always keep at least the most
   recent regardless of age. Keeping "only the latest" is wrong — it destroys

@@ -170,8 +170,9 @@ the `0002` pattern.
 ### Lifecycle
 1. **Allowlist check.** Refuse immediately if any `member_no` in the intent is
    not on the configured allowlist (§8, invariant 2). Test asserts refusal.
-2. **Snapshot.** Fetch a full memberlist and write it to the volume *before the
-   first request* (§8). A run cannot proceed if the snapshot write fails.
+2. **Snapshot.** Capture every active member's placement + leadership to the
+   volume *before the first request* (§8, `write_snapshot`; no personal data). A
+   run cannot proceed if the snapshot write fails.
 3. **Journal.** Persist the full intended operation set (`state = pending`) before
    any request (§8 "journal first").
 4. **Chunk loop**, serial, one chunk at a time (hard rule 5), `chunk_delay_s`
@@ -199,12 +200,23 @@ state** polled by the frontend; closing the tab does not affect a run (§8).
 
 ## 6. Snapshots, reconciliation, undo
 
-### Snapshots (§8)
-- Full memberlist incl. personnummer — the one sanctioned personal-data exception.
-  **Volume only.** Written before the first request of any bulk run.
+### Snapshots (§8) — implemented in step 4
+- **Placement + leadership of every active member; no personal data.** Per
+  member (`member_no`): `unit`/`troop_id`, `status`, `patrol_id`, and `leader_of`
+  (troop-/group-scoped leader roles — patrol-scoped youth roles excluded). Those
+  three writable fields are the whole restorable state; names, personnummer, DOB
+  and addresses are never at risk, so they are never stored. Leadership is a
+  belt-and-suspenders audit record. *(Supersedes the earlier "full memberlist
+  incl. personnummer" design — §8/§9/Hard-rule-2 updated to match.)*
+- **A self-describing file on the volume, not the DB** — so it survives a
+  migration/rebuild, the exact case where you'd read an old state. The DB
+  `snapshot` row (path/size/timestamp/run) is only the UI index. Written before
+  the first request of any bulk run; a run cannot proceed if the write fails.
 - Retention **time-based** (default 30 days), always keep at least the most
   recent regardless of age. Automatic purge on schedule + manual delete in UI.
 - Listed with timestamp, size and originating run.
+- API: `write_snapshot`, `list_snapshots`, `purge_snapshots`, `delete_snapshot`
+  in `karverktyg.write.snapshot`.
 
 ### Reconciliation (§8, reuse existing)
 After a run, re-fetch the memberlist and `reconcile(master, memberlist_after)`
