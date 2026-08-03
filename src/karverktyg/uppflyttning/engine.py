@@ -1,11 +1,12 @@
 """
 Compute the uppflyttning master set (§17).
 
-Only the oldest cohort of each transitioning bracket moves. Members holding a
-role (leaders elsewhere) and adults are excluded and surfaced for review, never
-auto-moved. Off-cohort members are flagged and excluded. The Äventyrare →
-Utmanare move is pending until a target avdelning with cohort_year == N exists
-and its troop_id resolves.
+Only the oldest cohort of each transitioning bracket moves. Adults (18+) and
+members of an 18+ avdelning are excluded, never auto-moved — nor is anyone set
+as a leader (no automatic leader shifts). A scout who holds a plain non-leader
+function elsewhere still shifts with their cohort, flagged for review. Off-cohort
+members are flagged and set aside. The Äventyrare → Utmanare move is pending
+until a target is elected.
 """
 
 from __future__ import annotations
@@ -62,14 +63,18 @@ def _next_bracket(b: Bracket) -> Bracket | None:
 def _is_excluded(m: Member, n: int, eighteen_plus: set[str]) -> str | None:
     """
     Reason a moving-cohort member is excluded from the auto-move set, or None.
-    Over-excluding is safe; under-excluding moves a leader (§11).
+
+    A leader is never auto-shifted (no automatic leader moves): being set as a
+    leader in an avdelning keeps the member there. Adults (18+) and members of an
+    18+ avdelning are also excluded. A plain *non-leader* role (e.g. a functionary)
+    does NOT exclude a scout — they shift with their cohort, flagged with a note.
     """
-    if m.is_role_holder:
-        return "role-holder (a leader/role elsewhere) — excluded, review"
+    if m.is_leader:
+        return "Satt som ledare i en avdelning – flyttas ej (inga automatiska ledarförflyttningar)"
     if m.birth_year is not None and (n - m.birth_year) >= 18:  # noqa: PLR2004
-        return "adult (18+) — excluded, review"
+        return "Myndig (18+) – flyttas ej, granska"
     if m.unit in eighteen_plus:
-        return "in an 18+ avdelning — excluded, review"
+        return "I en 18+-avdelning – flyttas ej, granska"
     return None
 
 
@@ -92,6 +97,7 @@ def _base(
         transition=transition,
         status=status,
         note=note,
+        default_target=target_name,
     )
 
 
@@ -122,8 +128,7 @@ def _resolve_target(
             MoveStatus.PENDING_TARGET,
             None,
             None,
-            f"no target elected for this cohort ({n}); elect an Utmanare avdelning "
-            "(or set its cohort_year in config)",
+            f"Ingen måldelning vald för årskull {n} – välj en Utmanare-avdelning ovan",
         )
     if target_id is None:
         return _base(
@@ -132,13 +137,13 @@ def _resolve_target(
             MoveStatus.PENDING_TARGET,
             target_name,
             None,
-            f"target {target_name!r} has no resolvable troop_id (a new/empty "
-            "avdelning?); supply its troop_id when electing",
+            f"Måldelningen {target_name!r} saknar troop_id (ny/tom avdelning?) – "
+            "ange troop_id vid val",
         )
     return _base(m, transition, MoveStatus.READY, target_name, target_id, "")
 
 
-def compute_master_set(
+def compute_master_set(  # noqa: C901 - per-member classification is inherently branchy
     memberlist: MemberList,
     config: KarConfig,
     config_cohort_year_n: int | None,
@@ -174,7 +179,7 @@ def compute_master_set(
                     MoveStatus.OFF_COHORT,
                     None,
                     None,
-                    "unknown birth year — cannot place in a cohort",
+                    "Okänt födelseår – kan inte placeras i årskull",
                 )
             )
             continue
@@ -196,9 +201,8 @@ def compute_master_set(
                     MoveStatus.OFF_COHORT,
                     None,
                     None,
-                    f"born {m.birth_year} → age {age} in cohort {n} maps to "
-                    f"{correct_bracket or 'no bracket'}, not one step up from "
-                    f"{bracket}",
+                    f"Född {m.birth_year} (ålder {age} år {n}) – utanför {bracket}, "
+                    "kräver manuell hantering",
                 )
             )
             continue
@@ -209,7 +213,11 @@ def compute_master_set(
             entries.append(_base(m, rule.transition, MoveStatus.EXCLUDED, None, None, reason))
             continue
 
-        entries.append(_resolve_target(m, rule.transition, config, index, n, elected_target))
+        entry = _resolve_target(m, rule.transition, config, index, n, elected_target)
+        if m.is_role_holder:
+            extra = "har även en funktion i annan avdelning – kontrollera"
+            entry.note = f"{entry.note} · {extra}" if entry.note else extra.capitalize()
+        entries.append(entry)
 
     entries.sort(
         key=lambda e: (

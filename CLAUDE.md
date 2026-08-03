@@ -654,6 +654,10 @@ heuristics tuned against real data once the capture exists.
   the real case is a scout who also holds an assistant-leader role elsewhere,
   which is a role and therefore visible. Flag for review, never auto-move.
 - **Members with no avdelning at all.** Present in live data. Manual resolution.
+- **A very young scout set as a leader** — anyone in a scout bracket (Äventyrare
+  or younger) holding a leader-class role. Very young scouts should not be
+  leaders, so this is surfaced as an error in the findings blade
+  (`young_leader`). Distinct from the Ledare-avdelning security finding above.
 
 **Scope: the structural checks above apply to Spårare, Upptäckare and
 Äventyrare only.** Utmanare and Rover are exempt from both the age check and
@@ -704,7 +708,16 @@ between chunks, snapshot retention window, allowed avdelningar, kår identity.
   fetch at build or run time. Keep them in a swappable directory.
 - **Age brackets and uppflyttning flows are configuration, not code.** The full
   specification is §17. The active configuration must be viewable in the app.
-- Members holding leader roles are never included in age-based moves.
+- **Leaders are never auto-shifted (no automatic leader moves)** — being set as a
+  leader in an avdelning keeps the member there. This excludes leader-class roles
+  only: a scout who holds a plain *non-leader* function elsewhere still shifts
+  with their cohort (flagged with a note for review). Adults (18+) and members of
+  an 18+ avdelning are likewise excluded. A young scout who is a leader is not
+  shifted **and** is raised as an error in §11.
+- Per-member decisions, the target election and "keep in place" are all scoped to
+  the cohort year and never carry forward: next year is computed fresh and a
+  "keep" carries an expiry year, so shifting scouts off leaves no state behind
+  for the future (§9 purge). A reset clears the whole year's working state.
 
 ## 14. Deployment
 

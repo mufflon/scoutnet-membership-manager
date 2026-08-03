@@ -63,7 +63,15 @@ def _synthetic():
                 100,
                 2016,
                 roles=[Role("troop", 999, 3, "other_leader", "Ledare")],
-            ),  # excluded
+            ),  # leader -> not auto-shifted
+            _mk(
+                "s_func",
+                "Hajarna",
+                2,
+                100,
+                2016,
+                roles=[Role("group", 1025, 24, "material_responsible", "Materielansvarig")],
+            ),  # non-leader function -> still moves, flagged
             _mk("s_offcohort", "Hajarna", 2, 100, 2010),  # age 16, two+ steps -> off_cohort
         ]
     )
@@ -88,8 +96,10 @@ def test_master_set_moves(config):
     assert by_no["a_move"].status is MoveStatus.PENDING_TARGET
     assert by_no["a_move"].target_troop_id is None
 
-    # role-holder excluded, off-cohort flagged
+    # a leader is not auto-shifted; a non-leader functionary still moves (flagged)
     assert by_no["s_leader"].status is MoveStatus.EXCLUDED
+    assert by_no["s_func"].status is MoveStatus.READY
+    assert "funktion" in by_no["s_func"].note
     assert by_no["s_offcohort"].status is MoveStatus.OFF_COHORT
 
     # younger cohorts and residents stay put (no entry)

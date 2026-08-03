@@ -78,6 +78,24 @@ def test_findings_types_fire(config):
     assert all(f.severity is Severity.SECURITY for f in sec)
 
 
+def test_young_leader_is_flagged(config):
+    """A young scout (Äventyrare or younger) set as a leader is an error (§11)."""
+    ml = MemberList(
+        members=[
+            _mk(
+                "yl",
+                "Vikingarna",
+                4,
+                300,
+                2012,
+                roles=[Role("troop", 300, 2, "leader", "Avdelningsledare")],
+            ),
+        ]
+    )
+    kinds = {f.type for f in compute_findings(ml, config, cohort_year_n=2026)}
+    assert FindingType.YOUNG_LEADER in kinds
+
+
 def test_utmanare_rover_exempt_from_structural(config):
     """Utmanare/Rover: no age check, no multi-avdelning check (§11, §17)."""
     ml = MemberList(

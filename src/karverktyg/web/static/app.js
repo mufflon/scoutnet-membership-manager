@@ -194,11 +194,11 @@ async function renderTemplates(root) {
 }
 
 const STATUS_SV = {
-  ready: "Klar för flytt",
+  ready: "Redo att förflyttas",
   pending_target: "Väntar på måldelning",
   off_cohort: "Utanför årskull",
   excluded: "Undantagen (ledare/vuxen)",
-  override_stay: "Stannar kvar (val)",
+  override_stay: "Behålls kvar (val)",
 };
 
 const statusText = (e) => (STATUS_SV[e.status] || e.status) + (e.override ? " ✎" : "");
@@ -252,8 +252,9 @@ async function renderUppflyttning(root) {
     el(
       "div",
       { class: "grid" },
-      stat(d.ready.length, "Klara"),
+      stat(d.ready.length, "Redo att förflyttas"),
       stat(d.pending.length, "Väntar på måldelning"),
+      stat(d.kept.length, "Behålls kvar"),
       stat(d.off_cohort.length, "Utanför årskull"),
       stat(d.excluded.length, "Undantagna"),
     ),
@@ -296,24 +297,29 @@ async function renderUppflyttning(root) {
   // from the server's reply — no full re-render.
   const moveRow = (m) => {
     const statusSpan = el("span", { class: "status-" + m.status }, statusText(m));
-    const defaultOpt = el("option", { value: "" }, m.target ? "Behåll: " + m.target : "– välj måldelning –");
-    const targetSel = el("select", {}, defaultOpt);
-    for (const c of d.avdelningar) targetSel.append(el("option", { value: c.avdelning }, c.avdelning));
-    const ack = el("input", {
+    const targetSel = el("select", {});
+    targetSel.append(el("option", { value: "" }, "– ingen måldelning –"));
+    for (const c of d.avdelningar) {
+      const label = c.avdelning + (c.avdelning === m.default_target ? " ★" : "");
+      targetSel.append(el("option", { value: c.avdelning }, label));
+    }
+    const keep = el("input", {
       type: "checkbox",
-      title: "Markera som granskad/hanterad – t.ex. en utanför-årskull-medlem du valt att lämna",
+      title: "Behåll scouten i nuvarande avdelning – undanta från flytten i år",
     });
-    ack.checked = !!m.acknowledged; // reflect the persisted state on (re)load
-    const clr = el("a", { href: "#", title: "Nollställ valet till den beräknade standarden" }, "återställ");
+    const clr = el("a", { href: "#", title: "Nollställ till den beräknade standarden (★)" }, "återställ");
+    const born = m.birth_year ? m.birth_year + " (" + (d.cohort_year - m.birth_year) + " år)" : "–";
+    const noteDiv = el("div", { class: "muted", style: "font-size:.8rem;" }, m.note || "");
     const tr = el(
       "tr",
       {},
       el("td", { html: esc(m.member_no) }),
       el("td", { html: esc(m.name) }),
+      el("td", { html: esc(born) }),
       el("td", { html: esc(m.source || "–") }),
       el("td", {}, targetSel),
-      el("td", {}, statusSpan),
-      el("td", {}, ack),
+      el("td", {}, statusSpan, noteDiv),
+      el("td", {}, keep),
       el("td", {}, clr),
     );
 
@@ -321,15 +327,15 @@ async function renderUppflyttning(root) {
       if (!entry) return;
       statusSpan.className = "status-" + entry.status;
       statusSpan.textContent = statusText(entry);
-      ack.checked = !!entry.acknowledged;
-      tr.style.opacity = entry.acknowledged ? "0.55" : "";
-      defaultOpt.textContent = entry.target ? "Behåll: " + entry.target : "– välj måldelning –";
-      targetSel.value = "";
+      noteDiv.textContent = entry.note || "";
+      keep.checked = !!entry.stay;
+      targetSel.value = entry.target || "";
+      tr.style.opacity = entry.stay ? "0.55" : "";
       flash(tr);
     };
-    const post = async (body) => {
+    const send = async (method, path, body) => {
       try {
-        const r = await apiSend("POST", "uppflyttning/decision", { member_no: m.member_no, by: "webb", ...body });
+        const r = await apiSend(method, path, body);
         apply(r.entry);
         return true;
       } catch (e) {
@@ -337,22 +343,29 @@ async function renderUppflyttning(root) {
         return false;
       }
     };
+    const revert = () => send("DELETE", "uppflyttning/decision?member_no=" + encodeURIComponent(m.member_no));
+    const decide = (body) => send("POST", "uppflyttning/decision", { member_no: m.member_no, by: "webb", ...body });
+
     targetSel.onchange = () => {
-      if (targetSel.value) post({ target_avdelning: targetSel.value });
+      const v = targetSel.value;
+      if (v === "" || v === m.default_target) revert(); // back to the computed default
+      else decide({ target_avdelning: v, stay_until: 0 }); // override target (clears any keep)
     };
-    ack.onchange = async () => {
-      if (!(await post({ acknowledged: ack.checked }))) ack.checked = !ack.checked;
+    keep.onchange = async () => {
+      const ok = keep.checked
+        ? await decide({ target_avdelning: "", stay_until: d.cohort_year }) // keep in place this year
+        : await revert();
+      if (!ok) keep.checked = !keep.checked;
     };
-    clr.onclick = async (ev) => {
+    clr.onclick = (ev) => {
       ev.preventDefault();
-      try {
-        const r = await apiSend("DELETE", "uppflyttning/decision?member_no=" + encodeURIComponent(m.member_no));
-        apply(r.entry);
-      } catch (e) {
-        alert(e.message);
-      }
+      revert();
     };
-    if (m.acknowledged) tr.style.opacity = "0.55";
+
+    // initial state from the loaded entry
+    targetSel.value = m.target || "";
+    keep.checked = !!m.stay;
+    if (m.stay) tr.style.opacity = "0.55";
     return tr;
   };
 
@@ -360,16 +373,17 @@ async function renderUppflyttning(root) {
     el(
       "p",
       { class: "muted" },
-      "Till (välj): måldelning per scout – standard är den beräknade (t.ex. Spårare → samma veckodag); " +
-        "välj en annan för att flytta en individ annorlunda, eller för att lösa en rad utan måldelning. " +
-        "Granskad: bocka för att markera raden som hanterad utan att flytta någon (t.ex. utanför-årskull du valt att lämna). " +
-        "återställ: nollställ till standarden.",
+      "Till (välj): måldelning per scout. ★ markerar den beräknade standarden (t.ex. Spårare → samma veckodag); " +
+        "välj en annan för att flytta en individ annorlunda, eller för att ge en rad utan måldelning ett mål. " +
+        "Behåll: bocka för att behålla scouten i nuvarande avdelning (undanta från flytten i år). " +
+        "återställ: nollställ raden till ★-standarden.",
     ),
   );
-  const headers = ["Medlemsnr", "Namn", "Från", "Till (välj)", "Status", "Granskad", ""];
+  const headers = ["Medlemsnr", "Namn", "Född", "Från", "Till (välj)", "Status", "Behåll", ""];
   for (const [title, list] of [
-    ["Klara för flytt", d.ready],
+    ["Redo att förflyttas", d.ready],
     ["Väntar på måldelning", d.pending],
+    ["Behålls kvar (val)", d.kept],
     ["Utanför årskull", d.off_cohort],
     ["Undantagna (ledare/vuxna)", d.excluded],
   ]) {

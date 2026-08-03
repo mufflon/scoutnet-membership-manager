@@ -40,14 +40,14 @@ def apply_overrides(master: MasterSet, overrides: list[Override], index: TroopIn
             e.target_avdelning = o.target_avdelning
             e.target_troop_id = index.name_to_id.get(o.target_avdelning)
             e.status = MoveStatus.READY if e.target_troop_id else MoveStatus.PENDING_TARGET
-            e.note = f"override target set by {o.by or 'operator'}"
+            e.note = f"Måldelning vald manuellt av {o.by or 'operatör'}"
             continue
         # A stay override that has not yet lapsed keeps the member in place.
         if o.stay_until is not None and o.stay_until >= master.cohort_year:
             e.override_stay_until = o.stay_until
             e.status = MoveStatus.OVERRIDE_STAY
             e.note = (
-                f"override by {o.by or 'operator'}: stay in {e.source_avdelning} "
-                f"through cohort {o.stay_until}"
+                f"Behålls i {e.source_avdelning} t.o.m. årskull {o.stay_until} "
+                f"(val av {o.by or 'operatör'})"
             )
     return master

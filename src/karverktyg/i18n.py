@@ -27,6 +27,7 @@ STRINGS: dict[str, str] = {
     "finding.security_ledare_leader": "Ledare i avdelningen Ledare (säkerhetsrisk)",
     "finding.adult_in_scout_unit": "Myndig i scoutavdelning",
     "finding.multi_avdelning": "Medlem i flera avdelningar",
+    "finding.young_leader": "Ung scout satt som ledare",
     "finding.no_avdelning": "Saknar avdelning",
     "finding.bad_phone": "Telefonnummer ser felaktigt ut",
     "finding.bad_email": "E-postadress ser felaktig ut",

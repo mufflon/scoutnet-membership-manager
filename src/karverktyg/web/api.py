@@ -95,11 +95,13 @@ def _ser_move(e: MoveEntry) -> dict:
         "source": e.source_avdelning,
         "target": e.target_avdelning,
         "target_troop_id": e.target_troop_id,
+        "default_target": e.default_target,
         "status": str(e.status),
         "transition": str(e.transition),
         "note": e.note,
         "override": e.is_override,
         "acknowledged": e.acknowledged,
+        "stay": e.override_stay_until is not None,
     }
 
 
@@ -185,6 +187,7 @@ def api_uppflyttning() -> ResponseReturnValue:
         pending=[_ser_move(e) for e in ms.pending()],
         off_cohort=[_ser_move(e) for e in ms.off_cohort()],
         excluded=[_ser_move(e) for e in ms.excluded()],
+        kept=[_ser_move(e) for e in ms.kept()],
         by_target={t: [_ser_move(e) for e in es] for t, es in ms.by_target().items()},
         avdelningar=avdelningar,
         decisions_count=decisions_count,

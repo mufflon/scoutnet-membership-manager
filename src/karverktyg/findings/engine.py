@@ -77,6 +77,17 @@ def _structural_findings(
     m: Member, cohort_year_n: int | None, index: TroopIndex, rover_ids: set[int]
 ) -> list[Finding]:
     out: list[Finding] = []
+    if m.is_leader:
+        out.append(
+            _finding(
+                FindingType.YOUNG_LEADER,
+                Severity.WARNING,
+                m,
+                m.unit,
+                "Ung scout (Äventyrare eller yngre) är satt som ledare – ska inte förekomma.",
+                ",".join(sorted(r.role_key for r in m.roles if r.is_leader)),
+            )
+        )
     if cohort_year_n and m.birth_year and (cohort_year_n - m.birth_year) >= ADULT_AGE:
         out.append(
             _finding(

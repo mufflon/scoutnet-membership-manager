@@ -49,7 +49,7 @@ def test_uppflyttning_and_changelist_gate(client):
 
 
 def _find(data, member_no):
-    for grp in ("ready", "pending", "off_cohort", "excluded"):
+    for grp in ("ready", "pending", "off_cohort", "excluded", "kept"):
         for e in data[grp]:
             if e["member_no"] == member_no:
                 return e
@@ -104,6 +104,18 @@ def test_uppflyttning_acknowledge(client):
         == 200
     )
     assert _find(client.get("/api/uppflyttning").get_json(), m["member_no"])["acknowledged"] is True
+
+
+def test_uppflyttning_keep_in_place(client):
+    d = client.get("/api/uppflyttning").get_json()
+    m = d["ready"][0]
+    assert m["default_target"]  # a ready move exposes its computed default (★ in the UI)
+    client.post(
+        "/api/uppflyttning/decision",
+        json={"member_no": m["member_no"], "target_avdelning": "", "stay_until": d["cohort_year"]},
+    )
+    e = _find(client.get("/api/uppflyttning").get_json(), m["member_no"])
+    assert e["stay"] is True and e["status"] == "override_stay"
 
 
 def test_uppflyttning_reset(client):

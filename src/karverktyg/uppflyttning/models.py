@@ -40,6 +40,8 @@ class MoveEntry:
     transition: TransitionKind
     status: MoveStatus
     note: str = ""
+    # The computed default target (before any override), so the UI can mark it.
+    default_target: str | None = None
     # Per-member override (§17). "stay a year" is an expiry cohort year, not a
     # boolean, so it lapses by itself.
     override_target: str | None = None
@@ -78,6 +80,10 @@ class MasterSet:
     def excluded(self) -> list[MoveEntry]:
         """Excluded."""
         return [e for e in self.entries if e.status is MoveStatus.EXCLUDED]
+
+    def kept(self) -> list[MoveEntry]:
+        """Members the operator chose to keep in place (override_stay)."""
+        return [e for e in self.entries if e.status is MoveStatus.OVERRIDE_STAY]
 
     def by_target(self) -> dict[str, list[MoveEntry]]:
         """By target."""
