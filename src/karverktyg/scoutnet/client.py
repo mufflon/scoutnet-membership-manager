@@ -10,6 +10,7 @@ refuses ``read_write`` for the same reason.
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,11 @@ _WAITING_SAMPLE = Path("fixtures/memberlist-waiting.sample.json")
 
 _HTTP_UNAUTHORIZED = 401
 _HTTP_BAD_REQUEST = 400
+
+# Short cache so navigating between blades doesn't re-fetch the (multi-second)
+# memberlist each time. Read-only data that changes slowly; the operator can
+# always reload for fresh data.
+_MEMBERLIST_TTL_S = 90.0
 
 
 class ScoutnetError(RuntimeError):
@@ -88,14 +94,17 @@ class ReadOnlyClient:
         self._entity_id = settings.entity_id or ""
         self._memberlist_key = settings.memberlist_key
         self._org_key = settings.organisation_group_key
+        self._cache: dict[str, tuple[float, MemberList]] = {}
         self._http = httpx.Client(
             base_url=settings.base_url.rstrip("/"),
             timeout=settings.http_timeout_s,
             headers={"Accept": "application/json"},
         )
 
+    # Retry only when the connection itself fails; a read timeout means the
+    # server accepted but is slow, so retrying just multiplies the wait (§4).
     @retry(
-        retry=retry_if_exception_type(httpx.TransportError),
+        retry=retry_if_exception_type((httpx.ConnectError, httpx.ConnectTimeout)),
         stop=stop_after_attempt(3),
         wait=wait_fixed(1),
         reraise=True,
@@ -115,11 +124,17 @@ class ReadOnlyClient:
         return resp.json()
 
     def memberlist(self, variant: str = "active") -> MemberList:
-        """Fetch a live memberlist variant (§4)."""
+        """Fetch a live memberlist variant, served from a short TTL cache (§4)."""
         if variant not in _VARIANT_PARAMS:
             raise ScoutnetError(f"unknown variant {variant!r}")
+        now = time.monotonic()
+        cached = self._cache.get(variant)
+        if cached is not None and now - cached[0] < _MEMBERLIST_TTL_S:
+            return cached[1]
         raw = self._get("/group/memberlist", self._memberlist_key, _VARIANT_PARAMS[variant])
-        return parse_memberlist(raw, variant)
+        ml = parse_memberlist(raw, variant)
+        self._cache[variant] = (now, ml)
+        return ml
 
     def organisation_group(self) -> dict[str, Any]:
         """Fetch the aggregate organisation/group stats (§4)."""

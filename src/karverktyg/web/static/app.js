@@ -111,55 +111,64 @@ async function renderDues(root) {
   }
 }
 
-// Väntelista: a compact table of all applicants; expand a row for the draft + actions.
+// Väntelista: each list loads independently so a slow/unavailable variant
+// (e.g. Scoutnet stalling on awaiting_approval) never blocks the other.
 async function renderWaiting(root) {
-  const [w, dw, da] = await Promise.all([
-    api("waiting"),
-    api("membership/drafts?variant=waiting"),
-    api("membership/drafts?variant=awaiting_approval"),
-  ]);
-  const drafts = {};
-  for (const d of [...dw.drafts, ...da.drafts]) drafts[d.member_no] = d;
-  const applicants = [
-    ...w.waiting.map((a) => ({ ...a, list: "Väntelista" })),
-    ...w.awaiting_approval.map((a) => ({ ...a, list: "Väntar godkännande" })),
-  ];
   root.append(el("p", { class: "muted" }, "Klicka på en rad för att expandera och se e-postutkastet. Inget skickas av verktyget."));
-  if (!applicants.length) {
-    root.append(el("p", { class: "muted" }, "Inga ansökningar (kräver waiting/awaiting-capture i read_only-läge)."));
+  for (const [title, variant] of [
+    ["Väntelista", "waiting"],
+    ["Väntar godkännande", "awaiting_approval"],
+  ]) {
+    const card = el("div", { class: "card" }, el("strong", {}, title), el("div", { class: "muted" }, "Laddar…"));
+    root.append(card);
+    loadWaitingSection(card, title, variant); // fire-and-forget; updates itself
+  }
+}
+
+async function loadWaitingSection(card, title, variant) {
+  const fail = (msg) => card.replaceChildren(el("strong", {}, title), el("div", { class: "err" }, msg));
+  let d;
+  try {
+    d = await api("membership/drafts?variant=" + variant);
+  } catch (e) {
+    fail("Kunde inte hämtas: " + e.message);
+    return;
+  }
+  if (d.unavailable) {
+    fail("Kunde inte hämtas från Scoutnet (" + (d.reason || "tidsgräns") + ").");
+    return;
+  }
+  const apps = d.applicants || [];
+  if (!apps.length) {
+    card.replaceChildren(el("strong", {}, title + " (0)"), el("div", { class: "muted" }, "Inga ansökningar."));
     return;
   }
   const t = el("table");
-  t.append(el("thead", {}, el("tr", {}, ...["", "Medlemsnr", "Namn", "Avdelning", "Lista"].map((h) => el("th", {}, h)))));
+  t.append(el("thead", {}, el("tr", {}, ...["", "Medlemsnr", "Namn", "Avdelning"].map((h) => el("th", {}, h)))));
   const tb = el("tbody");
-  for (const a of applicants) {
+  for (const a of apps) {
     const caret = el("td", {}, "▸");
-    const row = el("tr", { class: "expandable" }, caret, el("td", { html: esc(a.member_no) }), el("td", { html: esc(a.name) }), el("td", { html: esc(a.unit || "–") }), el("td", { html: esc(a.list) }));
-    const cell = el("td", { colspan: "5" });
+    const row = el("tr", { class: "expandable" }, caret, el("td", { html: esc(a.member_no) }), el("td", { html: esc(a.name) }), el("td", { html: esc(a.unit || "–") }));
+    const cell = el("td", { colspan: "4" });
     const detail = el("tr", {}, cell);
     detail.style.display = "none";
-    const draft = drafts[a.member_no];
-    if (draft) {
-      const recipients = draft.to.join(", ");
-      const to = recipients || "(ingen adress – kan inte skickas)";
-      const full = "Till: " + to + "\nÄmne: " + draft.subject + "\n\n" + draft.body;
-      const buttons = el("div", {});
-      if (recipients) buttons.append(copyButton("Kopiera mottagare", recipients));
-      buttons.append(
-        copyButton("Kopiera ämne", draft.subject),
-        copyButton("Kopiera text", draft.body),
-        copyButton("Kopiera allt", full),
-      );
-      cell.append(
-        el("div", {}, el("span", { class: "tag" }, draft.kind === "ledare" ? "Ledare" : "Scout"), draft.unsendable ? el("span", { class: "err" }, " · ingen adress") : ""),
-        el("div", { class: "muted" }, "Till: " + to),
-        el("div", { class: "muted" }, "Ämne: " + esc(draft.subject)),
-        el("pre", { html: esc(draft.body) }),
-        buttons,
-      );
-    } else {
-      cell.append(el("p", { class: "muted" }, "Inget utkast."));
-    }
+    const recipients = (a.to || []).join(", ");
+    const to = recipients || "(ingen adress – kan inte skickas)";
+    const full = "Till: " + to + "\nÄmne: " + a.subject + "\n\n" + a.body;
+    const buttons = el("div", {});
+    if (recipients) buttons.append(copyButton("Kopiera mottagare", recipients));
+    buttons.append(
+      copyButton("Kopiera ämne", a.subject),
+      copyButton("Kopiera text", a.body),
+      copyButton("Kopiera allt", full),
+    );
+    cell.append(
+      el("div", {}, el("span", { class: "tag" }, a.kind === "ledare" ? "Ledare" : "Scout"), a.unsendable ? el("span", { class: "err" }, " · ingen adress") : ""),
+      el("div", { class: "muted" }, "Till: " + to),
+      el("div", { class: "muted" }, "Ämne: " + esc(a.subject)),
+      el("pre", { html: esc(a.body) }),
+      buttons,
+    );
     row.onclick = () => {
       const open = detail.style.display === "none";
       detail.style.display = open ? "" : "none";
@@ -168,7 +177,7 @@ async function renderWaiting(root) {
     tb.append(row, detail);
   }
   t.append(tb);
-  root.append(el("div", { class: "table-wrap" }, t));
+  card.replaceChildren(el("strong", {}, title + " (" + apps.length + ")"), el("div", { class: "table-wrap" }, t));
 }
 
 async function renderTemplates(root) {

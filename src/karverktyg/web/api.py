@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import httpx
 from flask import Blueprint, Response, current_app, jsonify, request
 from flask.typing import ResponseReturnValue
 
@@ -14,6 +15,7 @@ from karverktyg.findings import compute_findings
 from karverktyg.membership import effective_templates, generate_drafts, upsert_template
 from karverktyg.membership.templates import templates_by_key
 from karverktyg.roster import build_troop_index
+from karverktyg.scoutnet.client import ScoutnetError
 from karverktyg.scoutnet.models import MemberList
 from karverktyg.settings import Settings
 from karverktyg.uppflyttning import (
@@ -39,6 +41,8 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 _SEVERITY_ORDER = {"security": 0, "warning": 1, "info": 2}
+# A Scoutnet fetch that fails for one variant must not take down the blade.
+_FETCH_ERRORS = (ScoutnetError, httpx.HTTPError)
 
 
 def _settings() -> Settings:
@@ -121,13 +125,23 @@ def api_dues() -> ResponseReturnValue:
 
 @api_bp.get("/waiting")
 def api_waiting() -> ResponseReturnValue:
-    """Waiting list and awaiting-approval applicants."""
-
-    def ser(ml: MemberList) -> list[dict]:
-        return [{"member_no": m.member_no, "name": m.full_name, "unit": m.unit} for m in ml.members]
-
+    """Waiting list and awaiting-approval applicants; each variant fails soft."""
+    lists: dict[str, list[dict]] = {}
+    unavailable: dict[str, str] = {}
+    for variant in ("waiting", "awaiting_approval"):
+        try:
+            ml = _memberlist(variant)
+        except _FETCH_ERRORS as e:
+            lists[variant] = []
+            unavailable[variant] = str(e)
+            continue
+        lists[variant] = [
+            {"member_no": m.member_no, "name": m.full_name, "unit": m.unit} for m in ml.members
+        ]
     return jsonify(
-        waiting=ser(_memberlist("waiting")), awaiting_approval=ser(_memberlist("awaiting_approval"))
+        waiting=lists["waiting"],
+        awaiting_approval=lists["awaiting_approval"],
+        unavailable=unavailable,
     )
 
 
@@ -307,11 +321,14 @@ def api_changelist() -> ResponseReturnValue:
 
 @api_bp.get("/membership/drafts")
 def api_membership_drafts() -> ResponseReturnValue:
-    """Copy-paste membership-request email drafts for applicants (§10)."""
+    """Applicants with copy-paste email drafts (§10); fails soft per variant."""
     variant = request.args.get("variant", "waiting")
     if variant not in ("waiting", "awaiting_approval"):
         variant = "waiting"
-    ml = _memberlist(variant)
+    try:
+        ml = _memberlist(variant)
+    except _FETCH_ERRORS as e:
+        return jsonify(variant=variant, unavailable=True, reason=str(e), applicants=[])
     try:
         n = resolve_cohort_year(_config_n(), ml.current_term_label)
     except CohortYearConflict:
@@ -319,11 +336,15 @@ def api_membership_drafts() -> ResponseReturnValue:
     with get_session(current_app.config["SESSIONMAKER"]) as s:
         templates = templates_by_key(s)
     drafts = generate_drafts(ml.members, _config(), n, templates, _settings().kar_name)
+    by_no = {m.member_no: m for m in ml.members}
     return jsonify(
         variant=variant,
-        drafts=[
+        unavailable=False,
+        applicants=[
             {
                 "member_no": d.member_no,
+                "name": by_no[d.member_no].full_name if d.member_no in by_no else d.member_no,
+                "unit": by_no[d.member_no].unit if d.member_no in by_no else None,
                 "kind": d.kind,
                 "to": d.to,
                 "subject": d.subject,

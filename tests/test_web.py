@@ -150,10 +150,12 @@ def test_dues_endpoint(client):
 
 def test_membership_drafts(client):
     d = client.get("/api/membership/drafts?variant=waiting").get_json()
-    drafts = d["drafts"]
-    assert len(drafts) == 3  # 2 scouts + 1 ledare in the synthetic sample
-    ledare = [x for x in drafts if x["kind"] == "ledare"]
-    scouts = [x for x in drafts if x["kind"] == "scout"]
+    assert d["unavailable"] is False
+    apps = d["applicants"]
+    assert len(apps) == 3  # 2 scouts + 1 ledare in the synthetic sample
+    assert all("name" in a for a in apps)  # list + draft in one payload now
+    ledare = [x for x in apps if x["kind"] == "ledare"]
+    scouts = [x for x in apps if x["kind"] == "scout"]
     assert len(ledare) == 1 and len(scouts) == 2
     # ledare draft goes to the person, not a guardian
     assert ledare[0]["to"] == ["cecilia.testledare@example.org"]
