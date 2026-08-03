@@ -1,0 +1,59 @@
+# The app in fixture mode, wired to the in-cluster Postgres. No Scoutnet
+# credentials needed; member data comes from the committed fixture and workflow
+# state persists in the PVC-backed Postgres.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karverktyg
+  namespace: karverktyg
+  labels: { app: karverktyg }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: karverktyg }
+  template:
+    metadata:
+      labels: { app: karverktyg }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      initContainers:
+        # create_all runs at startup, so wait for Postgres to accept connections.
+        - name: wait-for-db
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z karverktyg-db 5432; do echo waiting for db; sleep 1; done"]
+      containers:
+        - name: karverktyg
+          image: karverktyg:latest
+          imagePullPolicy: IfNotPresent # image is preloaded into k3s containerd
+          env:
+            - { name: SCOUTNET_MODE, value: "fixture" }
+            - { name: SCOUTNET_KAR_NAME, value: "Scoutkåren Finn" }
+            - { name: SCOUTNET_COHORT_YEAR, value: "2026" }
+          envFrom:
+            - secretRef: { name: karverktyg-db } # provides SCOUTNET_DATABASE_URL
+          ports:
+            - containerPort: 8000
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /readyz, port: 8000 }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: karverktyg
+  namespace: karverktyg
+spec:
+  selector: { app: karverktyg }
+  ports:
+    - port: 80
+      targetPort: 8000

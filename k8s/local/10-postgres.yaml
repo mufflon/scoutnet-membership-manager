@@ -1,0 +1,72 @@
+# PVC-backed Postgres for the local test deployment. Dev password only — this
+# overlay is for local testing, never production.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: karverktyg-db
+  namespace: karverktyg
+type: Opaque
+stringData:
+  POSTGRES_DB: karverktyg
+  POSTGRES_USER: karverktyg
+  POSTGRES_PASSWORD: devpassword
+  # DSN the app reads (SCOUTNET_ prefix -> pydantic-settings).
+  SCOUTNET_DATABASE_URL: postgresql+psycopg://karverktyg:devpassword@karverktyg-db:5432/karverktyg
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: karverktyg-db-data
+  namespace: karverktyg
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karverktyg-db
+  namespace: karverktyg
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # single ReadWriteOnce volume
+  selector:
+    matchLabels: { app: karverktyg-db }
+  template:
+    metadata:
+      labels: { app: karverktyg-db }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17
+          envFrom:
+            - secretRef: { name: karverktyg-db }
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "karverktyg"] }
+            periodSeconds: 5
+            timeoutSeconds: 3
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: karverktyg-db-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: karverktyg-db
+  namespace: karverktyg
+spec:
+  selector: { app: karverktyg-db }
+  ports:
+    - port: 5432
+      targetPort: 5432

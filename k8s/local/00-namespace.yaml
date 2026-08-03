@@ -1,0 +1,6 @@
+# Local test overlay: fixture-mode app + PVC-backed Postgres, no credentials.
+# Apply with:  kubectl apply -f k8s/local/
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: karverktyg
