@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     # Keys are per endpoint (§4). Read-only Phase 1 uses these two.
     memberlist_key: SecretStr | None = None
     organisation_group_key: SecretStr | None = None
+    # Write key (§4, Phase 2). Required only in read_write mode; a separate
+    # per-endpoint key for POST /organisation/update/membership.
+    update_membership_key: SecretStr | None = None
     http_timeout_s: float = 30.0
 
     # --- Database (§9) -----------------------------------------------------
@@ -95,6 +98,14 @@ class Settings(BaseSettings):
     chunk_size: int = 1
     chunk_delay_s: float = 1.0
     snapshot_retention_days: int = 30
+    # Full-memberlist snapshot volume (§8). Required for a bulk run in
+    # read_write; enforced at the executor, not here, since read_write can
+    # start (e.g. a dry run) before any bulk write.
+    snapshot_dir: Path | None = None
+    # Member-number allowlist for the write testing stages (§8, HANDOVER §4).
+    # The executor refuses any member_no not on this list. Numbers only, never
+    # names (hard rule 6). Empty list => nothing may be written (fail closed).
+    write_allowlist: list[str] = []
 
     # --- App ---------------------------------------------------------------
     app_version: str = "0.1.0"
@@ -112,6 +123,9 @@ class Settings(BaseSettings):
             missing.append("SCOUTNET_ENTITY_ID")
         if self.memberlist_key is None:
             missing.append("SCOUTNET_MEMBERLIST_KEY")
+        # read_write additionally needs its own per-endpoint write key (§4).
+        if self.mode is Mode.READ_WRITE and self.update_membership_key is None:
+            missing.append("SCOUTNET_UPDATE_MEMBERSHIP_KEY")
         if missing:
             raise MissingCredentialError(
                 f"mode={self.mode.value} requires live credentials, missing: " + ", ".join(missing)
@@ -125,4 +139,5 @@ class Settings(BaseSettings):
         return {
             "group/memberlist": _truncated_hash(self.memberlist_key),
             "organisation/group": _truncated_hash(self.organisation_group_key),
+            "organisation/update/membership": _truncated_hash(self.update_membership_key),
         }

@@ -1,10 +1,11 @@
 """
 Scoutnet clients, constructed per mode (§6).
 
-Only read clients exist in this repo. There is no write method anywhere on
-``FixtureClient`` or ``ReadOnlyClient``; the read_write client is Phase 2 and
-is deliberately absent, so a bug cannot reach a write path. ``build_client``
-refuses ``read_write`` for the same reason.
+The mode gate is enforced at construction: ``FixtureClient`` and
+``ReadOnlyClient`` have no write method anywhere, so in ``fixture`` / ``read_only``
+a bug cannot reach a write path. The single write method lives only on
+``ReadWriteClient``, which ``build_client`` returns only for ``read_write`` mode
+and only once the per-endpoint write key is present.
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ DEFAULT_FIXTURE = Path("fixtures/memberlist.scrubbed.json")
 _WAITING_SAMPLE = Path("fixtures/memberlist-waiting.sample.json")
 
 
+_HTTP_OK = 200
 _HTTP_UNAUTHORIZED = 401
 _HTTP_BAD_REQUEST = 400
 
@@ -42,7 +44,20 @@ _MEMBERLIST_TTL_S = 90.0
 
 
 class ScoutnetError(RuntimeError):
-    """A Scoutnet call failed (documented failure modes: 400, 401 — §4)."""
+    """
+    A Scoutnet call failed (documented failure modes: 400, 401 — §4).
+
+    Carries the HTTP status and response body when available, so a write caller
+    can surface a 400's per-member error strings without re-parsing a message
+    string (§8 error handling).
+    """
+
+    def __init__(
+        self, message: str, *, status_code: int | None = None, body: str | None = None
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.body = body
 
 
 class FixtureClient:
@@ -145,13 +160,63 @@ class ReadOnlyClient:
         self._http.close()
 
 
-def build_client(settings: Settings) -> FixtureClient | ReadOnlyClient:
-    """Construct the read client for the active mode; refuse read_write (§6)."""
+class ReadWriteClient(ReadOnlyClient):
+    """
+    Live read *and* write access (§6). The only client carrying a write method;
+    constructed only for ``read_write`` mode, so a bug elsewhere cannot reach a
+    write path (the read clients have no such method at all).
+
+    The write is deliberately **not** retried. Unlike a read, where a connection
+    failure is safe to retry, a write that fails for any reason stops the run and
+    is surfaced to the operator, never retried automatically (§8).
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        super().__init__(settings)
+        self._write_key = settings.update_membership_key
+
+    def update_membership(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        POST a membership-update batch (§4). ``payload`` is keyed by member
+        number; each entry carries the required ``status`` plus the fields to
+        change. Returns the parsed 200 body; raises ``ScoutnetError`` on any
+        non-200 (400 bodies carry per-member error strings). Never retried.
+        """
+        if self._write_key is None:
+            raise ScoutnetError("no API key configured for /organisation/update/membership")
+        resp = self._http.post(
+            "/organisation/update/membership",
+            json=payload,
+            auth=(self._entity_id, self._write_key.get_secret_value()),
+        )
+        if resp.status_code != _HTTP_OK:
+            body = resp.text[:2000]
+            raise ScoutnetError(
+                f"{resp.status_code} from /organisation/update/membership: {body}",
+                status_code=resp.status_code,
+                body=body,
+            )
+        try:
+            return resp.json()
+        except ValueError as e:  # a 200 with an unparseable body is a failed chunk
+            raise ScoutnetError(
+                "malformed 200 body from /organisation/update/membership",
+                status_code=_HTTP_OK,
+                body=resp.text[:2000],
+            ) from e
+
+
+def build_client(settings: Settings) -> FixtureClient | ReadOnlyClient | ReadWriteClient:
+    """
+    Construct the client for the active mode (§6).
+
+    The mode gate lives here: the write method exists only on the ``read_write``
+    client object.
+    """
     if settings.mode is Mode.FIXTURE:
         return FixtureClient()
     if settings.mode is Mode.READ_ONLY:
         settings.require_live_credentials()
         return ReadOnlyClient(settings)
-    raise NotImplementedError(
-        "read_write client is Phase 2; no write code exists in this repo (§6, §7)"
-    )
+    settings.require_live_credentials()  # also requires the write key for read_write
+    return ReadWriteClient(settings)

@@ -28,17 +28,29 @@ def capabilities(settings: Settings, config: KarConfig) -> dict:
         {"endpoint": ep, "configured": h is not None, "key_hash": h}
         for ep, h in fingerprints.items()
     ]
-    # Read actions work in fixture and read_only; writes are Phase 2 (absent).
+    # Read actions work in fixture and read_only. Writing needs read_write mode
+    # AND the per-endpoint write key present (§6, §12).
+    write_key_present = fingerprints.get("organisation/update/membership") is not None
+    if settings.mode is Mode.READ_WRITE and write_key_present:
+        execute_writes = {"action": "execute_writes", "enabled": True, "reason": None}
+    elif settings.mode is Mode.READ_WRITE:
+        execute_writes = {
+            "action": "execute_writes",
+            "enabled": False,
+            "reason": "read_write mode is active but no update/membership key is configured",
+        }
+    else:
+        execute_writes = {
+            "action": "execute_writes",
+            "enabled": False,
+            "reason": f"requires read_write mode (current mode: {settings.mode.value})",
+        }
     actions = [
         {"action": "view_dues", "enabled": True, "reason": None},
         {"action": "view_findings", "enabled": True, "reason": None},
         {"action": "compute_uppflyttning", "enabled": True, "reason": None},
         {"action": "export_changelist", "enabled": True, "reason": None},
-        {
-            "action": "execute_writes",
-            "enabled": False,
-            "reason": "read_write mode is not available in Phase 1 (§7)",
-        },
+        execute_writes,
     ]
     return {
         "app_version": settings.app_version,

@@ -6,6 +6,7 @@ from karverktyg.scoutnet.client import (
     DEFAULT_FIXTURE,
     FixtureClient,
     ReadOnlyClient,
+    ReadWriteClient,
     build_client,
 )
 from karverktyg.settings import MissingCredentialError, Mode, Settings
@@ -52,7 +53,31 @@ def test_read_only_without_credentials_fails_loudly():
         build_client(settings)
 
 
-def test_read_write_mode_is_absent_in_phase_1():
-    settings = Settings(mode=Mode.READ_WRITE, entity_id="1025", memberlist_key="k")
-    with pytest.raises(NotImplementedError):
+def test_write_method_lives_only_on_read_write_client():
+    # The single write method exists on ReadWriteClient and NOWHERE else (§6).
+    assert hasattr(ReadWriteClient, "update_membership")
+    assert not hasattr(FixtureClient, "update_membership")
+    assert not hasattr(ReadOnlyClient, "update_membership")
+
+
+def test_read_write_without_write_key_fails_loudly():
+    # A memberlist key is not enough; read_write needs its own write key (§4).
+    settings = Settings(
+        mode=Mode.READ_WRITE, entity_id="1025", memberlist_key="k", update_membership_key=None
+    )
+    with pytest.raises(MissingCredentialError):
         build_client(settings)
+
+
+def test_read_write_builds_client_when_write_key_present():
+    settings = Settings(
+        mode=Mode.READ_WRITE,
+        entity_id="1025",
+        memberlist_key="k",
+        update_membership_key="w",
+    )
+    client = build_client(settings)
+    assert isinstance(client, ReadWriteClient)
+    # Still a read client too (reconciliation / re-read before write, §8).
+    assert isinstance(client, ReadOnlyClient)
+    client.close()

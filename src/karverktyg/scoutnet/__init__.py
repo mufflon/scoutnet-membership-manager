@@ -1,13 +1,15 @@
 """
 Scoutnet API client and models (CLAUDE.md §4).
 
-Read-only in Phase 1. The client is constructed per mode (§6); write methods do
-not exist on the read-only or fixture clients, so a bug cannot reach them.
+The client is constructed per mode (§6); the write method exists only on the
+read_write client, never on the read-only or fixture clients, so in those modes
+a bug cannot reach a write path.
 """
 
 from karverktyg.scoutnet.client import (
     FixtureClient,
     ReadOnlyClient,
+    ReadWriteClient,
     ScoutnetError,
     build_client,
 )
@@ -25,6 +27,7 @@ __all__ = [
     "MemberList",
     "PaymentBucket",
     "ReadOnlyClient",
+    "ReadWriteClient",
     "Role",
     "ScoutnetError",
     "build_client",
