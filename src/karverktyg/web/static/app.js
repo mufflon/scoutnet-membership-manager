@@ -1,17 +1,20 @@
 "use strict";
 // Read-only frontend (§3). Talks only to this API. Swedish UI strings inline.
 
+// [key, label, render, group]. The nav renders one row grouped under these
+// section labels; Diagnostik holds the debug/programming views.
+const NAV_GROUPS = ["Översikt", "Åtgärder", "Diagnostik"];
 const TABS = [
-  ["overview", "Översikt", renderOverview],
-  ["dues", "Medlemsavgifter", renderDues],
-  ["waiting", "Väntelista", renderWaiting],
-  ["uppflyttning", "Uppflyttning", renderUppflyttning],
-  ["execute", "Utför", renderExecute],
-  ["findings", "Anmärkningar", renderFindings],
-  ["verify", "Verifiera skrivning", renderVerify],
-  ["templates", "Mallar", renderTemplates],
-  ["apicheck", "API-koll", renderApiCheck],
-  ["capabilities", "Funktioner", renderCapabilities],
+  ["overview", "Översikt", renderOverview, "Översikt"],
+  ["dues", "Medlemsavgifter", renderDues, "Översikt"],
+  ["waiting", "Väntelista", renderWaiting, "Översikt"],
+  ["findings", "Anmärkningar", renderFindings, "Översikt"],
+  ["uppflyttning", "Uppflyttning", renderUppflyttning, "Åtgärder"],
+  ["execute", "Utför", renderExecute, "Åtgärder"],
+  ["templates", "Mallar", renderTemplates, "Åtgärder"],
+  ["apicheck", "API-koll", renderApiCheck, "Diagnostik"],
+  ["capabilities", "Funktioner", renderCapabilities, "Diagnostik"],
+  ["verify", "Verifiera skrivning", renderVerify, "Diagnostik"],
 ];
 
 const $ = (sel) => document.querySelector(sel);
@@ -873,11 +876,16 @@ async function show(key) {
 
 async function boot() {
   const nav = $("#nav");
-  for (const [key, label] of TABS) {
-    const b = el("button", {}, label);
-    b.dataset.k = key;
-    b.onclick = () => show(key);
-    nav.append(b);
+  for (const group of NAV_GROUPS) {
+    const wrap = el("div", { class: "nav-group" }, el("span", { class: "nav-group-label" }, group));
+    for (const [key, label, , g] of TABS) {
+      if (g !== group) continue;
+      const b = el("button", {}, label);
+      b.dataset.k = key;
+      b.onclick = () => show(key);
+      wrap.append(b);
+    }
+    nav.append(wrap);
   }
   try {
     const cap = await api("capabilities");
