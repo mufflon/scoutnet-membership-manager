@@ -110,8 +110,12 @@ def test_uppflyttning_reset(client):
     d = client.get("/api/uppflyttning").get_json()
     assert d["decisions_count"] == 0 and d["elected_target"] is None
     m = (d["off_cohort"] + d["excluded"])[0]
-    client.post("/api/uppflyttning/decision", json={"member_no": m["member_no"], "acknowledged": True})
-    client.post("/api/uppflyttning/target", json={"avdelning": d["utmanare_candidates"][0]["avdelning"]})
+    client.post(
+        "/api/uppflyttning/decision", json={"member_no": m["member_no"], "acknowledged": True}
+    )
+    client.post(
+        "/api/uppflyttning/target", json={"avdelning": d["utmanare_candidates"][0]["avdelning"]}
+    )
     mid = client.get("/api/uppflyttning").get_json()
     assert mid["decisions_count"] >= 1 and mid["elected_target"] is not None
     assert client.post("/api/uppflyttning/reset").status_code == 200
