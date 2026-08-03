@@ -65,7 +65,10 @@ class Settings(BaseSettings):
     http_timeout_s: float = 30.0
 
     # --- Database (§9) -----------------------------------------------------
-    database_url: str = "postgresql+psycopg://localhost/karverktyg"
+    # None => fixture mode uses an ephemeral in-memory SQLite (no infrastructure).
+    # Set it (e.g. to Postgres) to make fixture-mode state persist; required for
+    # read_only / read_write.
+    database_url: str | None = None
 
     # --- Kår identity / branding (§13) -------------------------------------
     kar_name: str = "Scoutkåren Finn"

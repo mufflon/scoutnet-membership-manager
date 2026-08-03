@@ -21,22 +21,33 @@ from karverktyg.web.health import health_bp
 _STATIC = Path(__file__).parent / "static"
 
 
+_DEFAULT_DB = "postgresql+psycopg://localhost/karverktyg"
+
+
 def _build_engine(settings: Settings) -> Engine:
     """
-    Fixture mode gets a self-contained in-memory SQLite with the schema
-    created, so the full app runs with no infrastructure (§6). Live modes use
-    the configured database, whose schema comes from alembic migrations.
+    Build the DB engine for the mode.
+
+    Fixture mode with no database_url runs on an ephemeral in-memory SQLite so
+    the app needs no infrastructure (§6). Give fixture mode a real database_url
+    (e.g. Postgres) and its workflow state persists — the schema is created
+    directly since migrations are a live-mode concern. Live modes use the
+    configured database, whose schema comes from alembic migrations.
     """
+    url = settings.database_url
     if settings.mode is Mode.FIXTURE:
-        engine = create_engine(
-            "sqlite://",
-            future=True,
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        if not url or url.startswith("sqlite"):
+            engine = create_engine(
+                url or "sqlite://",
+                future=True,
+                connect_args={"check_same_thread": False},
+                poolclass=StaticPool,
+            )
+        else:
+            engine = make_engine(url)
         Base.metadata.create_all(engine)
         return engine
-    return make_engine(settings.database_url)
+    return make_engine(url or _DEFAULT_DB)
 
 
 def create_app(settings: Settings | None = None) -> Flask:
