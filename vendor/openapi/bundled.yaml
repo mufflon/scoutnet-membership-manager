@@ -1,0 +1,1194 @@
+openapi: 3.1.0
+info:
+  title: Scoutnet API
+  summary: Scoutnet is the member management system for the Guides and Scouts of Sweden.
+  description: |
+    Scoutnet is the member management system for the Guides and Scouts of
+    Sweden. This API provides access to various resources related to projects,
+    groups, and participants.
+  version: 0.4.1
+  license:
+    name: MIT
+    identifier: MIT
+  contact:
+    name: Scoutnet
+    url: https://github.com/Scouterna/scoutnet-api
+servers:
+  - url: https://s1.test.custard.no/api
+    description: Test server
+  - url: https://scoutnet.se/api
+    description: Production server
+security:
+  - basicAuth: []
+tags:
+  - name: project
+    description: Endpoints related to "arrangemang"
+  - name: organisation
+    description: Endpoints scoped to a specific organisation
+  - name: group
+    description: Endpoints scoped to a specific group
+  - name: global
+    description: Endpoints that do not belong to a specific type of resource
+paths:
+  /body_key_list:
+    get:
+      summary: |
+        Restricted endpoint. Get a list of all bodies and their relations to
+        each other
+      description: |
+        For security reasons this endpoint is not publicly available and can
+        only be used by internally developed systems.
+      operationId: listBodyKeys
+      tags:
+        - global
+      responses:
+        '200':
+          description: A list of all bodies and their relations to each other.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/body'
+        '401':
+          $ref: '#/components/responses/not_authorized'
+  /project/get/groups:
+    get:
+      summary: Get a list of groups with members attending a project
+      description: Get a list of groups with members attending a project
+      operationId: getProjectGroups
+      tags:
+        - project
+      responses:
+        '200':
+          description: |
+            Keys of the response object are group IDs and values are group objects.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/organisation'
+        '401':
+          $ref: '#/components/responses/not_authorized'
+  /project/get/participants:
+    get:
+      summary: Get a list of members who are registered on the project
+      description: Get a list of members who are registered on the project
+      operationId: getProjectParticipants
+      tags:
+        - project
+      responses:
+        '200':
+          description: A list of members registered on the project.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  participants:
+                    type:
+                      - object
+                      - array
+                      - 'null'
+                    additionalProperties:
+                      $ref: '#/components/schemas/project_member'
+                  labels:
+                    $ref: '#/components/schemas/project_get_participants_labels'
+                  pc_courses:
+                    type: object
+                    description: 'Course ID to course name, e.g. `{ "89": "Trygga möten" }`. Cross-reference with the `pc_courses` map on each project member to get a member''s completion date per course.'
+                    additionalProperties:
+                      type: string
+        '401':
+          $ref: '#/components/responses/not_authorized'
+  /project/checkin:
+    put:
+      summary: Update the check-in state of participant(s) on the project
+      description: Update the check-in state of participant(s) on the project.
+      operationId: updateCheckin
+      tags:
+        - project
+      requestBody:
+        description: |
+          An object where the keys are member IDs and the values are objects
+          with check-in details.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                $ref: '#/components/schemas/checkin'
+      responses:
+        '200':
+          description: A summary of the check-in operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/checkin_response'
+        '401':
+          $ref: '#/components/responses/not_authorized'
+  /project/get/questions:
+    get:
+      summary: Get a list of forms associated with a project
+      operationId: getProjectFormts
+      tags:
+        - project
+      parameters:
+        - in: query
+          name: form_id
+          schema:
+            type: integer
+          required: false
+          description: |
+            If provided, details of the specific form will be included in the
+            response.
+      responses:
+        '200':
+          description: |
+            Keys of the response object are form IDs and values are form objects.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  forms:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/form'
+                  form:
+                    $ref: '#/components/schemas/form'
+                  questions:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/question'
+                  tabs:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/form_tab'
+                  sections:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/form_section'
+                  messages:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          $ref: '#/components/responses/not_authorized'
+  /organisation/group:
+    get:
+      summary: Get information about the authenticated group
+      description: Returns basic information and statistics about the authenticated group and its primary leader.
+      operationId: getOrganisationGroup
+      tags:
+        - organisation
+      responses:
+        '200':
+          description: Group information.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Group:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      membercount:
+                        type: integer
+                      rolecount:
+                        type: integer
+                      waitingcount:
+                        type: integer
+                      group_email:
+                        type:
+                          - boolean
+                          - 'null'
+                      email:
+                        type: string
+                        format: email
+                      description:
+                        type: string
+                      stats:
+                        type:
+                          - object
+                          - 'null'
+                        properties:
+                          active:
+                            type: object
+                            properties:
+                              sum:
+                                type: integer
+                              breakdown:
+                                $ref: '#/components/schemas/group_stat_breakdown'
+                          active_paid:
+                            $ref: '#/components/schemas/group_stat_term'
+                          active_paid_previous:
+                            $ref: '#/components/schemas/group_stat_term'
+                          below_26:
+                            type: integer
+                            description: Count of active members aged 26 or under.
+                          generated:
+                            type: string
+                            format: date-time
+                          active_troops:
+                            type: integer
+                  Leader:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      contactdetails:
+                        type: string
+        '401':
+          $ref: '#/components/responses/not_authorized'
+  /group/memberlist:
+    get:
+      summary: Get a detailed list of all group members
+      description: |
+        Returns a full member list for the authenticated group. By default returns
+        active members; use `waiting` and/or `awaiting_approval` query parameters to
+        include members in those states instead.
+      operationId: getGroupMemberlist
+      tags:
+        - group
+      parameters:
+        - in: query
+          name: waiting
+          schema:
+            type: integer
+            enum:
+              - 1
+          required: false
+          description: Include members on the waiting list.
+        - in: query
+          name: awaiting_approval
+          schema:
+            type: integer
+            enum:
+              - 1
+          required: false
+          description: Include members awaiting approval.
+      responses:
+        '200':
+          description: Member list with translated labels.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    description: Keyed by member number.
+                    additionalProperties:
+                      type: object
+                      properties:
+                        member_no:
+                          $ref: '#/components/schemas/memberlist_field'
+                        first_name:
+                          $ref: '#/components/schemas/memberlist_field'
+                        last_name:
+                          $ref: '#/components/schemas/memberlist_field'
+                        ssno:
+                          $ref: '#/components/schemas/memberlist_field'
+                        date_of_birth:
+                          $ref: '#/components/schemas/memberlist_field'
+                        status:
+                          $ref: '#/components/schemas/memberlist_field'
+                        created_at:
+                          $ref: '#/components/schemas/memberlist_field'
+                        confirmed_at:
+                          $ref: '#/components/schemas/memberlist_field'
+                        group:
+                          $ref: '#/components/schemas/memberlist_field'
+                        unit:
+                          $ref: '#/components/schemas/memberlist_field'
+                        unit_type:
+                          $ref: '#/components/schemas/memberlist_field'
+                        sex:
+                          $ref: '#/components/schemas/memberlist_field'
+                        address_1:
+                          $ref: '#/components/schemas/memberlist_field'
+                        postcode:
+                          $ref: '#/components/schemas/memberlist_field'
+                        town:
+                          $ref: '#/components/schemas/memberlist_field'
+                        country:
+                          $ref: '#/components/schemas/memberlist_field'
+                        email:
+                          $ref: '#/components/schemas/memberlist_field'
+                        prev_term:
+                          $ref: '#/components/schemas/memberlist_field'
+                        current_term:
+                          $ref: '#/components/schemas/memberlist_field'
+                        current_term_due_date:
+                          $ref: '#/components/schemas/memberlist_field'
+                        kid:
+                          $ref: '#/components/schemas/memberlist_field'
+                        roles:
+                          $ref: '#/components/schemas/memberlist_field'
+                        waiting_since:
+                          $ref: '#/components/schemas/memberlist_field'
+                        awaiting_approval:
+                          $ref: '#/components/schemas/memberlist_field'
+                      additionalProperties:
+                        $ref: '#/components/schemas/memberlist_field'
+                  labels:
+                    type: object
+                    description: Translated column labels keyed by field name.
+                    additionalProperties:
+                      type: string
+        '401':
+          $ref: '#/components/responses/not_authorized'
+  /organisation/register/member:
+    post:
+      summary: Register a group member on the waiting list
+      description: |
+        Validation rules and required fields are determined by the system
+        configuration — refer to the system UI for current requirements.
+      operationId: registerGroupMember
+      tags:
+        - organisation
+      parameters:
+        - in: query
+          name: redirect
+          schema:
+            type: string
+          required: false
+          description: |
+            An internal route name. When provided the system redirects to this
+            route on success instead of returning the registered values.
+      requestBody:
+        required: true
+        description: |
+          Member registration data including profile, membership, and optional
+          address and contact information.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                profile:
+                  $ref: '#/components/schemas/register_member_profile'
+                membership:
+                  $ref: '#/components/schemas/register_member_membership'
+                registration_preferences:
+                  type: object
+                  properties:
+                    troop_id:
+                      type: array
+                      items:
+                        type: integer
+                    section_id:
+                      type: array
+                      items:
+                        type: integer
+                address_list:
+                  type: object
+                  properties:
+                    addresses:
+                      type: object
+                      additionalProperties:
+                        $ref: '#/components/schemas/register_address_entry'
+                contact_list:
+                  type: object
+                  properties:
+                    contacts:
+                      type: object
+                      additionalProperties:
+                        type: object
+                        properties:
+                          contact_type_id:
+                            type: string
+                          details:
+                            type: string
+                custom_data:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Custom field answers, keyed by field ID.
+      responses:
+        '200':
+          description: Member successfully registered.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profile:
+                    $ref: '#/components/schemas/register_member_profile_response'
+                  membership:
+                    $ref: '#/components/schemas/register_member_membership'
+                  registration_preferences:
+                    type: object
+                    properties:
+                      troop_id:
+                        type: array
+                        items:
+                          type: integer
+                      section_id:
+                        type: array
+                        items:
+                          type: integer
+                  address_list:
+                    type: object
+                    properties:
+                      addresses:
+                        type: object
+                        additionalProperties:
+                          $ref: '#/components/schemas/register_address_entry'
+                  contact_list:
+                    type: object
+                    properties:
+                      contacts:
+                        type: object
+                        additionalProperties:
+                          type: object
+                          properties:
+                            contact_type_id:
+                              type: string
+                            details:
+                              type: string
+                  custom_data:
+                    type: object
+                    additionalProperties:
+                      type: string
+        '400':
+          description: |
+            Validation errors. Profile errors are an array of error objects. Nested
+            errors (e.g. address_list) are objects keyed by sub-field name.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  oneOf:
+                    - type: array
+                      items:
+                        type: object
+                        properties:
+                          key:
+                            type: string
+                          subkey:
+                            type: string
+                          value: {}
+                          msg:
+                            type: string
+                    - type: object
+                      additionalProperties:
+                        type: object
+                        additionalProperties:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                            subkey:
+                              type: string
+                            value: {}
+                            msg:
+                              type: string
+        '401':
+          $ref: '#/components/responses/not_authorized'
+  /organisation/update/membership:
+    post:
+      summary: Update group membership status, troop, or patrol
+      description: |
+        Update one or more group memberships in a single request. A common use
+        case is moving a member from the waiting list into a troop/patrol and
+        confirming their membership status.
+
+        Any error causes the entire request to be rejected.
+      operationId: updateGroupMembership
+      tags:
+        - organisation
+      requestBody:
+        required: true
+        description: |
+          An object where the keys are member numbers and the values are objects
+          describing the membership fields to update.
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - confirmed
+                      - waiting
+                      - cancelled
+                  troop_id:
+                    type: integer
+                  patrol_id:
+                    type: integer
+      responses:
+        '200':
+          description: All memberships updated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  updated:
+                    type: array
+                    items:
+                      type: integer
+                    description: Member numbers that were updated.
+        '400':
+          description: |
+            One or more members failed validation. The entire request is rejected.
+            Keys are member numbers; values are error message strings.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+        '401':
+          $ref: '#/components/responses/not_authorized'
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: |
+        Use the ID of the resource you're accessing as username and the
+        corresponding API key as password.
+  schemas:
+    body:
+      type: object
+      required:
+        - body_key
+        - body_name
+        - body_type
+        - body_id
+        - organisation_id
+      properties:
+        body_key:
+          type: string
+          description: Unique key for the body. Usually body type and body ID separated by an underscore.
+        body_name:
+          type: string
+          description: The name of the body.
+        body_type:
+          type: string
+          enum:
+            - organisation
+            - region
+            - network
+            - district
+            - corps
+            - group
+            - troop
+            - patrol
+        body_id:
+          type: number
+          description: ID of the body.
+        organisation_id:
+          type: number
+          description: ID of the organisation this body belongs to. If this body is an organisation, this is the same as body_id.
+    group_troop:
+      type: object
+      required:
+        - name
+        - type
+        - min_age
+        - max_age
+        - section_id
+      properties:
+        name:
+          type: string
+          description: The name of the troop.
+        type:
+          type: number
+          description: |
+            1: Bäverscouter
+            2: Spårarscouter
+            3: Upptäckarscouter
+            4: Äventyrarscouter
+            5: Utmanarscouter
+            6: Roverscouter
+            7: Annat
+            8: Familjescouter
+        min_age:
+          type: number
+          description: Minimum age for the troop.
+        max_age:
+          type: number
+          description: Maximum age for the troop.
+        meeting_info:
+          type: {}
+          description: NOT YET DOCUMENTED
+        section_id:
+          type: number
+          description: ID of the section this troop belongs to.
+    group_section:
+      type: object
+      required:
+        - name
+        - id
+      properties:
+        name:
+          type: string
+          description: The name of the troop.
+        description:
+          type: string
+          description: A description of the troop.
+        id:
+          type: number
+          description: Section ID number.
+        address_ids:
+          type: {}
+          description: NOT YET DOCUMENTED
+    address:
+      type: object
+      properties:
+        care_of:
+          type: string
+        location_name:
+          type: string
+        line_1:
+          type: string
+        line_2:
+          type: string
+        line_3:
+          type: string
+        post_code:
+          type: string
+        post_town:
+          type: string
+        latitude:
+          type: string
+        longitude:
+          type: string
+        info:
+          type: string
+        country_code:
+          type: string
+        section_name:
+          type: string
+        section_priority:
+          type: boolean
+    project_stats:
+      type: object
+      properties:
+        project_id:
+          type: number
+        group_participants:
+          type: number
+        project_name:
+          type: string
+        questions:
+          type: {}
+          description: NOT YET DOCUMENTED
+    group:
+      type: object
+      required:
+        - group_no
+      properties:
+        name:
+          type: string
+          description: The name of the group.
+        description:
+          type: string
+          description: A description of the group.
+        group_no:
+          type: number
+          description: Group ID number.
+        corps_id:
+          type: number
+          description: Corps or "samverkansorganisation". `null` means Scouterna.
+        group_types:
+          type: array
+          items:
+            type: number
+          description: |
+            1: Scoutkår
+            2: Sjöscoutkår
+            3: Hub-Kår
+        troop_types:
+          type: array
+          items:
+            type: number
+          description: |
+            1: Bäverscouter
+            2: Spårarscouter
+            3: Upptäckarscouter
+            4: Äventyrarscouter
+            5: Utmanarscouter
+            6: Roverscouter
+            7: Annat
+            8: Familjescouter
+        municipality_id:
+          type: number
+          description: Municipality ID. Name can be found in the region object.
+        county_id:
+          type: number
+          description: County ID. Name can be found in the region object.
+        public_registration_enabled:
+          type: boolean
+          description: Whether the group is open for new members or not.
+        destination_list:
+          type: number
+          description: |
+            Destination list for public registration.
+            1: Medlemskap som väntar på godkännande (Membership waiting for approval)
+            2: Flytta till väntelista (Move to waiting list)
+        badges:
+          description: NOT YET DOCUMENTED
+        troops:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/group_troop'
+        sections:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/group_section'
+        addresses:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/address'
+        email:
+          type: object
+          additionalProperties:
+            type: string
+        email_membership:
+          type: object
+          additionalProperties:
+            type: string
+        project_stats:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/project_stats'
+    district:
+      type: object
+      required:
+        - name
+        - groups
+      properties:
+        name:
+          type: string
+          description: The name of the district.
+        groups:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/group'
+    region:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The name of the region.
+        districts:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/district'
+        corps:
+          description: NOT YET DOCUMENTED
+        municipalities:
+          type: object
+          description: Key-value map of municipality IDs (used in the response) to their names.
+          additionalProperties:
+            type: string
+        conties:
+          type: object
+          description: Key-value map of country IDs (used in the response) to their names.
+          additionalProperties:
+            type: string
+    organisation:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The name of the organisation.
+        regions:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/region'
+    project_member:
+      type: object
+      properties:
+        checked_in:
+          type: boolean
+        pc_details:
+          type: object
+          properties:
+            required:
+              type: boolean
+            valid:
+              type: boolean
+            shown:
+              type: string
+            missing:
+              type: boolean
+        pc_courses:
+          type: object
+          description: Course ID to completion date, or null if not completed. See the `pc_courses` map in the getProjectParticipants response for the course ID to name lookup.
+          additionalProperties:
+            type:
+              - string
+              - 'null'
+        attended:
+          type: boolean
+        cancelled:
+          type: boolean
+        confirmed:
+          type: boolean
+        confirmed_at:
+          type: string
+        member_status:
+          type: number
+        member_no:
+          type: number
+        group_registration:
+          type: boolean
+        first_name:
+          type: string
+        last_name:
+          type: string
+        ssno:
+          type: string
+        registration_date:
+          type: string
+        cancelled_date:
+          type: string
+        primary_email:
+          type: string
+        fee_id:
+          type: number
+        primary_membership_info:
+          type:
+            - object
+            - array
+          properties:
+            patrol_id:
+              type: number
+            patrol_name:
+              type: string
+            troop_id:
+              type: number
+            troop_name:
+              type: string
+            group_id:
+              type: number
+            group_name:
+              type: string
+            district_id:
+              type: number
+            district_name:
+              type: string
+            region_id:
+              type: number
+            region_name:
+              type: string
+            organisation_id:
+              type: number
+            organisation_name:
+              type: string
+        group_registration_info:
+          type:
+            - object
+            - array
+          properties:
+            group_id:
+              type: number
+            patrol_id:
+              type: number
+            group_name:
+              type: string
+            org_id:
+              type: number
+            org_name:
+              type: string
+            district_id:
+              type: number
+            district_name:
+              type: string
+            patrol_name:
+              type: string
+        questions:
+          type: object
+          additionalProperties:
+            type:
+              - string
+              - 'null'
+        contact_info:
+          type: object
+          additionalProperties:
+            type: string
+    project_get_participants_labels:
+      type: object
+      properties:
+        member_status:
+          type: object
+          additionalProperties:
+            type: string
+        sex:
+          type: object
+          additionalProperties:
+            type: string
+        project_fee:
+          type: object
+          additionalProperties:
+            type: string
+        contact_type:
+          type: object
+          additionalProperties:
+            type: string
+    checkin:
+      type: object
+      properties:
+        checked_in:
+          type: number
+          enum:
+            - 0
+            - 1
+          description: Set to 1 to mark the participant as checked in, 0 to mark as checked out.
+        comment:
+          example: Checked in by Scoutin checkin system
+          type: string
+          description: A comment to be stored with the check-in. If checked_in is not provided a comment will be stored without changing the check-in state.
+        attended:
+          type: number
+          enum:
+            - 0
+            - 1
+          default: 1
+          description: Only applicable when checking out. Set to 1 to mark the participant as attended, 0 to mark as not attended. Default is 1.
+    checkin_response:
+      type: object
+      properties:
+        checked_in:
+          type: array
+          items:
+            type: number
+          description: List of member IDs that were checked in.
+        checked_out_attended:
+          type: array
+          items:
+            type: number
+          description: List of member IDs that were checked out and marked as attended.
+        checked_out_not_attended:
+          type: array
+          items:
+            type: number
+          description: List of member IDs that were checked out and marked as not attended.
+        unchanged:
+          type: array
+          items:
+            type: number
+          description: List of member IDs that were not changed. If only a comment was added, the member is still in this list.
+        not_found:
+          type: array
+          items:
+            type: number
+          description: List of member IDs that exist but are not participants on the project.
+        no_member:
+          type: array
+          items:
+            type: number
+          description: List of member IDs that do not exist in the system.
+        total:
+          type: number
+          description: Total number of members that were processed. Unchanged members are counted as well.
+        updated_questions:
+          description: NOT YET DOCUMENTED
+    form:
+      type: object
+      properties:
+        title:
+          type: string
+          description: The title of the form.
+        id:
+          type: number
+          description: The form ID number.
+        form_type:
+          type: string
+          enum:
+            - individual
+            - group
+          description: The type of form.
+        endpoint_url:
+          type: string
+          description: A direct, authenticated URL to access the full form data.
+    question_choice:
+      type: object
+      properties:
+        value:
+          type: number
+          description: The choice ID.
+        option:
+          type: string
+          description: The choice text.
+        description:
+          type: string
+          description: The choice description.
+    question:
+      type: object
+      properties:
+        question:
+          type: string
+          description: The question name.
+        description:
+          type: string
+          description: The question description.
+        tab_id:
+          type: number
+          description: ID of the tab the question belongs to.
+        section_id:
+          type: number
+          description: ID of the section the question belongs to.
+        default_value:
+          type: string
+          description: The default value of the question.
+        type:
+          type: string
+          description: The type of question.
+        choices:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/question_choice'
+    form_tab:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+    form_section:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+    group_stat_breakdown:
+      type: object
+      description: |
+        Keyed by age group ID (string), then by sex code
+        (string: 0=unknown, 1=male, 2=female, 3=other), then member count.
+      additionalProperties:
+        type: object
+        additionalProperties:
+          type: integer
+    group_stat_term:
+      type: object
+      properties:
+        sum:
+          type: integer
+        term_id:
+          type: integer
+        term_label:
+          type: string
+        breakdown:
+          $ref: '#/components/schemas/group_stat_breakdown'
+    memberlist_field:
+      type: object
+      properties:
+        value: {}
+        raw_value:
+          type: string
+    register_member_profile:
+      type: object
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        sex:
+          type:
+            - integer
+            - 'null'
+          enum:
+            - 0
+            - 1
+            - 2
+            - 3
+            - null
+          description: 0 = unknown, 1 = male, 2 = female, 3 = other
+        email:
+          type: string
+          format: email
+        date_of_birth:
+          type: string
+          format: date
+        ssno:
+          type: string
+        note:
+          type: string
+        nick_name:
+          type:
+            - string
+            - 'null'
+        newsletter:
+          type:
+            - string
+            - 'null'
+        magazine:
+          type:
+            - string
+            - 'null'
+        force_police_check:
+          type:
+            - string
+            - 'null'
+    register_member_membership:
+      type: object
+      properties:
+        status:
+          type: integer
+          enum:
+            - 1
+            - 2
+            - 4
+          description: 1 = waiting list, 2 = pending approval, 4 = approve in group
+        troop_id:
+          type:
+            - integer
+            - 'null'
+        patrol_id:
+          type:
+            - integer
+            - 'null'
+        feegroup_id:
+          type:
+            - integer
+            - 'null'
+    register_address_entry:
+      type: object
+      properties:
+        address_type:
+          type: string
+        address_line1:
+          type: string
+        address_line2:
+          type: string
+        country_code:
+          type: string
+        zip_code:
+          type: string
+        zip_name:
+          type: string
+    register_member_profile_response:
+      allOf:
+        - $ref: '#/components/schemas/register_member_profile'
+        - type: object
+          properties:
+            id:
+              type:
+                - integer
+                - 'null'
+  responses:
+    not_authorized:
+      description: When unauthorized there will be no response body.

@@ -28,7 +28,7 @@ htmlcov/
 
 # Tooling
 node_modules/
-bundled.yaml
+/bundled.yaml
 .DS_Store
 
 # Filled-in deploy config (holds API keys) — never commit; keep only *.conf.example

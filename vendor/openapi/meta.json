@@ -1,7 +1,11 @@
 {
-  "_note": "Sidecar for the vendored Scoutnet OpenAPI (CLAUDE.md §4, §12). PLACEHOLDER — the bundled spec is not vendored yet. Populate git_commit/retrieved and add bundled.yaml alongside this file via the vendoring step; the drift-check job compares against it and never auto-updates it.",
   "version": "0.4.1",
-  "git_commit": null,
-  "retrieved": null,
-  "source": "https://github.com/Scouterna/scoutnet-api"
+  "git_commit": "5c11234f6a551efacf45e3d86de0463fa07d2ae8",
+  "retrieved": "2026-08-03",
+  "source": "https://github.com/Scouterna/scoutnet-api",
+  "tag": "scoutnet-openapi-v0.4.1",
+  "npm_package": "@scouterna/scoutnet-openapi@0.4.1",
+  "npm_integrity": "sha512-lW+q0CErlJqhy+pMViwth4DNFcPqVnsw6l47or8teV/hrXIHorLpQlDQHAc4jMFpdnllDpmwv/BWc6H3eg9Yyw==",
+  "bundled": "bundled.yaml",
+  "note": "Bundled from the published npm package with `redocly bundle`; git_commit is the repo tag scoutnet-openapi-v0.4.1. Never auto-updated — re-vendoring is a reviewed change (CLAUDE.md §4, §14)."
 }
