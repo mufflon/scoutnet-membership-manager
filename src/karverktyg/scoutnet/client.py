@@ -18,7 +18,7 @@ from typing import Any
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
-from karverktyg.scoutnet.models import MemberList
+from karverktyg.scoutnet.models import MemberList, PaymentBucket
 from karverktyg.scoutnet.parse import parse_memberlist
 from karverktyg.settings import Mode, Settings
 
@@ -41,6 +41,17 @@ _HTTP_BAD_REQUEST = 400
 # memberlist each time. Read-only data that changes slowly; the operator can
 # always reload for fresh data.
 _MEMBERLIST_TTL_S = 90.0
+# organisation/group is aggregate data that changes slowly and (for some kårer)
+# answers very slowly — cache a success so a blade needing it pays the cost at
+# most once per window, not on every load (§4, §20 reconciliation).
+_ORG_TTL_S = 300.0
+# Negative cache: a variant that read-times-out (awaiting_approval reliably does
+# for this kår, §4) fast-fails for a short window instead of re-blocking a worker
+# for the full timeout on every request. The operator reloads for fresh data.
+_NEG_TTL_S = 120.0
+# For the fixture aggregate's synthesised below_26: the committed capture is the
+# 2026 season, so members born after 2000 are under 26. Fixtures only (§6).
+_FIXTURE_BORN_UNDER_26 = 2000
 
 
 class ScoutnetError(RuntimeError):
@@ -84,16 +95,32 @@ class FixtureClient:
 
     def organisation_group(self) -> dict[str, Any]:
         """
-        Synthesised aggregate so fixture mode is self-contained and looks
-        like read_only to the frontend (§6).
+        Synthesised aggregate so fixture mode is self-contained and looks like
+        read_only to the frontend (§6). Derived from the committed memberlist so
+        the Översikt cross-checks (§20) have real figures to agree with.
         """
         ml = self.memberlist("active")
         n = len(ml)
+        troops = {m.unit for m in ml.members if m.unit}
+        rolecount = sum(len(m.roles) for m in ml.members)
+        paid_prev = sum(1 for m in ml.members if m.prev_payment() is PaymentBucket.SETTLED)
+        below_26 = sum(
+            1 for m in ml.members if m.birth_year and m.birth_year > _FIXTURE_BORN_UNDER_26
+        )
+        try:
+            waitingcount = len(self.memberlist("waiting"))
+        except ScoutnetError:
+            waitingcount = 0
         return {
             "membercount": n,
+            "rolecount": rolecount,
+            "waitingcount": waitingcount,
+            "active_troops": len(troops),
             "generated": None,
             "stats": {
                 "active": {"value": n, "term_label": ml.current_term_label},
+                "active_paid_previous": {"value": paid_prev, "term_label": ml.prev_term_label},
+                "below_26": {"value": below_26},
             },
             "_synthesised": True,
         }
@@ -110,6 +137,8 @@ class ReadOnlyClient:
         self._memberlist_key = settings.memberlist_key
         self._org_key = settings.organisation_group_key
         self._cache: dict[str, tuple[float, MemberList]] = {}
+        self._org_cache: tuple[float, dict[str, Any]] | None = None
+        self._neg_cache: dict[str, float] = {}  # variant -> monotonic ts of a read timeout
         # ``transport`` is a test seam (httpx.MockTransport); None in production.
         self._http = httpx.Client(
             base_url=settings.base_url.rstrip("/"),
@@ -155,14 +184,32 @@ class ReadOnlyClient:
             cached = self._cache.get(variant)
             if cached is not None and now - cached[0] < _MEMBERLIST_TTL_S:
                 return cached[1]
-        raw = self._get("/group/memberlist", self._memberlist_key, _VARIANT_PARAMS[variant])
+            neg = self._neg_cache.get(variant)
+            if neg is not None and now - neg < _NEG_TTL_S:
+                raise ScoutnetError(
+                    f"{variant} nådde tidsgräns nyligen; cachas som otillgänglig "
+                    f"i {_NEG_TTL_S:.0f}s (ladda om för nytt försök)"
+                )
+        try:
+            raw = self._get("/group/memberlist", self._memberlist_key, _VARIANT_PARAMS[variant])
+        except httpx.TimeoutException:
+            # A read timeout means Scoutnet accepted but is slow (§4). Remember it
+            # so we don't tie up a worker for the full timeout on every request.
+            self._neg_cache[variant] = now
+            raise
         ml = parse_memberlist(raw, variant)
         self._cache[variant] = (now, ml)
+        self._neg_cache.pop(variant, None)
         return ml
 
     def organisation_group(self) -> dict[str, Any]:
-        """Fetch the aggregate organisation/group stats (§4)."""
-        return self._get("/organisation/group", self._org_key, {})
+        """Fetch the aggregate organisation/group stats (§4), cached (slow endpoint)."""
+        now = time.monotonic()
+        if self._org_cache is not None and now - self._org_cache[0] < _ORG_TTL_S:
+            return self._org_cache[1]
+        data = self._get("/organisation/group", self._org_key, {})
+        self._org_cache = (now, data)
+        return data
 
     def close(self) -> None:
         """Close the underlying HTTP client."""

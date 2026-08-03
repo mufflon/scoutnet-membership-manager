@@ -28,16 +28,18 @@ class TroopIndex:
 
 
 def build_troop_index(memberlist: MemberList, config: KarConfig) -> TroopIndex:
-    """Build troop index."""
+    """
+    Build the avdelning-name -> troop_id map from the **live** memberlist only
+    (§4). Config carries no troop_id (§17): an avdelning too empty to appear here
+    has its id supplied by the operator at the target election, not from config,
+    so there is no config overlay and no config-vs-live id to reconcile. Config
+    still names which bracket each avdelning belongs to.
+    """
     name_to_id: dict[str, int] = {}
     # Live: first observed unit.raw_value per unit name.
     for m in memberlist.members:
         if m.unit and m.unit_troop_id is not None:
             name_to_id.setdefault(m.unit, m.unit_troop_id)
-    # Config overrides for avdelningar with no members in the response.
-    for a in config.avdelningar:
-        if a.troop_id is not None:
-            name_to_id.setdefault(a.name, a.troop_id)
 
     id_to_name = {tid: name for name, tid in name_to_id.items()}
     id_to_bracket: dict[int, Bracket] = {}

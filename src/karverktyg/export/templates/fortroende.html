@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Förtroendeuppdrag – {{ kar }}{% endblock %}
+{% block subtitle %}Förtroendeuppdrag (kårnivå){% endblock %}
+{% block content %}
+<p class="note">
+  Förtroendeuppdrag (kårnivå): {{ group_count }} ·
+  Roller tolkade (alla nivåer): {{ total_parsed }} ·
+  {% if rolecount_available %}
+    Scoutnet rolecount: {{ rolecount }}
+    {% if rolecount_match %}✓{% else %}<span class="warn">✗ avvikelse – en nivå kan saknas eller tolkningen är fel</span>{% endif %}
+  {% else %}
+    Scoutnet rolecount: ej tillgänglig
+  {% endif %}
+</p>
+{% for s in sections %}
+<h3>{{ s.label }}</h3>
+<table>
+  <thead><tr><th>Roll</th><th>Namn</th><th>Medlemsnummer</th></tr></thead>
+  <tbody>
+  {% for a in s.assignments %}
+    <tr><td>{{ a.label }}</td><td>{{ a.member_name }}</td><td>{{ a.member_no }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+{% if vacancies %}
+<h3>Vakanser</h3>
+<table>
+  <thead><tr><th>Roll</th><th class="num">Förväntat</th><th class="num">Tillsatta</th><th class="num">Vakanta</th></tr></thead>
+  <tbody>
+  {% for v in vacancies %}
+    <tr><td>{{ v.label }}</td><td class="num">{{ v.expected }}</td><td class="num">{{ v.filled }}</td><td class="num">{{ v.missing }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

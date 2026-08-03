@@ -15,6 +15,7 @@ STRINGS: dict[str, str] = {
     "nav.overview": "Översikt",
     "nav.dues": "Medlemsavgifter",
     "nav.waiting": "Väntelista",
+    "nav.fortroende": "Förtroendeuppdrag",
     "nav.uppflyttning": "Uppflyttning",
     "nav.findings": "Anmärkningar",
     "nav.capabilities": "Funktioner",

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Översikt – {{ kar }}{% endblock %}
+{% block subtitle %}Översikt (aggregerad){% endblock %}
+{% block extra_css %}
+  h2 { font-size: 12pt; margin: 5mm 0 1mm; border-bottom: 0.5pt solid #999; }
+  .two-col { display: flex; gap: 10mm; }
+  .bar-track { background: #eee; height: 7pt; width: 100%; position: relative; }
+  .bar-cur { background: #6a7f9c; height: 7pt; position: absolute; top: 0; }
+  .bar-next { outline: 1pt solid #a3341c; height: 7pt; position: absolute; top: 0; }
+  .small { font-size: 8.5pt; color: #555; }
+  td.num, th.num { text-align: right; }
+{% endblock %}
+{% block content %}
+<p class="small">Prognosen avser årskull <strong>{{ o.projection_targets }}</strong>
+  (uppflyttningsår N = {{ o.cohort_year }}; skiftet för N {{ "redan tillämpat" if o.shift_applied else "ännu inte tillämpat" }}).
+  Medlemmar: {{ o.reconciliation.membercount.computed }} beräknat /
+  {{ o.reconciliation.membercount.org }} organisation/group
+  {% if not o.reconciliation.membercount.agree %}<span class="warn">(avviker)</span>{% endif %}.</p>
+
+<h2>Sammansättning per åldersgrupp</h2>
+<table>
+  <thead><tr><th>Åldersgrupp</th><th>Avdelning</th><th>Veckodag</th><th class="num">Medlemmar</th></tr></thead>
+  <tbody>
+  {% for g in o.composition.groups %}
+    {% for a in g.avdelningar %}
+    <tr><td>{{ g.label if loop.first else "" }}</td><td>{{ a.name }}{% if a.flag %} <span class="small warn">({{ a.flag }})</span>{% endif %}</td><td>{{ a.weekday }}</td><td class="num">{{ a.members }}</td></tr>
+    {% endfor %}
+    <tr><td></td><td class="small">Delsumma {{ g.label }}</td><td></td><td class="num"><strong>{{ g.subtotal }}</strong></td></tr>
+  {% endfor %}
+    <tr><td></td><td>Utan avdelning</td><td></td><td class="num">{{ o.composition.no_unit_count }}</td></tr>
+    <tr><td></td><td><strong>Kårtotal</strong></td><td></td><td class="num"><strong>{{ o.composition.kar_total }}</strong></td></tr>
+  </tbody>
+</table>
+
+<h2>Ledare och scouter per ledare</h2>
+<p class="small">{{ o.leaders.ledare_members_label }}: <strong>{{ o.leaders.ledare_members }}</strong> ·
+  {{ o.leaders.role_holders_label }}: <strong>{{ o.leaders.role_holders }}</strong></p>
+<table>
+  <thead><tr><th>Avdelning</th><th class="num">Scouter</th><th class="num">Ledare</th><th class="num">Vuxen</th><th class="num">Ungdom</th><th class="num">Kvot</th></tr></thead>
+  <tbody>
+  {% for s in o.scouts_per_leader %}
+    <tr><td>{{ s.avdelning }}</td><td class="num">{{ s.scouts }}</td><td class="num">{{ s.leaders }}</td><td class="num">{{ s.adult_leaders }}</td><td class="num">{{ s.youth_leaders }}</td><td class="num{% if s.over_threshold %} warn{% endif %}">{{ s.ratio }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Prognos nästa scoutår</h2>
+{% for t in o.projection.transitions %}
+<p class="small">{{ t.from }} → {{ t.to }}: <strong>{{ t.count }}</strong> flyttar.</p>
+{% endfor %}
+<p class="small">{{ o.projection.spararrekrytering.sentence }}
+  {% if o.projection.spararrekrytering.provisional %}<span class="warn">(provisorisk)</span>{% endif %}</p>
+<table>
+  <thead><tr><th>Avdelning</th><th class="num">Nu</th><th class="num">Ut</th><th class="num">In</th><th class="num">Nästa</th><th>Grund</th></tr></thead>
+  <tbody>
+  {% for r in o.projection.rows %}
+    <tr><td>{{ r.avdelning }}</td><td class="num">{{ r.current }}</td><td class="num">{{ r.outgoing }}</td><td class="num">{{ r.incoming }}</td><td class="num{% if r.over_threshold %} warn{% endif %}">{{ r.next }}</td><td class="small">{{ r.basis }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Nu mot prognos</h2>
+{% for b in bars %}
+<div style="margin:1mm 0">
+  <div class="small">{{ b.name }} — nu {{ b.current }}, prognos {{ b.next }}</div>
+  <div class="bar-track">
+    <div class="bar-cur" style="width: {{ b.cur_pct }}%"></div>
+    <div class="bar-next" style="width: {{ b.next_pct }}%"></div>
+  </div>
+</div>
+{% endfor %}
+
+<h2>KPI:er</h2>
+<p class="small">Andel betald ({{ o.prev_term }}): <strong>{{ o.kpis.share_paid.percent }} %</strong>
+  ({{ o.kpis.share_paid.computed_paid }}/{{ o.kpis.share_paid.of }}) ·
+  Andel under 26: <strong>{{ o.kpis.share_under_26.percent }}</strong> ·
+  Väntelistedjup: <strong>{{ o.kpis.waiting_depth.total }}</strong></p>
+{% for pr in o.kpis.projected_over_threshold %}
+<p class="small warn">⚠ Prognos över tröskel: {{ pr.avdelning }} → {{ pr.next }}</p>
+{% endfor %}
+<p class="small">{{ o.kpis.retention.note }}</p>
+{% endblock %}

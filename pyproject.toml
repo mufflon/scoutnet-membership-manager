@@ -54,6 +54,7 @@ packages = ["src/karverktyg"]
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["ALL"]

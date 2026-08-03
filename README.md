@@ -71,12 +71,6 @@ uv run pytest
 uv run ruff check . && uv run ruff format --check .
 ```
 
-**Docker / local Postgres:**
-
-```bash
-docker compose up --build   # app in fixture mode + a Postgres alongside
-```
-
 ## Configuration
 
 All configuration is environment-driven (`pydantic-settings`), prefix `SCOUTNET_`.

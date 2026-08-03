@@ -37,6 +37,8 @@ PHONE_FIELDS = frozenset(
     }
 )
 GUARDIAN_EMAIL_FIELDS = ("contact_email_dad", "contact_email_mum")
+# Guardian names — Scoutnet's dad/mum split (§4, §10).
+NAME_FIELDS = frozenset({"contact_fathers_name", "contact_mothers_name"})
 
 # Default set of role_keys that count as "leader" for finding purposes (§11).
 LEADER_ROLE_KEYS = frozenset({"leader", "other_leader", "assistant_leader"})
@@ -62,6 +64,9 @@ _PARSED_FIELDS = (
             "roles",
             "current_term",
             "prev_term",
+            "current_term_due_date",
+            "prev_term_due_date",
+            "kid",
             "group",
             "group_role",
             "unit_role",
@@ -69,6 +74,7 @@ _PARSED_FIELDS = (
     )
     | EMAIL_FIELDS
     | PHONE_FIELDS
+    | NAME_FIELDS
 )
 
 
@@ -99,6 +105,30 @@ def classify_payment(code: str | None) -> PaymentBucket:
     if code in _OUTSTANDING_CODES:
         return PaymentBucket.OUTSTANDING
     return PaymentBucket.UNKNOWN
+
+
+@dataclass(frozen=True)
+class DueDate:
+    """
+    A term due date (§4). Scoutnet renders a reminder-shifted prev-term date as
+    ``"2026-04-30 (2026-02-28)"`` — the current due date with the original in
+    parentheses after a reminder moved it. **Both are retained**; it is not a
+    plain date field. Dates are kept as the raw strings Scoutnet returns.
+    """
+
+    current: str | None = None
+    original: str | None = None  # the pre-reminder date, when a reminder shifted it
+
+    @property
+    def shifted(self) -> bool:
+        """Whether a reminder moved the due date (an original is recorded)."""
+        return self.original is not None
+
+    def display(self) -> str:
+        """Human display: ``current (original)`` when shifted, else the date."""
+        if self.current and self.original:
+            return f"{self.current} ({self.original})"
+        return self.current or ""
 
 
 @dataclass(frozen=True)
@@ -150,9 +180,19 @@ class Member:
     prev_term_code: str | None = None
     current_term_label: str | None = None
     prev_term_label: str | None = None
+    # Swedish display text for each term's payment status (§4: display value,
+    # key logic on raw_value). Shown in the dues export alongside the code.
+    current_term_value: str | None = None
+    prev_term_value: str | None = None
+    # Due dates per term and the payment reference (§4). Empty for everyone until
+    # a term is invoiced; the dues export carries both prev-term dates on a shift.
+    current_term_due: DueDate = field(default_factory=DueDate)
+    prev_term_due: DueDate = field(default_factory=DueDate)
+    kid: str | None = None
 
     emails: dict[str, str] = field(default_factory=dict)
     phones: dict[str, str] = field(default_factory=dict)
+    guardian_names: dict[str, str] = field(default_factory=dict)
     passthrough: dict[str, object] = field(default_factory=dict)
 
     # --- Derived helpers ---------------------------------------------------

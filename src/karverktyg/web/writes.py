@@ -227,7 +227,7 @@ def api_verify() -> ResponseReturnValue:
         return jsonify(error="member_no and target_troop_id are required"), _HTTP_BAD_REQUEST
     try:
         target = int(raw_target)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return jsonify(error="target_troop_id must be an integer"), _HTTP_BAD_REQUEST
 
     client = current_app.config["SCOUTNET"]

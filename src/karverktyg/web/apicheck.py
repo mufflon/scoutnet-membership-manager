@@ -73,6 +73,34 @@ def api_check(settings: Settings, client: FixtureClient | ReadOnlyClient) -> dic
             row.update(configured=True, **_run(probe))
         checks.append(row)
 
+    # The write key is *listed* but never auto-tested: exercising it means a real
+    # write, which means fabricating a member number (hard rule 6). Its presence
+    # and fingerprint are shown; verification is manual (Verifiera skrivning, §8).
+    write_key = settings.update_membership_key
+    write_row = {
+        "endpoint": "organisation/update/membership",
+        "key_env": "SCOUTNET_UPDATE_MEMBERSHIP_KEY",
+        "key_hash": fingerprints.get("organisation/update/membership"),
+    }
+    if is_fixture:
+        write_row.update(
+            configured=False, status="untested", detail="fixturläge – skrivningar testas aldrig"
+        )
+    elif write_key is None:
+        write_row.update(
+            configured=False,
+            status="disabled",
+            detail="nyckel ej konfigurerad – skrivning avstängd",
+        )
+    else:
+        write_row.update(
+            configured=True,
+            status="untested",
+            detail="nyckel konfigurerad – skrivningar testas aldrig automatiskt "
+            "(kräver en riktig skrivning; regel 6). Verifiera manuellt via Verifiera skrivning.",
+        )
+    checks.append(write_row)
+
     return {
         "mode": settings.mode.value,
         "fixture": is_fixture,

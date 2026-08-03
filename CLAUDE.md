@@ -30,11 +30,15 @@ a merge error rather than a judgement call.
 ## Current state (2026-08-03)
 
 Built, tested and deployed on local k3s. `uv run pytest` passes offline
-(130 tests); ruff clean.
+(169 tests); ruff clean.
 
-**Read-only surface — complete.** Nine blades: Översikt, Medlemsavgifter,
-Uppflyttning, Väntelista, Anmärkningar, Mallar, API-koll, Funktioner, plus the
-Excel changelist export and post-hoc reconciliation.
+**Read-only surface — complete.** Blades: Översikt (full §20 — composition,
+leaders, projection, KPIs), Medlemsavgifter, Förtroendeuppdrag, Väntelista,
+Anmärkningar, Uppflyttning, Mallar, API-koll, Funktioner, plus the Excel changelist
+export and post-hoc reconciliation. Exports: förtroendeuppdrag (Excel + A4 PDF),
+unpaid dues (Excel), Översikt (Excel + A4 PDF, aggregate-only). PDF rendering is
+the optional `[pdf]` extra (WeasyPrint), installed in the deployed image; where it
+is absent the PDF endpoints return a clear 503 rather than failing.
 
 **Uppflyttning write path — complete.** `read_write` mode gate, serial
 one-member-at-a-time executor (dry-run default, pre-flight drift check, journal,
@@ -49,9 +53,8 @@ Ledare (`10172`) → Hajarna (`10155`) through the tool and undoing it, each ste
 checked by hand in the Scoutnet UI. This was the last assumption that could
 block a real bulk run.
 
-**Not built:** the applicant-approval write workflow, auto-send email, the
-förtroendeuppdrag blade (§18), the Översikt blade (§20), and the unpaid-dues
-export (§19). See §7.
+**Not built:** the applicant-approval write workflow, and auto-send email. See §7.
+(Phase A — förtroendeuppdrag §18, unpaid-dues export §19, Översikt §20 — is done.)
 
 ## Open actions
 
@@ -1319,8 +1322,9 @@ require or assume an empty target:
 troop_id map is derived from `unit.raw_value` across the memberlist, so an
 avdelning with no members appears nowhere in the response and cannot be
 discovered. Either it holds at least one member — in practice a leader — or the
-operator supplies its troop_id manually in config. When an elected target cannot
-be resolved, say exactly this rather than failing obscurely.
+operator supplies its troop_id at the target election (direct entry, stored as run
+metadata keyed to the cohort year — never in config; §20). When an elected target
+cannot be resolved, say exactly this rather than failing obscurely.
 
 Per-member overrides still layer on top for individual exceptions, per below.
 Keep the two levels distinct in the UI and in the config: cohort-level target
@@ -1666,23 +1670,31 @@ This is not hypothetical — a newly created Utmanare avdelning starts with zero
 scouts and zero leaders.
 
 The avdelning config (which already holds weekday and `cohort_year`, §17) is
-therefore the **registry of avdelningar that exist**, and carries an optional
-`troop_id` for exactly this case. Obtain the id from the avdelning's URL in the
-Scoutnet admin UI; there is no API route to it while the avdelning is empty.
-Populating it means a brand-new avdelning can be listed, and **elected as the
-Äventyrare→Utmanare target**, without putting a placeholder member in it.
+therefore the **registry of avdelningar that exist** — their names and attributes,
+so a brand-new avdelning can be **listed** even with nobody in it. **Config carries
+no `troop_id`** (amended: it once carried an optional one for the empty avdelning).
+The id's lifetime is one election, not the deployment's, so it belongs where the
+operator sets it: a genuinely empty avdelning is **elected as the
+Äventyrare→Utmanare target** by direct `troop_id` entry, stored as run metadata
+keyed to the cohort year (§17), never in config. A config `troop_id` would go stale
+and offer itself as a plausible wrong-cohort default next year.
 
 Merge rules — the memberlist and the config each own different things:
 
 - **Membership counts always come from the memberlist.** Config never asserts a count.
 - **Existence comes from config.** A configured avdelning with no members appears
   as a row with `-` in every derived column, never omitted.
+- **Ids always come from the live memberlist** (`unit.raw_value`), never from
+  config. Config names an avdelning; the live data gives it an id.
 - **Discovered but not configured**: show it, and flag that it is missing from
   config, since its weekday and `cohort_year` are then unknown. Never drop it.
-- **A name-to-`troop_id` disagreement between config and the memberlist is a
-  refusal, not a merge.** Say which two values conflict and stop, in the same
-  spirit as the cohort-year cross-check (§17). Silently preferring one would put
-  moves into the wrong avdelning.
+- **No config-vs-live `troop_id` refusal is needed** (amended). This section once
+  required refusing on a name→`troop_id` disagreement between config and the
+  memberlist. With config no longer carrying an id there is nothing to disagree
+  with — the refusal became dead. Its stated rationale ("silently preferring one
+  would put moves into the wrong avdelning") did not in fact hold: a target
+  resolves by name→live-id, so the disputed config value was the one already
+  discarded and could never route a move.
 
 Reconcile against `/organisation/group`: `membercount`, `active_troops` and
 `waitingcount` give independent totals. Display both figures where they should

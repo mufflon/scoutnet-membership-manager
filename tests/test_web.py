@@ -156,6 +156,23 @@ def test_uppflyttning_reset(client):
     assert after["decisions_count"] == 0 and after["elected_target"] is None
 
 
+def test_elect_target_manual_troop_id_guards(client):
+    # The group id is rejected outright — §17, with a test asserting it.
+    r = client.post("/api/uppflyttning/target", json={"avdelning": "Ny", "troop_id": 1025})
+    assert r.status_code == 400 and "kårens id" in r.get_json()["error"]
+    # Wrong shape: a troop_id is five digits, the group id is four.
+    r = client.post("/api/uppflyttning/target", json={"avdelning": "Ny", "troop_id": 1234})
+    assert r.status_code == 400 and "fel form" in r.get_json()["error"]
+    # An unknown 5-digit id is allowed only with an explicit acknowledgement.
+    r = client.post("/api/uppflyttning/target", json={"avdelning": "Ny avd", "troop_id": 55555})
+    assert r.status_code == 400 and r.get_json()["needs_ack"] is True
+    r = client.post(
+        "/api/uppflyttning/target",
+        json={"avdelning": "Ny avd", "troop_id": 55555, "acknowledge_unknown": True},
+    )
+    assert r.status_code == 200 and r.get_json()["troop_id"] == 55555
+
+
 def test_findings_endpoint(client):
     d = client.get("/api/findings").get_json()
     assert any(f["type"] == "no_avdelning" for f in d["findings"])

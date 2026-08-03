@@ -9,24 +9,10 @@ from __future__ import annotations
 from collections import Counter
 
 from karverktyg.scoutnet.models import MemberList, PaymentBucket
-from karverktyg.settings import Settings
 
 # prev_term is the invoiced term today; current_term is not_invoiced for everyone
 # until Höst 2026 is billed (§4). The unpaid view is meaningful against prev_term.
 _ACTIONABLE = {PaymentBucket.OUTSTANDING, PaymentBucket.UNKNOWN}
-
-
-def overview(memberlist: MemberList, settings: Settings) -> dict:
-    """Overview."""
-    return {
-        "kar": settings.kar_name,
-        "member_count": len(memberlist),
-        "current_term": memberlist.current_term_label,
-        "prev_term": memberlist.prev_term_label,
-        "avdelning_count": len({m.unit for m in memberlist.members if m.unit}),
-        "note_current_term": "Höst-terminen är ännu inte fakturerad – "
-        "betalvyn gäller föregående termin.",
-    }
 
 
 def dues_by_avdelning(memberlist: MemberList) -> list[dict]:

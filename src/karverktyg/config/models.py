@@ -47,7 +47,7 @@ def bracket_by_unit_type_code(code: int | str | None) -> Bracket | None:
         return None
     try:
         numeric = int(code)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
     return _CODE_TO_BRACKET.get(numeric)
 
@@ -73,10 +73,22 @@ class BracketRule(BaseModel):
     transition: TransitionKind
     # Whether the §11 age / multi-avdelning structural checks apply.
     structural_checks: bool = True
+    # §20 KPI thresholds, per åldersgrupp — younger avdelningar need denser
+    # staffing. These only *flag*, never hard-limit. None => no flag for this
+    # bracket. scouts_per_leader_max is scouts-per-one-leader (e.g. 6.0 => 6:1).
+    scouts_per_leader_max: float | None = None
+    projected_size_max: int | None = None
 
 
 class Avdelning(BaseModel):
-    """One avdelning's config: bracket, weekday, move target, ids."""
+    """
+    One avdelning's config: its existence and attributes (bracket, weekday, move
+    target, cohort_year) — **never a troop_id**. The id is resolved live from
+    ``unit.raw_value``; for a brand-new avdelning too empty to appear in the
+    memberlist, the operator supplies the id at the target election, stored as run
+    metadata keyed to the cohort year (§17), not here. A config that carried the id
+    would go stale and offer itself as a plausible wrong-cohort default next year.
+    """
 
     name: str
     bracket: Bracket
@@ -85,13 +97,25 @@ class Avdelning(BaseModel):
     # Default move target avdelning name (same_weekday / merge). Not set for
     # new_cohort_avdelning (resolved by cohort_year) or never_auto.
     default_target: str | None = None
-    # Normally resolved from unit.raw_value at runtime; set here only for an
-    # avdelning too empty to appear in the memberlist (§17).
-    troop_id: int | None = None
     # The birth year an Utmanare avdelning was built around (§17). Describes the
     # core, never used to move or flag anyone.
     cohort_year: int | None = None
     is_18plus: bool = False
+
+
+class ExpectedPost(BaseModel):
+    """
+    An expected förtroendeuppdrag, for the opt-in vacancy view (§18).
+
+    Strictly opt-in: with no expected posts configured, no vacancies are
+    reported and an unfilled post is never treated as an error.
+    """
+
+    role_key: str
+    count: int = Field(default=1, ge=1)
+    # Optional display label for a vacancy row; falls back to the role_key,
+    # since an unfilled post has no holder to read a role_name from.
+    label: str | None = None
 
 
 class KarConfig(BaseModel):
@@ -106,6 +130,16 @@ class KarConfig(BaseModel):
     placeholder: bool = True
     brackets: list[BracketRule]
     avdelningar: list[Avdelning]
+
+    # --- Förtroendeuppdrag (§18) -------------------------------------------
+    # The blade's three sections (board / other / delegate) and their order are
+    # hard-coded in karverktyg.fortroende — uniform for this kår; another kår
+    # would extend those lists. Config here only carries kår-specific data:
+    # optional role_key -> display label override (rare, ships empty), and the
+    # opt-in årsmöte vacancy list.
+    role_label_overrides: dict[str, str] = Field(default_factory=dict)
+    # Optional expected posts for the årsmöte vacancy view (§18). Opt-in.
+    expected_fortroende: list[ExpectedPost] = Field(default_factory=list)
 
     # --- Validation --------------------------------------------------------
     @model_validator(mode="after")

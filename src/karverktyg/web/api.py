@@ -10,10 +10,21 @@ from flask.typing import ResponseReturnValue
 
 from karverktyg.config.models import Bracket, KarConfig
 from karverktyg.db.session import get_session
-from karverktyg.export import ChangelistAckRequired, build_changelist
+from karverktyg.export import (
+    ChangelistAckRequired,
+    PdfUnavailable,
+    build_changelist,
+    build_dues_xlsx,
+    build_fortroende_xlsx,
+    build_oversikt_xlsx,
+    html_to_pdf,
+    render_html,
+)
 from karverktyg.findings import compute_findings
+from karverktyg.fortroende import fortroendeuppdrag, group_by_section, rolecount_reconciliation
 from karverktyg.membership import effective_templates, generate_drafts, upsert_template
 from karverktyg.membership.templates import templates_by_key
+from karverktyg.oversikt import OversiktInputs, build_oversikt
 from karverktyg.roster import build_troop_index
 from karverktyg.scoutnet.client import ScoutnetError
 from karverktyg.scoutnet.models import MemberList
@@ -33,13 +44,18 @@ from karverktyg.uppflyttning import (
 )
 from karverktyg.uppflyttning.cohort import CohortYearConflict, resolve_cohort_year
 from karverktyg.uppflyttning.models import MoveEntry
-from karverktyg.views import dues_by_avdelning, overview
+from karverktyg.views import dues_by_avdelning
 from karverktyg.web.apicheck import api_check
 from karverktyg.web.capabilities import capabilities
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_PDF_MIME = "application/pdf"
+_HTTP_PDF_UNAVAILABLE = 503
+# Observed troop ids are five digits; the kår group id is four (§17).
+_TROOP_ID_MIN = 10000
+_TROOP_ID_MAX = 99999
 _SEVERITY_ORDER = {"security": 0, "warning": 1, "info": 2}
 # A Scoutnet fetch that fails for one variant must not take down the blade.
 _FETCH_ERRORS = (ScoutnetError, httpx.HTTPError)
@@ -110,10 +126,115 @@ def _ser_move(e: MoveEntry) -> dict:
     }
 
 
+def _oversikt_inputs(*, with_org: bool = False) -> OversiktInputs:
+    """
+    §20 inputs. The **fast path** (``with_org=False``) reads only the active +
+    waiting memberlists (both quick). The aggregate cross-checks that need the
+    slow ``organisation/group`` (~30 s for this kår) are fetched only when
+    ``with_org=True``, off the blade's critical path. ``awaiting_approval``
+    reliably read-times-out here (§4), so it is never fetched for Översikt —
+    Y / waiting-depth use ``waiting`` only and are marked provisional (§20).
+    Väntelista is where ``awaiting_approval`` is actually viewed.
+    """
+    ml = _memberlist()
+    try:
+        waiting = _memberlist("waiting")
+    except _FETCH_ERRORS:
+        waiting = None
+    org: dict = {}
+    if with_org:
+        try:
+            org = current_app.config["SCOUTNET"].organisation_group()
+        except _FETCH_ERRORS:
+            org = {}
+    return OversiktInputs(
+        memberlist=ml,
+        config=_config(),
+        org_group=org,
+        applicants={"waiting": waiting, "awaiting_approval": None},
+        cohort_year_n=_config_n(),
+        elected_target=_elected_target(ml),
+    )
+
+
+def _oversikt_bars(payload: dict) -> list[dict]:
+    """Current-vs-projected bar data, the one chart §20 allows (§20 Presentation)."""
+    pairs = [
+        (r["avdelning"], r["current"], r["next"])
+        for r in payload["projection"]["rows"]
+        if isinstance(r["current"], int) and isinstance(r["next"], int)
+    ]
+    top = max((max(c, n) for _, c, n in pairs), default=1) or 1
+    return [
+        {
+            "name": name,
+            "current": cur,
+            "next": nxt,
+            "cur_pct": round(100 * cur / top),
+            "next_pct": round(100 * nxt / top),
+        }
+        for name, cur, nxt in pairs
+    ]
+
+
 @api_bp.get("/overview")
 def api_overview() -> ResponseReturnValue:
-    """Overview counts and term labels."""
-    return jsonify(overview(_memberlist(), _settings()))
+    """
+    The aggregate overview (§20). Fast by default (active + waiting only); pass
+    ``?aggregate=1`` to include the slow organisation/group cross-checks, which
+    the frontend fetches asynchronously so the blade never blocks on them.
+    """
+    with_org = request.args.get("aggregate") == "1"
+    ml = _memberlist()
+    payload = build_oversikt(_oversikt_inputs(with_org=with_org))
+    return jsonify(
+        member_count=len(ml),
+        avdelning_count=len({m.unit for m in ml.members if m.unit}),
+        note_current_term="Höst-terminen är ännu inte fakturerad – "
+        "betalvyn gäller föregående termin.",
+        aggregate=with_org,
+        **payload,
+    )
+
+
+@api_bp.get("/oversikt.xlsx")
+def api_oversikt_xlsx() -> ResponseReturnValue:
+    """Stream the aggregate-only Översikt workbook (§19/§20)."""
+    data = build_oversikt_xlsx(
+        build_oversikt(_oversikt_inputs(with_org=True)),
+        kar_name=_settings().kar_name,
+        generated_at=datetime.now(UTC),
+    )
+    return Response(
+        data,
+        mimetype=_XLSX_MIME,
+        headers={"Content-Disposition": "attachment; filename=oversikt.xlsx"},
+    )
+
+
+@api_bp.get("/oversikt.pdf")
+def api_oversikt_pdf() -> ResponseReturnValue:
+    """Stream the aggregate-only Översikt A4 PDF (§19/§20); 503 if WeasyPrint absent."""
+    payload = build_oversikt(_oversikt_inputs(with_org=True))
+    html = render_html(
+        "oversikt.html",
+        {
+            "kar": _settings().kar_name,
+            "term": payload.get("current_term"),
+            "generated": datetime.now(UTC).isoformat(timespec="seconds"),
+            "o": payload,
+            "bars": _oversikt_bars(payload),
+        },
+    )
+    try:
+        pdf = html_to_pdf(html)
+    except PdfUnavailable as e:
+        return jsonify(error=str(e)), _HTTP_PDF_UNAVAILABLE
+    return Response(
+        pdf,
+        mimetype=_PDF_MIME,
+        headers={"Content-Disposition": "attachment; filename=oversikt.pdf"},
+    )
 
 
 @api_bp.get("/dues")
@@ -121,6 +242,18 @@ def api_dues() -> ResponseReturnValue:
     """Per-avdelning payment breakdown for the invoiced term."""
     ml = _memberlist()
     return jsonify(term=ml.prev_term_label, avdelningar=dues_by_avdelning(ml))
+
+
+@api_bp.get("/dues.xlsx")
+def api_dues_xlsx() -> ResponseReturnValue:
+    """Stream the unpaid-dues chase list as a single flat sheet (§19)."""
+    ml = _memberlist()
+    data = build_dues_xlsx(ml)
+    return Response(
+        data,
+        mimetype=_XLSX_MIME,
+        headers={"Content-Disposition": "attachment; filename=medlemsavgifter.xlsx"},
+    )
 
 
 @api_bp.get("/waiting")
@@ -171,6 +304,117 @@ def api_findings() -> ResponseReturnValue:
     )
 
 
+def _rolecount() -> int | None:
+    """
+    Scoutnet's rolecount from /organisation/group, for the §18 cross-check.
+    Fails soft: a fetch error or an aggregate without rolecount (fixture mode
+    synthesises one) yields None, and the reconciliation degrades to
+    "not available" rather than taking down the blade.
+    """
+    try:
+        aggregate = current_app.config["SCOUTNET"].organisation_group()
+    except _FETCH_ERRORS:
+        return None
+    rc = aggregate.get("rolecount")
+    try:
+        return int(rc) if rc is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+@api_bp.get("/fortroende")
+def api_fortroende() -> ResponseReturnValue:
+    """
+    Kår-level förtroendeuppdrag, a register of posts, ordered per §18. Fast by
+    default; the rolecount cross-check needs the slow organisation/group, so it
+    is included only on ``?rolecount=1`` (fetched asynchronously by the frontend).
+    """
+    ml = _memberlist()
+    result = fortroendeuppdrag(ml, _config())
+    want_rolecount = request.args.get("rolecount") == "1"
+    recon = rolecount_reconciliation(
+        result.total_roles_parsed, _rolecount() if want_rolecount else None
+    )
+    recon["requested"] = want_rolecount
+    return jsonify(
+        term=ml.current_term_label,
+        group_count=result.group_count,
+        reconciliation=recon,
+        assignments=[
+            {
+                "role_key": a.role_key,
+                "role_name": a.role_name,
+                "label": a.label,
+                "member_no": a.member_no,
+                "name": a.member_name,
+                "section": a.section,
+            }
+            for a in result.assignments
+        ],
+        vacancies=[
+            {
+                "role_key": v.role_key,
+                "label": v.label,
+                "expected": v.expected,
+                "filled": v.filled,
+                "missing": v.missing,
+            }
+            for v in result.vacancies
+        ],
+    )
+
+
+@api_bp.get("/fortroende.xlsx")
+def api_fortroende_xlsx() -> ResponseReturnValue:
+    """Stream the förtroendeuppdrag workbook (§18/§19)."""
+    ml = _memberlist()
+    result = fortroendeuppdrag(ml, _config())
+    data = build_fortroende_xlsx(
+        result,
+        kar_name=_settings().kar_name,
+        term_label=ml.current_term_label,
+        generated_at=datetime.now(UTC),
+        rolecount=_rolecount(),
+    )
+    return Response(
+        data,
+        mimetype=_XLSX_MIME,
+        headers={"Content-Disposition": "attachment; filename=fortroendeuppdrag.xlsx"},
+    )
+
+
+@api_bp.get("/fortroende.pdf")
+def api_fortroende_pdf() -> ResponseReturnValue:
+    """Stream the förtroendeuppdrag A4 PDF (§18/§19); 503 if WeasyPrint absent."""
+    ml = _memberlist()
+    result = fortroendeuppdrag(ml, _config())
+    rc = _rolecount()
+    html = render_html(
+        "fortroende.html",
+        {
+            "kar": _settings().kar_name,
+            "term": ml.current_term_label,
+            "generated": datetime.now(UTC).isoformat(timespec="seconds"),
+            "group_count": result.group_count,
+            "total_parsed": result.total_roles_parsed,
+            "rolecount": rc,
+            "rolecount_available": rc is not None,
+            "rolecount_match": rc is not None and result.total_roles_parsed == rc,
+            "sections": group_by_section(result.assignments),
+            "vacancies": result.vacancies,
+        },
+    )
+    try:
+        pdf = html_to_pdf(html)
+    except PdfUnavailable as e:
+        return jsonify(error=str(e)), _HTTP_PDF_UNAVAILABLE
+    return Response(
+        pdf,
+        mimetype=_PDF_MIME,
+        headers={"Content-Disposition": "attachment; filename=fortroendeuppdrag.pdf"},
+    )
+
+
 @api_bp.get("/uppflyttning")
 def api_uppflyttning() -> ResponseReturnValue:
     """The computed uppflyttning master set, grouped by status and target (§17)."""
@@ -214,9 +458,46 @@ def api_uppflyttning() -> ResponseReturnValue:
     )
 
 
+def _validate_manual_troop_id(
+    raw: object, config: KarConfig, index: object, *, acknowledged: bool
+) -> tuple[int | None, dict | None]:
+    """
+    Validate a hand-typed troop_id for the Äventyrare→Utmanare election — the one
+    place manual entry is allowed (§17), with these guards:
+    the group id is rejected outright; the shape must be the observed five digits;
+    an id absent from the data is unknown and needs an explicit acknowledgement.
+    """
+    try:
+        tid = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None, {"error": "troop_id måste vara ett heltal", "needs_ack": False}
+    if str(tid) == str(config.group_id):
+        return None, {
+            "error": f"{tid} är kårens id (group_id), inte en avdelning – avvisas",
+            "needs_ack": False,
+        }
+    if not (_TROOP_ID_MIN <= tid <= _TROOP_ID_MAX):
+        return None, {
+            "error": f"{tid} har fel form – ett troop_id är fem siffror "
+            f"({_TROOP_ID_MIN}–{_TROOP_ID_MAX})",
+            "needs_ack": False,
+        }
+    if tid not in index.id_to_name and not acknowledged:  # type: ignore[attr-defined]
+        return None, {
+            "error": f"okänt troop_id {tid} – finns inte i data (ny/tom avdelning?). "
+            "Bekräfta för att fortsätta.",
+            "needs_ack": True,
+        }
+    return tid, None
+
+
 @api_bp.post("/uppflyttning/target")
 def api_elect_target() -> ResponseReturnValue:
-    """Elect the Utmanare avdelning the Äventyrare cohort moves into (§17)."""
+    """
+    Elect the Utmanare avdelning the Äventyrare cohort moves into (§17). A target
+    may be picked from the dropdown (name → live id) or, for a brand-new avdelning
+    too empty to appear in the memberlist, entered by direct troop_id — guarded.
+    """
     ml = _memberlist()
     n = resolve_cohort_year(_config_n(), ml.current_term_label)  # may raise -> 409
     data = request.get_json(silent=True) or {}
@@ -224,15 +505,24 @@ def api_elect_target() -> ResponseReturnValue:
     if not avdelning:
         return jsonify(error="avdelning is required"), 400
     index = build_troop_index(ml, _config())
-    troop_id = data.get("troop_id") or index.name_to_id.get(avdelning)
-    if troop_id is None:
-        return jsonify(
-            error=f"{avdelning!r} has no resolvable troop_id; supply troop_id for a "
-            "not-yet-populated avdelning"
-        ), 400
+    raw_tid = data.get("troop_id")
+    if raw_tid not in (None, ""):
+        troop_id, err = _validate_manual_troop_id(
+            raw_tid, _config(), index, acknowledged=bool(data.get("acknowledge_unknown"))
+        )
+        if err is not None:
+            return jsonify(err), 400
+    else:
+        troop_id = index.name_to_id.get(avdelning)
+        if troop_id is None:
+            return jsonify(
+                error=f"{avdelning!r} saknar troop_id i data – ange ett troop_id manuellt "
+                "för en ny/tom Utmanare-avdelning",
+                needs_ack=False,
+            ), 400
     with get_session(current_app.config["SESSIONMAKER"]) as s:
         set_elected_target(s, n, Bracket.UTMANARE, avdelning, int(troop_id), data.get("by"))
-    return jsonify(status="ok")
+    return jsonify(status="ok", troop_id=int(troop_id))
 
 
 @api_bp.delete("/uppflyttning/target")

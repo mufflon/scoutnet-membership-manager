@@ -24,8 +24,23 @@ class _Stub:
 def test_api_check_fixture_is_green_and_labelled():
     r = api_check(Settings(mode=Mode.FIXTURE), FixtureClient())
     assert r["fixture"] is True
+    assert r["all_ok"] is True  # 'untested' write key is not a failure
+    assert {c["status"] for c in r["checks"]} == {"fixture", "untested"}
+
+
+def test_api_check_lists_write_key_but_never_tests_it():
+    # The write key is listed with a fingerprint but never auto-exercised (hard rule 6).
+    s = Settings(
+        mode=Mode.READ_ONLY,
+        entity_id="1",
+        memberlist_key="k",
+        update_membership_key="wkey",
+    )
+    r = api_check(s, _Stub(members=[1]))
+    write = next(c for c in r["checks"] if c["endpoint"] == "organisation/update/membership")
+    assert write["status"] == "untested" and write["configured"] is True
+    assert write["key_hash"] and "aldrig" in write["detail"]  # "testas aldrig automatiskt"
     assert r["all_ok"] is True
-    assert {c["status"] for c in r["checks"]} == {"fixture"}
 
 
 def test_api_check_read_only_ok_and_disabled():

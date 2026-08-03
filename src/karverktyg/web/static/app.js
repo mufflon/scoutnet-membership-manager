@@ -8,6 +8,7 @@ const TABS = [
   ["overview", "Översikt", renderOverview, "Översikt"],
   ["dues", "Medlemsavgifter", renderDues, "Översikt"],
   ["waiting", "Väntelista", renderWaiting, "Översikt"],
+  ["fortroende", "Förtroendeuppdrag", renderFortroende, "Översikt"],
   ["findings", "Anmärkningar", renderFindings, "Översikt"],
   ["uppflyttning", "Uppflyttning", renderUppflyttning, "Åtgärder"],
   ["execute", "Utför uppflyttning", renderExecute, "Åtgärder"],
@@ -30,8 +31,13 @@ const el = (tag, attrs = {}, ...kids) => {
 };
 const esc = (s) => (s == null ? "" : String(s));
 
+// One AbortController per navigation: switching blade aborts the previous
+// blade's in-flight reads so a slow one (e.g. organisation/group) doesn't leave
+// the browser waiting on a response we no longer care about.
+let navController = new AbortController();
+
 async function api(path) {
-  const r = await fetch("/api/" + path);
+  const r = await fetch("/api/" + path, { signal: navController.signal });
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(body.error || "HTTP " + r.status);
   return body;
@@ -88,6 +94,17 @@ function stat(n, label) {
   return el("div", { class: "stat" }, el("div", { class: "n" }, esc(n)), el("div", { class: "l" }, esc(label)));
 }
 
+// Reconciliation / KPI text. Before the async organisation/group read lands
+// (isAgg=false) the cross-checks read "hämtas…"; after, they show the comparison.
+function oversiktReconText(rc, isAgg) {
+  const one = (label, o) =>
+    isAgg ? `${label}: ${o.computed} / ${o.org} org${o.agree ? " ✓" : " ✗ avviker"}` : `${label}: ${o.computed}`;
+  return (
+    "Avstämning – " + one("Medlemmar", rc.membercount) + " · " + one("Avdelningar", rc.active_troops) +
+    (isAgg ? "" : " · organisation/group hämtas…")
+  );
+}
+
 async function renderOverview(root) {
   const d = await api("overview");
   root.append(
@@ -97,15 +114,63 @@ async function renderOverview(root) {
       stat(d.member_count, "Aktiva medlemmar"),
       stat(d.avdelning_count, "Avdelningar"),
       stat(d.current_term || "–", "Innevarande termin"),
-      stat(d.prev_term || "–", "Föregående termin"),
+      stat("N " + d.projection_targets, "Prognosen avser årskull"),
     ),
   );
   root.append(el("p", { class: "muted" }, d.note_current_term || ""));
+  root.append(
+    el("p", {},
+      el("a", { href: "/api/oversikt.xlsx" }, "Exportera (Excel)"), " · ",
+      el("a", { href: "/api/oversikt.pdf" }, "Exportera (PDF)")),
+  );
+
+  // Reconciliation against organisation/group — filled in async (slow endpoint).
+  const reconP = el("p", { class: "muted" }, oversiktReconText(d.reconciliation, d.aggregate));
+  root.append(reconP);
+
+  // Composition by åldersgrupp, with leaders and scouts-per-leader merged in.
+  const spl = {};
+  for (const s of d.scouts_per_leader) spl[s.avdelning] = s;
+  root.append(el("h3", {}, "Sammansättning per åldersgrupp"));
+  for (const g of d.composition.groups) {
+    const rows = g.avdelningar.map((a) => {
+      const s = spl[a.name] || {};
+      return [a.name + (a.flag ? " ⚠" : ""), a.members, s.leaders ?? "-", s.ratio ?? "-"];
+    });
+    rows.push(["Delsumma", g.subtotal, "", ""]);
+    const card = el("div", { class: "card" }, el("strong", {}, `${g.label} (${g.subtotal})`));
+    card.append(table(["Avdelning", "Medlemmar", "Ledare", "Kvot"], rows));
+    root.append(card);
+  }
+  root.append(el("p", {}, el("strong", {}, `Kårtotal: ${d.composition.kar_total}`),
+    el("span", { class: "muted" }, ` (varav ${d.composition.no_unit_count} utan avdelning)`)));
+  const l = d.leaders;
+  root.append(el("p", { class: "muted" },
+    `Ledare: ${l.ledare_members} i avdelningen Ledare, ${l.role_holders} med ledarroll (unika personer).`));
+
+  // Projection.
+  root.append(el("h3", {}, "Prognos nästa scoutår"));
+  for (const t of d.projection.transitions) {
+    root.append(el("p", { class: "muted" }, `${t.from} → ${t.to}: ${t.count} flyttar.`));
+  }
+  const sp = d.projection.spararrekrytering;
+  root.append(el("p", {}, esc(sp.sentence) + (sp.provisional ? " (provisorisk)" : "")));
+  root.append(table(
+    ["Avdelning", "Nu", "Ut", "In", "Nästa"],
+    d.projection.rows.map((r) => [r.avdelning, r.current, r.outgoing, r.incoming, r.next]),
+  ));
+
+  // Async: fetch the slow organisation/group cross-check and fill in the recon line.
+  api("overview?aggregate=1")
+    .then((agg) => { reconP.textContent = oversiktReconText(agg.reconciliation, true); })
+    .catch(() => {}); // fast blade already shows "hämtas…"; a failure just leaves it
 }
 
 async function renderDues(root) {
   const d = await api("dues");
   root.append(el("p", { class: "muted" }, "Betalstatus för " + esc(d.term) + " (innevarande termin är ännu inte fakturerad)."));
+  root.append(el("p", {},
+    el("a", { href: "/api/dues.xlsx" }, "Exportera obetalda avgifter (Excel)")));
   for (const a of d.avdelningar) {
     const counts = Object.entries(a.counts).map(([k, v]) => `${k}: ${v}`).join(" · ");
     const card = el("div", { class: "card" }, el("strong", {}, esc(a.avdelning)), el("div", { class: "muted" }, counts));
@@ -183,6 +248,49 @@ async function loadWaitingSection(card, title, variant) {
   }
   t.append(tb);
   card.replaceChildren(el("strong", {}, title + " (" + apps.length + ")"), el("div", { class: "table-wrap" }, t));
+}
+
+function fortroendeReconText(groupCount, rc) {
+  const tail = rc.available
+    ? "Scoutnet rolecount: " + rc.rolecount + (rc.match ? " ✓" : " ✗ avvikelse – en nivå kan saknas eller tolkningen är fel")
+    : rc.requested
+      ? "Scoutnet rolecount: ej tillgänglig"
+      : "Scoutnet rolecount: hämtas…";
+  return (
+    "Förtroendeuppdrag (kårnivå): " + groupCount +
+    " · Roller tolkade (alla nivåer): " + rc.total_parsed + " · " + tail
+  );
+}
+
+// Förtroendeuppdrag (§18): a register of kår-level posts, pure pass-through.
+async function renderFortroende(root) {
+  const d = await api("fortroende");
+  // The rolecount cross-check needs the slow organisation/group — fetch it async.
+  const reconP = el("p", { class: "muted" }, fortroendeReconText(d.group_count, d.reconciliation));
+  root.append(reconP);
+  api("fortroende?rolecount=1")
+    .then((a) => { reconP.textContent = fortroendeReconText(a.group_count, a.reconciliation); })
+    .catch(() => {});
+  root.append(
+    el("p", {},
+      el("a", { href: "/api/fortroende.xlsx" }, "Exportera (Excel)"),
+      " · ",
+      el("a", { href: "/api/fortroende.pdf" }, "Exportera (PDF)")),
+  );
+  // Three sections (§18): board first, then other, delegates last.
+  const SECTION_LABEL = { board: "Kårstyrelse", other: "Övriga förtroendeuppdrag", delegate: "Ombud och representanter" };
+  for (const section of ["board", "other", "delegate"]) {
+    const items = d.assignments.filter((a) => a.section === section);
+    if (!items.length) continue;
+    root.append(el("h3", {}, `${SECTION_LABEL[section]} (${items.length})`));
+    root.append(table(["Roll", "Namn", "Medlemsnummer"],
+      items.map((a) => [a.label, a.name, a.member_no])));
+  }
+  if (d.vacancies && d.vacancies.length) {
+    root.append(el("h3", {}, "Vakanser"));
+    root.append(table(["Roll", "Förväntat", "Tillsatta", "Vakanta"],
+      d.vacancies.map((v) => [v.label, v.expected, v.filled, v.missing])));
+  }
 }
 
 async function renderTemplates(root) {
@@ -280,7 +388,7 @@ async function renderUppflyttning(root) {
   const sel = el("select", {});
   sel.append(el("option", { value: "" }, "– välj Utmanare-avdelning –"));
   for (const c of d.utmanare_candidates) {
-    const o = el("option", { value: c.avdelning }, `${c.avdelning} (troop ${c.troop_id})`);
+    const o = el("option", { value: c.avdelning }, `${c.avdelning} (avdelnings-id ${c.troop_id})`);
     if (d.elected_target && d.elected_target.avdelning === c.avdelning) o.setAttribute("selected", "selected");
     sel.append(o);
   }
@@ -297,6 +405,38 @@ async function renderUppflyttning(root) {
   electCard.append(
     el("div", { class: "muted" }, d.elected_target ? "Vald: " + d.elected_target.avdelning : "Ingen måldelning vald – Äventyrare-flyttar väntar."),
     el("div", { style: "margin-top:.4rem;" }, sel, " ", electBtn),
+  );
+
+  // Direct avdelnings-id entry (§17): a brand-new, empty Utmanare-avdelning does
+  // not appear in the memberlist and so is not in the dropdown. Create it in
+  // Scoutnet, read its 5-digit avdelnings-id from the avdelning's URL, enter here.
+  const manualName = el("input", { type: "text", placeholder: "Namn på ny avdelning", style: "width:13rem" });
+  const manualId = el("input", { type: "number", placeholder: "avdelnings-id (5 siffror)", min: "10000", max: "99999", style: "width:12rem;margin-left:.3rem" });
+  const ackChk = el("input", { type: "checkbox" });
+  const ackLabel = el("label", { class: "muted", style: "display:block;margin-top:.3rem" }, ackChk, " Bekräfta okänt/nytt avdelnings-id (finns inte i data)");
+  const manualBtn = el("button", { class: "action", style: "margin-left:.3rem" }, "Välj med avdelnings-id");
+  manualBtn.onclick = async () => {
+    if (!manualName.value.trim() || !manualId.value) {
+      alert("Ange både namn och avdelnings-id.");
+      return;
+    }
+    try {
+      await apiSend("POST", "uppflyttning/target", {
+        avdelning: manualName.value.trim(),
+        troop_id: Number(manualId.value),
+        acknowledge_unknown: ackChk.checked,
+        by: "webb",
+      });
+      refresh();
+    } catch (e) {
+      alert(e.message); // backend enforces §17 guards (group id, 5-digit shape, unknown-ack)
+    }
+  };
+  electCard.append(
+    el("div", { class: "muted", style: "margin-top:.7rem" },
+      "Ny tom avdelning? Skapa den i Scoutnet, hämta dess avdelnings-id (5 siffror) ur avdelningens URL och ange direkt:"),
+    el("div", { style: "margin-top:.3rem" }, manualName, manualId, manualBtn),
+    ackLabel,
   );
   if (d.elected_target) {
     const clr = el("button", {}, "Rensa val");
@@ -412,6 +552,16 @@ async function renderUppflyttning(root) {
   }
 }
 
+const FINDING_SV = {
+  security_ledare_leader: "Ledare i avdelningen Ledare (säkerhetsrisk)",
+  adult_in_scout_unit: "Myndig i scoutavdelning",
+  multi_avdelning: "Medlem i flera avdelningar",
+  young_leader: "Ung scout satt som ledare",
+  no_avdelning: "Saknar avdelning (ingen grupp)",
+  bad_phone: "Telefonnummer ser felaktigt ut",
+  bad_email: "E-postadress ser felaktig ut",
+};
+
 async function renderFindings(root) {
   const d = await api("findings");
   if (!d.findings.length) {
@@ -421,12 +571,12 @@ async function renderFindings(root) {
   root.append(
     table(
       ["Allvar", "Typ", "Medlemsnr", "Namn", "Avdelning", "Detalj"],
-      d.findings.map((f) => [el("span", { class: "tag sev-" + f.severity }, f.severity), f.type, f.member_no, f.name, f.avdelning || "–", f.detail]),
+      d.findings.map((f) => [el("span", { class: "tag sev-" + f.severity }, f.severity), FINDING_SV[f.type] || f.type, f.member_no, f.name, f.avdelning || "–", f.detail]),
     ),
   );
 }
 
-const CHK_SV = { ok: "OK", fail: "FEL", disabled: "Avstängd", fixture: "Fixtur" };
+const CHK_SV = { ok: "OK", fail: "FEL", disabled: "Avstängd", fixture: "Fixtur", untested: "Ej testad" };
 
 async function renderApiCheck(root) {
   const d = await api("api-check");
@@ -711,14 +861,15 @@ async function renderExecute(root) {
   let ackedBy = null;
   const offCount = upp.off_cohort.length;
 
-  const previewOut = el("div", {});
+  const previewOut = el("div", {}, el("p", { class: "muted" }, "Kör torrkörning…"));
   const progress = el("div", {});
   const execBtn = el("button", { class: "danger" }, "Utför (skriv till Scoutnet)");
   execBtn.disabled = true;
   let willApply = 0;
 
-  const dryBtn = el("button", { class: "action" }, "Förhandsgranska (torrkörning)");
-  dryBtn.onclick = async () => {
+  // Run the dry-run automatically so the full list of changes is visible up front;
+  // the button just re-runs it after decisions change (still read-only, no writes).
+  const runDry = async () => {
     previewOut.replaceChildren(el("p", { class: "muted" }, "Kör torrkörning…"));
     try {
       const r = await apiSend("POST", "uppflyttning/run", { mode: "dry_run" });
@@ -728,6 +879,8 @@ async function renderExecute(root) {
       previewOut.replaceChildren(el("p", { class: "err" }, e.message));
     }
   };
+  const dryBtn = el("button", { class: "action" }, "Uppdatera förhandsgranskning");
+  dryBtn.onclick = runDry;
 
   const controls = el("div", { class: "card" }, el("strong", {}, "Uppflyttning år " + esc(upp.cohort_year)));
   if (offCount > 0) {
@@ -747,6 +900,7 @@ async function renderExecute(root) {
   }
   controls.append(el("div", { style: "margin-top:.4rem;" }, dryBtn, " ", execBtn));
   root.append(controls, previewOut, progress);
+  runDry(); // show the changes immediately, no click needed
 
   execBtn.onclick = async () => {
     if (!confirm("Utför uppflyttningen? " + willApply + " medlem(mar) skrivs till Scoutnet.")) return;
@@ -818,7 +972,7 @@ async function renderVerify(root) {
       "div",
       { class: "banner banner-fail" },
       el("div", {}, el("strong", {}, "⚠ Testskrivning mot Scoutnet")),
-      el("div", { class: "banner-sub" }, "Flytta EN medlem (helst platshållarkontot) för att bekräfta att troop_id fungerar, verifiera i Scoutnet, och ångra sedan."),
+      el("div", { class: "banner-sub" }, "Flytta EN medlem (helst platshållarkontot) för att bekräfta att avdelnings-id fungerar, verifiera i Scoutnet, och ångra sedan."),
     ),
   );
   const memberLabel = (m) => (m.name ? `${m.name} (${m.member_no})` : m.member_no);
@@ -847,7 +1001,7 @@ async function renderVerify(root) {
   const targetSel = el("select", {});
   targetSel.append(el("option", { value: "" }, "– välj måldelning –"));
   for (const a of info.avdelningar || []) {
-    targetSel.append(el("option", { value: a.troop_id }, `${a.avdelning} (troop ${a.troop_id})`));
+    targetSel.append(el("option", { value: a.troop_id }, `${a.avdelning} (avdelnings-id ${a.troop_id})`));
   }
   const progress = el("div", {});
   const dryBtn = el("button", { class: "action" }, "Testa (torrkörning)");
@@ -901,6 +1055,8 @@ let renderGen = 0;
 
 async function show(key) {
   const gen = ++renderGen; // guards against overlapping renders double-appending
+  navController.abort(); // cancel the previous blade's in-flight reads
+  navController = new AbortController();
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("active", b.dataset.k === key));
   const root = $("#content");
   root.replaceChildren(el("p", { class: "muted" }, "Laddar…"));
@@ -911,7 +1067,7 @@ async function show(key) {
     if (gen !== renderGen) return; // a newer navigation superseded this one
     root.replaceChildren(container);
   } catch (e) {
-    if (gen !== renderGen) return;
+    if (gen !== renderGen || e.name === "AbortError") return; // superseded or navigated away
     root.replaceChildren(el("p", { class: "err" }, "Fel: " + e.message));
   }
   location.hash = key;

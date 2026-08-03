@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<title>{% block title %}Rapport – {{ kar }}{% endblock %}</title>
+<style>
+  /* §19 report conventions: A4, page header with kår/term/timestamp, page
+     numbers as "x of y". Print stylesheet only — this same template renders the
+     on-screen view, so there is no separate report path to drift. */
+  @page {
+    size: A4;
+    margin: 20mm 16mm 18mm 16mm;
+    @bottom-right {
+      content: "Sida " counter(page) " av " counter(pages);
+      font-size: 8.5pt;
+      color: #555;
+    }
+  }
+  body { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 10pt; color: #111; margin: 0; }
+  header.report { border-bottom: 1px solid #999; margin-bottom: 8mm; padding-bottom: 3mm; }
+  header.report .kar { font-size: 15pt; font-weight: bold; }
+  header.report .subtitle { font-size: 11pt; margin-top: 1mm; }
+  header.report .meta { font-size: 8.5pt; color: #555; margin-top: 1mm; }
+  h3 { font-size: 11pt; margin: 6mm 0 2mm; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 2pt 5pt; border-bottom: 0.5pt solid #ccc; font-size: 9.5pt; }
+  th { border-bottom: 1pt solid #666; }
+  td.num { text-align: right; }
+  .note { font-size: 9pt; color: #555; }
+  .warn { color: #a3341c; }
+  /* Utility for the per-avdelning reports (§19); unused by the Översikt/förtroende summaries. */
+  .page-break { break-after: page; }
+  {% block extra_css %}{% endblock %}
+</style>
+</head>
+<body>
+<header class="report">
+  <div class="kar">{{ kar }}</div>
+  <div class="subtitle">{% block subtitle %}{% endblock %}</div>
+  <div class="meta">
+    {% if term %}Termin: {{ term }} · {% endif %}Genererad: {{ generated }}
+  </div>
+</header>
+{% block content %}{% endblock %}
+</body>
+</html>
