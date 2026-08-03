@@ -360,7 +360,9 @@ None block this slice, but flagging for tracking:
      polling; run-status card with resume-on-failure and undo (preview →
      execute → poll); run history + snapshot list/delete; prominent `read_write`
      banner. Verified end-to-end in a browser against a read_write fixture double.
-8. Runbook (§16) before the slice is called done.
+8. Runbook (§16) before the slice is called done. ✅ — `docs/runbook.md` (get a
+   key, run/fail/resume/undo/restore-from-snapshot); README updated for the
+   Phase 2 write path, config vars, modes and current limits.
 
 Stage 2 (real single-member) happens only after 1–7 are green and the operator
 approves — and after the key rotation.

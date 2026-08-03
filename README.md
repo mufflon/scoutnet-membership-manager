@@ -5,9 +5,13 @@ reads member data from Scoutnet, surfaces what leaders need to act on each term,
 and — in later phases — writes back a small number of carefully controlled
 changes.
 
-**Phase 1 (this repo) is read-only.** There is no write path to Scoutnet: the
-write client does not exist yet (§6, §7 of `CLAUDE.md`). Python library + Flask
-HTTP service + static frontend, deployable to Kubernetes.
+**Phase 1 is read-only; Phase 2 (this branch) adds a controlled write path** for
+applying an uppflyttning — dry-run by default, one member per request, snapshot +
+journal + reconcile, fully undoable (§6, §8 of `CLAUDE.md`). It is only active in
+`read_write` mode. One prerequisite remains before a real bulk run: verifying
+`troop_id` against the write endpoint on a single placeholder record (see
+`docs/runbook.md`). Python library + Flask HTTP service + static frontend,
+deployable to Kubernetes.
 
 ---
 
@@ -35,6 +39,9 @@ Scoutnet uses English names for Swedish concepts. Code uses the API's vocabulary
   editable templates). Nothing is sent — you copy the text into your own mail.
 - **Uppflyttning** — the computed master set (who moves where at the summer
   shift), and a downloadable **Excel changelist** for manual entry in Scoutnet.
+- **Utför** *(Phase 2, `read_write` only)* — apply the reviewed uppflyttning:
+  dry-run drift report, confirm-to-execute, live progress, and undo. See
+  `docs/runbook.md`.
 - **Anmärkningar** — data-quality and membership-roll findings (advisory only).
 - **Funktioner** — capabilities of this deployment (endpoints, keys present, mode).
 
@@ -78,10 +85,15 @@ See `.env.example`. Kår/bracket configuration is a JSON document
 
 | Variable | Purpose |
 |---|---|
-| `SCOUTNET_MODE` | `fixture` \| `read_only` (default) \| `read_write` (Phase 2, absent) |
+| `SCOUTNET_MODE` | `fixture` \| `read_only` (default) \| `read_write` (Phase 2 write path) |
 | `SCOUTNET_ENTITY_ID` | HTTP Basic username — the internal entity id (1025 for Finn) |
 | `SCOUTNET_MEMBERLIST_KEY` | per-endpoint key for `/group/memberlist` |
 | `SCOUTNET_ORGANISATION_GROUP_KEY` | per-endpoint key for `/organisation/group` |
+| `SCOUTNET_UPDATE_MEMBERSHIP_KEY` | per-endpoint write key (required for `read_write`) |
+| `SCOUTNET_WRITE_ALLOWLIST` | JSON list of member numbers writes may touch (empty = none) |
+| `SCOUTNET_SNAPSHOT_DIR` | mounted-volume path for pre-run snapshot files (`read_write`) |
+| `SCOUTNET_CHUNK_SIZE` / `SCOUTNET_CHUNK_DELAY_S` | write chunk size (**default 1**) and delay |
+| `SCOUTNET_SNAPSHOT_RETENTION_DAYS` | snapshot retention window (default 30; gates undo) |
 | `SCOUTNET_DATABASE_URL` | Postgres DSN (fixture mode uses in-memory SQLite) |
 | `SCOUTNET_COHORT_YEAR` | uppflyttning year N; leave unset to derive from the live term (guarded) |
 | `SCOUTNET_KAR_NAME` | kår display name (default Scoutkåren Finn) |
@@ -107,10 +119,12 @@ Keys are **per endpoint, per body** (not per user), permanent until regenerated.
 |---|---|---|---|
 | `fixture` | yes | no | Committed fixtures. No network, no credentials. |
 | `read_only` | yes | **no** | Live Scoutnet |
-| `read_write` | yes | yes | **Phase 2 — not in this repo** |
+| `read_write` | yes | yes | Live Scoutnet — the write path (Phase 2) |
 
-Enforced at client construction: read clients have no write methods, and
-`build_client` refuses `read_write`.
+Enforced at client construction: `fixture`/`read_only` clients have **no** write
+method at all; the single `update_membership` method exists only on the
+`read_write` client, which `build_client` returns only when the write key is set.
+`read_write` must be set deliberately and shows a banner in the UI while active.
 
 ## Deployment
 
@@ -133,6 +147,7 @@ src/karverktyg/
   findings/              data-quality + membership-roll findings (§11)
   uppflyttning/          cohort-year guard + master-set engine (§17)
   export/                Excel changelist + reconciliation (§7)
+  write/                 Phase 2 write path: executor, snapshots, undo (§8)
   membership/            membership-request email drafts + templates (§10)
   mail/                  MailSender interface, recording fake, Gmail (§10)
   db/                    SQLAlchemy models (no personal-data columns, §9)
@@ -144,8 +159,14 @@ config/ fixtures/ migrations/ k8s/ vendor/ branding/ docs/
 
 ## Status / limits
 
-Phase 1 read-only. `read_write` and all write workflows are Phase 2. The
-uppflyttning master set for the Äventyrare→Utmanare step stays *pending* until the
+Phase 2 write path (uppflyttning apply) is built and tested — dry-run, execute,
+resume, undo, snapshots — and exercised end to end against a schema-derived mock.
+**One prerequisite before a real bulk run:** verify `troop_id` against the live
+`update/membership` endpoint on a single placeholder record (`docs/runbook.md`,
+§1). The applicant-approval write workflow is **not** built — it depends on the
+`awaiting_approval` variant, which currently read-times-out for this kår.
+
+Other standing limits: the Äventyrare→Utmanare step stays *pending* until the
 operator fills in `cohort_year` for the target Utmanare avdelning. Payment views
 are validated against the previous (invoiced) term only until Höst is invoiced.
 PDF report rendering (§7) is templated via WeasyPrint but not yet wired end-to-end.
