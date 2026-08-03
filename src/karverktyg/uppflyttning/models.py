@@ -19,6 +19,14 @@ class MoveStatus(enum.StrEnum):
 
 
 @dataclass
+class ElectedTarget:
+    """Operator's cohort-level target election for a new_cohort_avdelning move (§17)."""
+
+    avdelning: str
+    troop_id: int | None = None
+
+
+@dataclass
 class MoveEntry:
     """MoveEntry."""
 
@@ -37,6 +45,10 @@ class MoveEntry:
     override_target: str | None = None
     override_stay_until: int | None = None
     override_by: str | None = None
+    # Operator has reviewed/handled this row (e.g. an off-cohort member left as-is
+    # after checking with the other leaders). Advisory — removes it from the
+    # "needs attention" set without moving anyone.
+    acknowledged: bool = False
 
     @property
     def is_override(self) -> bool:

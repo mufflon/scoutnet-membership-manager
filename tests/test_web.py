@@ -48,6 +48,64 @@ def test_uppflyttning_and_changelist_gate(client):
     assert ok.data[:2] == b"PK"  # xlsx zip
 
 
+def _find(data, member_no):
+    for grp in ("ready", "pending", "off_cohort", "excluded"):
+        for e in data[grp]:
+            if e["member_no"] == member_no:
+                return e
+    return None
+
+
+def test_uppflyttning_target_election(client):
+    d = client.get("/api/uppflyttning").get_json()
+    assert d["elected_target"] is None
+    assert len(d["pending"]) > 0  # Äventyrare→Utmanare pending until elected
+    candidates = d["utmanare_candidates"]
+    assert candidates
+    r = client.post(
+        "/api/uppflyttning/target", json={"avdelning": candidates[0]["avdelning"], "by": "t"}
+    )
+    assert r.status_code == 200
+    d2 = client.get("/api/uppflyttning").get_json()
+    assert d2["elected_target"]["avdelning"] == candidates[0]["avdelning"]
+    assert len(d2["pending"]) < len(d["pending"])  # some resolved to ready
+
+
+def test_uppflyttning_member_target_override(client):
+    d = client.get("/api/uppflyttning").get_json()
+    m = d["ready"][0]
+    other = next(a["avdelning"] for a in d["avdelningar"] if a["avdelning"] != m["target"])
+    assert (
+        client.post(
+            "/api/uppflyttning/decision",
+            json={"member_no": m["member_no"], "target_avdelning": other, "by": "t"},
+        ).status_code
+        == 200
+    )
+    e = _find(client.get("/api/uppflyttning").get_json(), m["member_no"])
+    assert e["target"] == other and e["override"] is True
+    # clearing reverts to the computed default
+    assert (
+        client.delete("/api/uppflyttning/decision?member_no=" + m["member_no"]).status_code == 200
+    )
+    assert _find(client.get("/api/uppflyttning").get_json(), m["member_no"])["override"] is False
+
+
+def test_uppflyttning_acknowledge(client):
+    d = client.get("/api/uppflyttning").get_json()
+    pool = d["off_cohort"] + d["excluded"]
+    assert pool  # the fixture has excluded leaders / off-cohort adults
+    m = pool[0]
+    assert (
+        client.post(
+            "/api/uppflyttning/decision",
+            json={"member_no": m["member_no"], "acknowledged": True, "by": "t"},
+        ).status_code
+        == 200
+    )
+    assert _find(client.get("/api/uppflyttning").get_json(), m["member_no"])["acknowledged"] is True
+
+
 def test_findings_endpoint(client):
     d = client.get("/api/findings").get_json()
     assert any(f["type"] == "no_avdelning" for f in d["findings"])

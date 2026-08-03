@@ -9,6 +9,7 @@ no personal-data column exists.
 
 from karverktyg.db.models import (
     Base,
+    CohortTarget,
     EmailTemplate,
     FindingAck,
     MessageLog,
@@ -18,6 +19,7 @@ from karverktyg.db.session import get_session, make_engine, make_sessionmaker
 
 __all__ = [
     "Base",
+    "CohortTarget",
     "EmailTemplate",
     "FindingAck",
     "MessageLog",

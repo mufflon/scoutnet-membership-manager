@@ -15,7 +15,7 @@ from karverktyg.config.models import Bracket, KarConfig, TransitionKind
 from karverktyg.roster import TroopIndex, build_troop_index
 from karverktyg.scoutnet.models import Member, MemberList
 from karverktyg.uppflyttning.cohort import resolve_cohort_year
-from karverktyg.uppflyttning.models import MasterSet, MoveEntry, MoveStatus
+from karverktyg.uppflyttning.models import ElectedTarget, MasterSet, MoveEntry, MoveStatus
 
 _MOVING = {
     TransitionKind.SAME_WEEKDAY,
@@ -96,16 +96,25 @@ def _base(
 
 
 def _resolve_target(
-    m: Member, transition: TransitionKind, config: KarConfig, index: TroopIndex, n: int
+    m: Member,
+    transition: TransitionKind,
+    config: KarConfig,
+    index: TroopIndex,
+    n: int,
+    elected_target: ElectedTarget | None = None,
 ) -> MoveEntry:
     if transition in (TransitionKind.SAME_WEEKDAY, TransitionKind.MERGE):
         source = config.avdelning(m.unit) if m.unit else None
         target_name = source.default_target if source else None
-    else:  # NEW_COHORT_AVDELNING
+        target_id = index.name_to_id.get(target_name) if target_name else None
+    elif elected_target is not None:  # NEW_COHORT_AVDELNING — operator elected it
+        target_name = elected_target.avdelning
+        target_id = elected_target.troop_id or index.name_to_id.get(target_name)
+    else:  # NEW_COHORT_AVDELNING — fall back to config cohort_year
         target_a = config.target_for_cohort(Bracket.UTMANARE, n)
         target_name = target_a.name if target_a else None
+        target_id = index.name_to_id.get(target_name) if target_name else None
 
-    target_id = index.name_to_id.get(target_name) if target_name else None
     if target_name is None:
         return _base(
             m,
@@ -113,8 +122,8 @@ def _resolve_target(
             MoveStatus.PENDING_TARGET,
             None,
             None,
-            f"no Utmanare avdelning has cohort_year {n}; operator must create "
-            "and elect it before this cohort can move",
+            f"no target elected for this cohort ({n}); elect an Utmanare avdelning "
+            "(or set its cohort_year in config)",
         )
     if target_id is None:
         return _base(
@@ -123,8 +132,8 @@ def _resolve_target(
             MoveStatus.PENDING_TARGET,
             target_name,
             None,
-            f"target {target_name!r} has no resolvable troop_id (too empty to "
-            "appear in the memberlist?); supply its troop_id in config",
+            f"target {target_name!r} has no resolvable troop_id (a new/empty "
+            "avdelning?); supply its troop_id when electing",
         )
     return _base(m, transition, MoveStatus.READY, target_name, target_id, "")
 
@@ -135,6 +144,7 @@ def compute_master_set(
     config_cohort_year_n: int | None,
     current_term_label: str | None = None,
     index: TroopIndex | None = None,
+    elected_target: ElectedTarget | None = None,
 ) -> MasterSet:
     """Compute master set."""
     n = resolve_cohort_year(
@@ -199,7 +209,7 @@ def compute_master_set(
             entries.append(_base(m, rule.transition, MoveStatus.EXCLUDED, None, None, reason))
             continue
 
-        entries.append(_resolve_target(m, rule.transition, config, index, n))
+        entries.append(_resolve_target(m, rule.transition, config, index, n, elected_target))
 
     entries.sort(
         key=lambda e: (

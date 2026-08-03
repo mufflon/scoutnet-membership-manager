@@ -8,14 +8,30 @@ year, and the cohort year N is guarded against the live term (§17).
 """
 
 from karverktyg.uppflyttning.cohort import CohortYearConflict, resolve_cohort_year
+from karverktyg.uppflyttning.decisions import clear_decision, get_decisions, upsert_decision
 from karverktyg.uppflyttning.engine import compute_master_set
-from karverktyg.uppflyttning.models import MasterSet, MoveEntry, MoveStatus
+from karverktyg.uppflyttning.models import ElectedTarget, MasterSet, MoveEntry, MoveStatus
+from karverktyg.uppflyttning.overrides import Override, apply_overrides
+from karverktyg.uppflyttning.targets import (
+    clear_elected_target,
+    get_elected_target,
+    set_elected_target,
+)
 
 __all__ = [
     "CohortYearConflict",
+    "ElectedTarget",
     "MasterSet",
     "MoveEntry",
     "MoveStatus",
+    "Override",
+    "apply_overrides",
+    "clear_decision",
+    "clear_elected_target",
     "compute_master_set",
+    "get_decisions",
+    "get_elected_target",
     "resolve_cohort_year",
+    "set_elected_target",
+    "upsert_decision",
 ]

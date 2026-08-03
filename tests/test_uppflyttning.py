@@ -6,6 +6,7 @@ from karverktyg.config.models import TransitionKind
 from karverktyg.scoutnet.models import Member, MemberList, Role
 from karverktyg.uppflyttning import (
     CohortYearConflict,
+    ElectedTarget,
     MoveStatus,
     compute_master_set,
     resolve_cohort_year,
@@ -94,6 +95,19 @@ def test_master_set_moves(config):
     # younger cohorts and residents stay put (no entry)
     assert "s_stay" not in by_no
     assert "u_resident" not in by_no
+
+
+def test_elected_target_resolves_new_cohort(config):
+    ms = compute_master_set(
+        _synthetic(),
+        config,
+        config_cohort_year_n=2026,
+        elected_target=ElectedTarget(avdelning="Fniss", troop_id=500),
+    )
+    e = {x.member_no: x for x in ms.entries}["a_move"]
+    assert e.status is MoveStatus.READY
+    assert e.target_avdelning == "Fniss"
+    assert e.target_troop_id == 500
 
 
 def test_master_set_on_fixture_is_sane(memberlist, config):

@@ -7,15 +7,27 @@ from datetime import UTC, datetime
 from flask import Blueprint, Response, current_app, jsonify, request
 from flask.typing import ResponseReturnValue
 
-from karverktyg.config.models import KarConfig
+from karverktyg.config.models import Bracket, KarConfig
 from karverktyg.db.session import get_session
 from karverktyg.export import ChangelistAckRequired, build_changelist
 from karverktyg.findings import compute_findings
 from karverktyg.membership import effective_templates, generate_drafts, upsert_template
 from karverktyg.membership.templates import templates_by_key
+from karverktyg.roster import build_troop_index
 from karverktyg.scoutnet.models import MemberList
 from karverktyg.settings import Settings
-from karverktyg.uppflyttning import compute_master_set
+from karverktyg.uppflyttning import (
+    ElectedTarget,
+    MasterSet,
+    apply_overrides,
+    clear_decision,
+    clear_elected_target,
+    compute_master_set,
+    get_decisions,
+    get_elected_target,
+    set_elected_target,
+    upsert_decision,
+)
 from karverktyg.uppflyttning.cohort import CohortYearConflict, resolve_cohort_year
 from karverktyg.uppflyttning.models import MoveEntry
 from karverktyg.views import dues_by_avdelning, overview
@@ -44,6 +56,28 @@ def _config_n() -> int | None:
     return s.cohort_year if s.cohort_year is not None else _config().cohort_year_n
 
 
+def _elected_target(ml: MemberList) -> ElectedTarget | None:
+    """The persisted Äventyrare→Utmanare target election for this cohort year."""
+    try:
+        n = resolve_cohort_year(_config_n(), ml.current_term_label)
+    except CohortYearConflict:
+        return None  # compute_master_set will raise the 409
+    with get_session(current_app.config["SESSIONMAKER"]) as s:
+        return get_elected_target(s, n, Bracket.UTMANARE)
+
+
+def _master_set(ml: MemberList) -> MasterSet:
+    """Compute the master set, then layer the operator's stored decisions (§17)."""
+    ms = compute_master_set(
+        ml, _config(), _config_n(), ml.current_term_label, elected_target=_elected_target(ml)
+    )
+    index = build_troop_index(ml, _config())
+    with get_session(current_app.config["SESSIONMAKER"]) as s:
+        decisions = get_decisions(s, ms.cohort_year)
+    apply_overrides(ms, decisions, index)
+    return ms
+
+
 def _ser_move(e: MoveEntry) -> dict:
     return {
         "member_no": e.member_no,
@@ -56,6 +90,7 @@ def _ser_move(e: MoveEntry) -> dict:
         "transition": str(e.transition),
         "note": e.note,
         "override": e.is_override,
+        "acknowledged": e.acknowledged,
     }
 
 
@@ -114,7 +149,25 @@ def api_findings() -> ResponseReturnValue:
 def api_uppflyttning() -> ResponseReturnValue:
     """The computed uppflyttning master set, grouped by status and target (§17)."""
     ml = _memberlist()
-    ms = compute_master_set(ml, _config(), _config_n(), ml.current_term_label)
+    ms = _master_set(ml)
+    index = build_troop_index(ml, _config())
+    utmanare_candidates = sorted(
+        (
+            {"avdelning": name, "troop_id": tid}
+            for name, tid in index.name_to_id.items()
+            if index.id_to_bracket.get(tid) is Bracket.UTMANARE
+        ),
+        key=lambda c: c["avdelning"],
+    )
+    elected = _elected_target(ml)
+    # Every avdelning, for the per-member target dropdown.
+    avdelningar = sorted(
+        (
+            {"avdelning": name, "troop_id": tid, "bracket": str(index.id_to_bracket.get(tid, ""))}
+            for name, tid in index.name_to_id.items()
+        ),
+        key=lambda c: c["avdelning"],
+    )
     return jsonify(
         cohort_year=ms.cohort_year,
         ready=[_ser_move(e) for e in ms.ready()],
@@ -122,14 +175,86 @@ def api_uppflyttning() -> ResponseReturnValue:
         off_cohort=[_ser_move(e) for e in ms.off_cohort()],
         excluded=[_ser_move(e) for e in ms.excluded()],
         by_target={t: [_ser_move(e) for e in es] for t, es in ms.by_target().items()},
+        avdelningar=avdelningar,
+        # For the Äventyrare→Utmanare target election (§17):
+        utmanare_candidates=utmanare_candidates,
+        elected_target=(
+            {"avdelning": elected.avdelning, "troop_id": elected.troop_id} if elected else None
+        ),
     )
+
+
+@api_bp.post("/uppflyttning/target")
+def api_elect_target() -> ResponseReturnValue:
+    """Elect the Utmanare avdelning the Äventyrare cohort moves into (§17)."""
+    ml = _memberlist()
+    n = resolve_cohort_year(_config_n(), ml.current_term_label)  # may raise -> 409
+    data = request.get_json(silent=True) or {}
+    avdelning = data.get("avdelning")
+    if not avdelning:
+        return jsonify(error="avdelning is required"), 400
+    index = build_troop_index(ml, _config())
+    troop_id = data.get("troop_id") or index.name_to_id.get(avdelning)
+    if troop_id is None:
+        return jsonify(
+            error=f"{avdelning!r} has no resolvable troop_id; supply troop_id for a "
+            "not-yet-populated avdelning"
+        ), 400
+    with get_session(current_app.config["SESSIONMAKER"]) as s:
+        set_elected_target(s, n, Bracket.UTMANARE, avdelning, int(troop_id), data.get("by"))
+    return jsonify(status="ok")
+
+
+@api_bp.delete("/uppflyttning/target")
+def api_clear_target() -> ResponseReturnValue:
+    """Clear the target election (moves revert to pending)."""
+    ml = _memberlist()
+    n = resolve_cohort_year(_config_n(), ml.current_term_label)
+    with get_session(current_app.config["SESSIONMAKER"]) as s:
+        clear_elected_target(s, n, Bracket.UTMANARE)
+    return jsonify(status="ok")
+
+
+@api_bp.post("/uppflyttning/decision")
+def api_set_decision() -> ResponseReturnValue:
+    """Set a per-member decision: target override, stay-a-year, or acknowledge (§17)."""
+    ml = _memberlist()
+    n = resolve_cohort_year(_config_n(), ml.current_term_label)  # may raise -> 409
+    data = request.get_json(silent=True) or {}
+    member_no = data.get("member_no")
+    if not member_no:
+        return jsonify(error="member_no is required"), 400
+    with get_session(current_app.config["SESSIONMAKER"]) as s:
+        upsert_decision(
+            s,
+            n,
+            str(member_no),
+            target_avdelning=data.get("target_avdelning"),
+            stay_until=data.get("stay_until"),
+            acknowledged=data.get("acknowledged"),
+            by=data.get("by"),
+        )
+    return jsonify(status="ok")
+
+
+@api_bp.delete("/uppflyttning/decision")
+def api_clear_decision() -> ResponseReturnValue:
+    """Remove a member's stored decision (reverts to the computed default)."""
+    ml = _memberlist()
+    n = resolve_cohort_year(_config_n(), ml.current_term_label)
+    member_no = request.args.get("member_no")
+    if not member_no:
+        return jsonify(error="member_no is required"), 400
+    with get_session(current_app.config["SESSIONMAKER"]) as s:
+        clear_decision(s, n, member_no)
+    return jsonify(status="ok")
 
 
 @api_bp.get("/uppflyttning/changelist.xlsx")
 def api_changelist() -> ResponseReturnValue:
     """Stream the changelist workbook; 409 until off-cohort is acknowledged (§17)."""
     ml = _memberlist()
-    ms = compute_master_set(ml, _config(), _config_n(), ml.current_term_label)
+    ms = _master_set(ml)
     ack_by = request.args.get("ack_by")
     now = datetime.now(UTC)
     try:

@@ -43,3 +43,10 @@ th { color: var(--muted); font-weight: 600; font-size: .82rem; }
 button.action { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: .5rem .9rem; cursor: pointer; }
 a { color: var(--accent); }
 .err { color: var(--sec); }
+tr.expandable { cursor: pointer; }
+tr.expandable:hover { background: rgba(127, 127, 127, 0.08); }
+select, input[type="text"], textarea {
+  background: var(--card); color: var(--fg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 0.3rem 0.4rem; font: inherit;
+}
+pre { white-space: pre-wrap; background: rgba(127, 127, 127, 0.06); padding: 0.6rem; border-radius: 8px; overflow-x: auto; }
