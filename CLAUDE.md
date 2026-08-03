@@ -30,15 +30,15 @@ a merge error rather than a judgement call.
 ## Current state (2026-08-03)
 
 Built, tested and deployed on local k3s. `uv run pytest` passes offline
-(169 tests); ruff clean.
+(170 tests); ruff clean.
 
-**Read-only surface — complete.** Blades: Översikt (full §20 — composition,
-leaders, projection, KPIs), Medlemsavgifter, Förtroendeuppdrag, Väntelista,
-Anmärkningar, Uppflyttning, Mallar, API-koll, Funktioner, plus the Excel changelist
-export and post-hoc reconciliation. Exports: förtroendeuppdrag (Excel + A4 PDF),
-unpaid dues (Excel), Översikt (Excel + A4 PDF, aggregate-only). PDF rendering is
-the optional `[pdf]` extra (WeasyPrint), installed in the deployed image; where it
-is absent the PDF endpoints return a clear 503 rather than failing.
+**Read-only surface — complete.** Blades: Översikt, Medlemsavgifter,
+Förtroendeuppdrag, Väntelista, Anmärkningar, Uppflyttning, Mallar, API-koll,
+Funktioner, plus the Excel changelist export and post-hoc reconciliation. Exports:
+förtroendeuppdrag (Excel + A4 PDF), unpaid dues (Excel), Översikt (Excel + A4 PDF,
+aggregate-only). PDF rendering is the optional `[pdf]` extra (WeasyPrint), installed
+in the deployed image; where it is absent the PDF endpoints return a clear 503
+rather than failing.
 
 **Uppflyttning write path — complete.** `read_write` mode gate, serial
 one-member-at-a-time executor (dry-run default, pre-flight drift check, journal,
@@ -55,6 +55,38 @@ block a real bulk run.
 
 **Not built:** the applicant-approval write workflow, and auto-send email. See §7.
 (Phase A — förtroendeuppdrag §18, unpaid-dues export §19, Översikt §20 — is done.)
+
+**Meaningful changes this session (2026-08-03).** Where the implementation now
+leads the older §18–§20 prose, the code is the fact (Authority order):
+
+- **Förtroendeuppdrag** splits into three sections — **Kårstyrelse**, **Övriga
+  förtroendeuppdrag**, **Ombud och representanter** (one-day delegates last). The
+  board/other/delegate classification is **hard-coded by `role_key`** in
+  `karverktyg.fortroende` (uniform for this kår; Utmanarscoutrepresentant is a
+  board seat, `district_voter` a delegate); config no longer carries the ordering.
+- **Unpaid-dues export is a single flat sheet** (operator preference for an expert
+  tool), not §19's one-sheet-per-avdelning + cover + review-sheet split.
+- **Översikt blade is trimmed**: the per-avdelning leader count and
+  scouts-per-leader ratio are merged into the composition table; the Nyckeltal/KPI
+  block, the adult/youth leader split, per-åldersgrupp thresholds and the
+  current-vs-projected chart were removed from the *blade* (the Excel/PDF export
+  still carries the fuller set). The "aggregate-only, may circulate freely" framing
+  was removed — operators use their own judgement.
+- **Performance (§4 read client).** `organisation/group` (~30 s) and
+  `awaiting_approval` (30 s read-timeout) are slow for Finn, so blades render from
+  the fast reads and pull the slow cross-checks in **asynchronously**
+  (`?aggregate=1` / `?rolecount=1`); `organisation/group` is cached and a
+  timed-out variant is negative-cached; gunicorn runs **gthread** workers
+  (I/O-bound); the frontend aborts stale reads on navigation. No blade fetches
+  everything synchronously any more.
+- **`Avdelning.troop_id` removed from config** (config = existence, live = ids,
+  operator = election; §17/§20 amended). Manual 5-digit **avdelnings-id** entry
+  for the Äventyrare→Utmanare election is implemented with the §17 guards
+  (group-id rejected, five-digit shape, unknown-needs-ack). "troop_id" is shown to
+  operators as **"avdelnings-id"**.
+- **Tooling.** ruff `target-version = py313` (keeps `except (A, B):` canonical and
+  the code runnable on the 3.13 fallback); `docker-compose.yml` removed; gunicorn
+  worker model and k8s resource requests/limits raised.
 
 ## Open actions
 
@@ -575,11 +607,11 @@ Every phase inherits §6 *Hard rules* and, where it writes, §8 *Write execution
 unchanged. New write features are **intent producers feeding the existing
 executor** — do not build a second execution path.
 
-### Phase A — Förtroendeuppdrag blade (next)
+### Phase A — Förtroendeuppdrag blade (done 2026-08-03)
 
 A listing of every kår-level assignment currently held. Read-only, no new key, no
 new endpoint, no capture: the data is already fetched and parsed. Full
-specification in §18.
+specification in §18. Built as three sections (see *Current state*).
 
 Lowest-risk phase available, and a good one to take first because it classifies
 nothing — it is pure pass-through, so an unfamiliar role appears by itself rather
@@ -624,6 +656,49 @@ attended may remain blocked — and nothing anywhere creates arrangemang, so the
 Excel-to-Scoutnet activity import still has no destination.
 
 Treat this as a spike producing written options, not a build.
+
+### Deferred architecture work (scoped 2026-08-03)
+
+Forward work agreed after Phase A, in three workstreams. **A is discussed next; B
+and C are parked here.**
+
+**A. Uppflyttning multi-target rework — next, and time-sensitive.** A **second
+Äventyrare avdelning** exists for the upcoming scout year, which breaks today's
+"only-one-avdelning-in-the-bracket → auto-target" assumption:
+
+- **Per-source merge routing.** Upptäckare → Äventyrare is no longer "everyone to
+  Vikingarna": each Upptäckare avdelning routes to a specific Äventyrare avdelning
+  (e.g. Kämparna → Vikingarna, Spejarna → the new one, Utforskarna → decide
+  manually). The exact split is **pending the ledarteamsgrupp**; build the
+  mechanism (per-source targets + a manual per-avdelning selection) so it is ready.
+- **Target inference** so config stays low-maintenance: explicit hint → same-weekday
+  match in the next bracket → the sole avdelning of the next bracket → else pending
+  and demand a decision. (Prototyped as `infer_target_name` in `uppflyttning.engine`
+  this session, then reverted to keep the bug batch clean — reinstate here.)
+- **Select which transitions to run** — toggle each (Spårare→Upptäckare,
+  Upptäckare→Äventyrare, Äventyrare→Utmanare) or run exactly one at a time
+  (operator leans run-one). The escape hatch: run the clean Äventyrare→Utmanare
+  move now, handle the messy Upptäckare→Äventyrare by hand.
+- **Even-split projection stats** — where a target is ambiguous across N avdelningar,
+  distribute count/N to each for the §20 projection figures only (never for an
+  actual move; config will not be kept perfectly current).
+
+**B. Config architecture — maintenance/portability, no deadline.**
+
+- **Single config location.** Remove `config_path` / `config/karverktyg.default.json`
+  and fold the (now-slim) kår config into `karverktyg.conf`. Motive: "if we
+  configure in multiple places we will forget." Constraint: keys must never be
+  committed (hard rule 1), so the single file is the **gitignored `.conf`**, and a
+  structured avdelning list must be expressed there (e.g. a JSON-valued env var).
+- **Multi-kår generality.** Keep kår structure configurable and generic scouting
+  rules (brackets, section classification) as defaults, so another kår extends
+  config/lists rather than forking. Only matters if the tool is shared.
+
+**C. Security hardening — only once it could leave one machine.** The frontend and
+API are one Flask service, so access to the static site is access to the REST API.
+Today it is reachable only via `kubectl port-forward` (ClusterIP, no Ingress, no
+CORS). Before sharing: sanitize and validate all API input, and put human auth at
+the ingress (§14). The data is GDPR-sensitive.
 
 ### Standing operational work, not a phase
 
