@@ -678,6 +678,13 @@ escape hatch for this year: run the clean Spårare→Upptäckare and Äventyrare
 groups, and leave Upptäckare→Äventyrare (ambiguous with two Äventyrare avdelningar)
 for later / by hand.
 
+Also built: a **save-selection handoff** — "Spara urval för utförande" on the
+Uppflyttning blade commits the chosen group (browser-local); *Utför uppflyttning*
+then runs that saved group, auto-shows its dry-run, and is empty (pointing back to
+Uppflyttning) when nothing is saved. The **Äventyrare→Utmanare election** shows only
+when working that group, and its direct entry takes just the 5-digit avdelnings-id
+plus a confirmation — the name is immaterial (a placeholder is stored).
+
 **Follow-up — the target-resolution rule (agreed definition).** Per source, in
 order:
 
