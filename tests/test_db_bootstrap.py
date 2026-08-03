@@ -22,6 +22,42 @@ def test_bootstrap_fresh_runs_migrations(tmp_path):
     assert r.action == "initialised"
     names = set(inspect(create_engine(url)).get_table_names())
     assert {"email_template", "cohort_target", "alembic_version"} <= names
+    # 0003 write tables are part of head.
+    assert {"write_run", "write_journal", "snapshot"} <= names
+
+
+def test_bootstrap_rebuild_preserves_write_journal(tmp_path):
+    # A journal is the recovery path (undo/reconcile) once a run has touched real
+    # records, so a rebuild must preserve it, not drop it as scratch (§8, §9).
+    url = _url(tmp_path)
+    engine = create_engine(url)
+    with engine.begin() as c:
+        c.execute(
+            text(
+                "CREATE TABLE write_journal (id INTEGER PRIMARY KEY, run_id VARCHAR, "
+                "chunk_id INTEGER, member_no VARCHAR, intended_status VARCHAR, "
+                "intended_troop_id INTEGER, source_troop_id INTEGER, state VARCHAR, "
+                "attempts INTEGER, error TEXT)"
+            )
+        )
+        c.execute(
+            text(
+                "INSERT INTO write_journal (run_id, chunk_id, member_no, intended_status, "
+                "intended_troop_id, state, attempts) "
+                "VALUES ('run-1', 0, '1000', 'confirmed', 12345, 'done', 1)"
+            )
+        )
+        c.execute(text("CREATE TABLE junk (id INTEGER PRIMARY KEY)"))  # forces incompatible
+
+    r = bootstrap(url)
+    assert r.action == "rebuilt"
+    assert r.preserved["write_journal"] == 1
+
+    with engine.connect() as c:
+        row = c.execute(
+            text("SELECT member_no, intended_troop_id, run_id FROM write_journal")
+        ).first()
+    assert row == ("1000", 12345, "run-1")
 
 
 def test_bootstrap_adopts_compatible_createall_db(tmp_path):

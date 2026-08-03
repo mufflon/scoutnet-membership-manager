@@ -13,7 +13,10 @@ from karverktyg.db.models import (
     EmailTemplate,
     FindingAck,
     MessageLog,
+    Snapshot,
     UppflyttningEntry,
+    WriteJournal,
+    WriteRun,
 )
 from karverktyg.db.session import get_session, make_engine, make_sessionmaker
 
@@ -23,7 +26,10 @@ __all__ = [
     "EmailTemplate",
     "FindingAck",
     "MessageLog",
+    "Snapshot",
     "UppflyttningEntry",
+    "WriteJournal",
+    "WriteRun",
     "get_session",
     "make_engine",
     "make_sessionmaker",

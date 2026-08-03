@@ -9,8 +9,8 @@ Brings the database to the current schema, reusing an existing one when possible
 * unmanaged existing DB (e.g. created by ``create_all``) that matches the model
   -> stamp + upgrade with nothing to migrate (adopt in place, data kept);
 * incompatible DB, migration not possible -> keep the meaningful data (email
-  templates, finding acks, message log), rebuild the current schema, and drop
-  everything else.
+  templates, finding acks, message log, and write run/journal/snapshot history),
+  rebuild the current schema, and drop everything else.
 
 **Uppflyttning working state is never kept across a migration or a rebuild.**
 It is per-cohort-year scratch data, and a version bump may itself be prompted by
@@ -29,10 +29,26 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, MetaData, inspect, text
 
-from karverktyg.db.models import Base, EmailTemplate, FindingAck, MessageLog
+from karverktyg.db.models import (
+    Base,
+    EmailTemplate,
+    FindingAck,
+    MessageLog,
+    Snapshot,
+    WriteJournal,
+    WriteRun,
+)
 from karverktyg.db.session import get_session, make_engine, make_sessionmaker
 
-# Per-year uppflyttning scratch — discarded on any migration/rebuild.
+# Per-year uppflyttning scratch. Cleared only when a migration actually advances
+# the revision (see bootstrap: the DELETE is gated on before != after), or on a
+# rebuild — never on a plain redeploy that finds the DB already at head.
+#
+# The write tables are deliberately NOT here. An in-flight run's journal is the
+# resume-after-crash recovery path, so it must survive every case: a crash
+# restart, a no-op redeploy, a revision-advancing migration AND a rebuild. Being
+# absent from this tuple keeps it untouched by the scratch-clear; being present
+# in _MEANINGFUL below keeps it across a rebuild too. It is never wiped here.
 _UPPFLYTTNING_TABLES = ("uppflyttning_entry", "cohort_target")
 
 # Meaningful data preserved across a rebuild: (model, carried columns).
@@ -40,6 +56,28 @@ _MEANINGFUL = {
     "email_template": (EmailTemplate, ["template_key", "subject", "body", "updated_by"]),
     "finding_ack": (FindingAck, ["member_no", "finding_type", "value_hash", "acknowledged_by"]),
     "message_log": (MessageLog, ["member_no", "message_type"]),
+    # Write history: a run's journal is the recovery path (undo/reconcile) once
+    # it has touched real records, so it is meaningful, not scratch (§8, §9).
+    # write_journal.id is autoincrement and intentionally not carried.
+    "write_run": (
+        WriteRun,
+        ["id", "kind", "cohort_year", "parent_run_id", "mode", "state", "snapshot_id"],
+    ),
+    "write_journal": (
+        WriteJournal,
+        [
+            "run_id",
+            "chunk_id",
+            "member_no",
+            "intended_status",
+            "intended_troop_id",
+            "source_troop_id",
+            "state",
+            "attempts",
+            "error",
+        ],
+    ),
+    "snapshot": (Snapshot, ["id", "run_id", "path", "size_bytes"]),
 }
 
 
