@@ -1071,9 +1071,9 @@ when the avdelning is created — the three existing ones need theirs filled in.
 ### Expected transition volumes
 
 Roughly 28 Spårare, 32 Upptäckare and 23 Äventyrare move each summer, so about
-**83 members** in a full uppflyttning — four chunks at the default size of 25.
-Use this as an order-of-magnitude check: a computed master set of 8 or 300 means
-something is wrong.
+**83 members** in a full uppflyttning — roughly 83 requests at the default chunk
+size of 1 (§8). Use this as an order-of-magnitude check: a computed master set of
+8 or 300 means something is wrong.
 
 ### The four transition kinds
 

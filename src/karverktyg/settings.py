@@ -89,7 +89,10 @@ class Settings(BaseSettings):
     cohort_year: int | None = None
 
     # --- Write knobs (Phase 2; present so config is stable across phases) ---
-    chunk_size: int = 25
+    # Default 1: one member per request needs no atomicity guarantee (§8,
+    # HANDOVER §4). Raising it is a deliberate decision requiring observed
+    # evidence of the endpoint's partial-failure behaviour.
+    chunk_size: int = 1
     chunk_delay_s: float = 1.0
     snapshot_retention_days: int = 30
 
