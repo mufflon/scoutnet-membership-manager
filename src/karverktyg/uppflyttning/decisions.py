@@ -9,7 +9,7 @@ decisions re-applied, so they survive recomputation.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from karverktyg.db.models import UppflyttningEntry
@@ -79,3 +79,12 @@ def clear_decision(session: Session, cohort_year: int, member_no: str) -> None:
     if row is not None:
         session.delete(row)
         session.flush()
+
+
+def clear_all_decisions(session: Session, cohort_year: int) -> int:
+    """Remove every stored per-member decision for a cohort year. Returns count."""
+    result = session.execute(
+        delete(UppflyttningEntry).where(UppflyttningEntry.cohort_year == cohort_year)
+    )
+    session.flush()
+    return result.rowcount or 0

@@ -20,6 +20,7 @@ from karverktyg.uppflyttning import (
     ElectedTarget,
     MasterSet,
     apply_overrides,
+    clear_all_decisions,
     clear_decision,
     clear_elected_target,
     compute_master_set,
@@ -168,6 +169,8 @@ def api_uppflyttning() -> ResponseReturnValue:
         key=lambda c: c["avdelning"],
     )
     elected = _elected_target(ml)
+    with get_session(current_app.config["SESSIONMAKER"]) as s:
+        decisions_count = len(get_decisions(s, ms.cohort_year))
     # Every avdelning, for the per-member target dropdown.
     avdelningar = sorted(
         (
@@ -184,6 +187,7 @@ def api_uppflyttning() -> ResponseReturnValue:
         excluded=[_ser_move(e) for e in ms.excluded()],
         by_target={t: [_ser_move(e) for e in es] for t, es in ms.by_target().items()},
         avdelningar=avdelningar,
+        decisions_count=decisions_count,
         # For the Äventyrare→Utmanare target election (§17):
         utmanare_candidates=utmanare_candidates,
         elected_target=(
@@ -221,6 +225,17 @@ def api_clear_target() -> ResponseReturnValue:
     with get_session(current_app.config["SESSIONMAKER"]) as s:
         clear_elected_target(s, n, Bracket.UTMANARE)
     return jsonify(status="ok")
+
+
+@api_bp.post("/uppflyttning/reset")
+def api_reset_uppflyttning() -> ResponseReturnValue:
+    """Clear every per-member decision and the target election for this cohort year."""
+    ml = _memberlist()
+    n = resolve_cohort_year(_config_n(), ml.current_term_label)
+    with get_session(current_app.config["SESSIONMAKER"]) as s:
+        cleared = clear_all_decisions(s, n)
+        clear_elected_target(s, n, Bracket.UTMANARE)
+    return jsonify(status="ok", cleared=cleared)
 
 
 @api_bp.post("/uppflyttning/decision")

@@ -217,6 +217,36 @@ async function renderUppflyttning(root) {
     root.append(el("p", { class: "err" }, "Kan inte beräkna: " + e.message));
     return;
   }
+
+  // Always-visible reset for the whole uppflyttning, at the top of the blade.
+  const changeParts = [];
+  if (d.decisions_count > 0) changeParts.push(d.decisions_count + " individuella val");
+  if (d.elected_target) changeParts.push("måldelning: " + d.elected_target.avdelning);
+  const hasChanges = changeParts.length > 0;
+  const resetBtn = el("button", { class: "danger" }, "Återställ hela uppflyttningen");
+  resetBtn.disabled = !hasChanges;
+  resetBtn.onclick = async () => {
+    if (!confirm("Återställ hela uppflyttningen? Alla dina val (måldelningar, granskade, stannar) och den valda Utmanare-måldelningen tas bort.")) return;
+    try {
+      await apiSend("POST", "uppflyttning/reset");
+      refresh();
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+  root.append(
+    el(
+      "div",
+      { class: "card danger sticky-reset" },
+      el("div", {}, el("strong", {}, "Återställ hela uppflyttningen"), " ", resetBtn),
+      el(
+        "div",
+        { class: "muted" },
+        hasChanges ? "Tillämpade ändringar: " + changeParts.join(", ") + "." : "Inga ändringar gjorda – beräknade standardvärden gäller.",
+      ),
+    ),
+  );
+
   root.append(el("p", {}, "Uppflyttningsår N = ", el("strong", {}, esc(d.cohort_year)), ". ", el("a", { href: "/api/uppflyttning/changelist.xlsx" }, "Exportera changelist (Excel)")));
   root.append(
     el(

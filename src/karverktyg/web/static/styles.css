@@ -41,6 +41,10 @@ th { color: var(--muted); font-weight: 600; font-size: .82rem; }
 .table-wrap { overflow-x: auto; }
 .rw-banner { background: var(--sec); color: #fff; text-align: center; padding: .5rem; font-weight: 600; }
 button.action { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: .5rem .9rem; cursor: pointer; }
+button.danger { background: var(--sec); color: #fff; border: 0; border-radius: 8px; padding: .5rem .9rem; cursor: pointer; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.card.danger { border-color: var(--sec); }
+.sticky-reset { position: sticky; top: 0; z-index: 5; }
 a { color: var(--accent); }
 .err { color: var(--sec); }
 tr.expandable { cursor: pointer; }
