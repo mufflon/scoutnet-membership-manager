@@ -15,6 +15,7 @@ from flask.typing import ResponseReturnValue
 from sqlalchemy import select
 
 from karverktyg.db import WriteJournal, WriteRun, get_session
+from karverktyg.roster import build_troop_index
 from karverktyg.settings import Mode, Settings
 from karverktyg.uppflyttning.models import MasterSet
 from karverktyg.web.api import _master_set, _memberlist
@@ -195,7 +196,18 @@ def api_verify_info() -> ResponseReturnValue:
     """
     if (err := _read_write_or_403()) is not None:
         return err
-    return jsonify(allowlist=list(_settings().write_allowlist), mode=_settings().mode.value)
+    index = build_troop_index(
+        current_app.config["SCOUTNET"].memberlist("active"), current_app.config["KAR_CONFIG"]
+    )
+    avdelningar = sorted(
+        ({"avdelning": name, "troop_id": tid} for name, tid in index.name_to_id.items()),
+        key=lambda a: a["avdelning"],
+    )
+    return jsonify(
+        allowlist=list(_settings().write_allowlist),
+        mode=_settings().mode.value,
+        avdelningar=avdelningar,
+    )
 
 
 @writes_bp.post("/write/verify")

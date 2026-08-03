@@ -819,15 +819,19 @@ async function renderVerify(root) {
   );
 
   const memberIn = el("input", { type: "text", placeholder: "medlemsnr", style: "width:10rem;" });
-  const targetIn = el("input", { type: "number", placeholder: "mål-troop_id", style: "width:10rem;" });
+  const targetSel = el("select", {});
+  targetSel.append(el("option", { value: "" }, "– välj måldelning –"));
+  for (const a of info.avdelningar || []) {
+    targetSel.append(el("option", { value: a.troop_id }, `${a.avdelning} (troop ${a.troop_id})`));
+  }
   const progress = el("div", {});
   const dryBtn = el("button", { class: "action" }, "Testa (torrkörning)");
   const execBtn = el("button", { class: "danger" }, "Utför testflytt");
   execBtn.disabled = true;
   let willApply = 0;
 
-  const body = () => ({ member_no: memberIn.value.trim(), target_troop_id: Number(targetIn.value) });
-  const valid = () => memberIn.value.trim() && targetIn.value !== "";
+  const body = () => ({ member_no: memberIn.value.trim(), target_troop_id: Number(targetSel.value) });
+  const valid = () => memberIn.value.trim() && targetSel.value !== "";
 
   dryBtn.onclick = async () => {
     if (!valid()) {
@@ -860,7 +864,7 @@ async function renderVerify(root) {
       "div",
       { class: "card" },
       el("strong", {}, "Testflytt av en medlem"),
-      el("div", { style: "margin:.5rem 0;" }, el("label", {}, "Medlemsnr "), memberIn, " ", el("label", {}, "Till troop_id "), targetIn),
+      el("div", { style: "margin:.5rem 0;" }, el("label", {}, "Medlemsnr "), memberIn, " ", el("label", {}, "Till avdelning "), targetSel),
       el("div", {}, dryBtn, " ", execBtn),
     ),
     progress,
