@@ -31,5 +31,6 @@ node_modules/
 bundled.yaml
 .DS_Store
 
-# Filled-in deploy config (holds API keys)
-karverktyg.conf
+# Filled-in deploy config (holds API keys) — never commit; keep only *.conf.example
+*.conf
+!*.conf.example

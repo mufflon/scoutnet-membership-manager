@@ -12,8 +12,16 @@ SCOUTNET_MODE=fixture
 # Internal entity id (== the kår number for Finn). Required for read_only.
 SCOUTNET_ENTITY_ID=1025
 
-# Per-endpoint API keys (from Din kår -> Webbkoppling). Blank = endpoint unused.
+# Per-endpoint API keys (from Din kår -> Webbkoppling). Each key authorises ONE
+# endpoint (§4); the name below says which, so it stays clear if keys are moved
+# around in Scoutnet. Blank = that endpoint is unused (its capability disabled).
+#
+# SCOUTNET_MEMBERLIST_KEY -> GET https://scoutnet.se/api/group/memberlist
+#   (the kår's full member list — the primary read for Phase 1)
 SCOUTNET_MEMBERLIST_KEY=
+
+# SCOUTNET_ORGANISATION_GROUP_KEY -> GET https://scoutnet.se/api/organisation/group
+#   (the kår's org tree: avdelningar / units, used to resolve troop structure)
 SCOUTNET_ORGANISATION_GROUP_KEY=
 
 # Uppflyttning cohort year N. Blank = derive from the live term (guarded).

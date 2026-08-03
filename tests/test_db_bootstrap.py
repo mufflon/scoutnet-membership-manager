@@ -58,10 +58,43 @@ def test_bootstrap_rebuilds_incompatible_keeping_templates(tmp_path):
 
     r = bootstrap(url)
     assert r.action == "rebuilt"
-    assert r.templates_preserved == 1
+    assert r.preserved["email_template"] == 1
 
     names = set(inspect(create_engine(url)).get_table_names())
     assert "junk" not in names  # superfluous nuked
     assert "cohort_target" in names  # rebuilt to the current schema
     rows = _templates(url)
     assert len(rows) == 1 and rows[0].subject == "keep me"  # template preserved
+
+
+def test_bootstrap_migration_clears_uppflyttning_keeps_templates(tmp_path):
+    from alembic import command
+
+    from karverktyg.db.bootstrap import _alembic_cfg
+
+    url = _url(tmp_path)
+    engine = create_engine(url)
+    # Managed DB one revision behind head (0001, before cohort_target exists).
+    command.upgrade(_alembic_cfg(url), "0001")
+    with engine.begin() as c:
+        c.execute(
+            text(
+                "INSERT INTO email_template (template_key, subject, body) "
+                "VALUES ('scout_request', 'keep me', 'body')"
+            )
+        )
+        c.execute(
+            text(
+                "INSERT INTO uppflyttning_entry (cohort_year, member_no, source_avdelning, status) "
+                "VALUES (2026, 1000, 'Spårare', 'ready')"
+            )
+        )
+
+    r = bootstrap(url)
+    assert r.action == "upgraded"
+    assert "uppflyttning cleared" in r.detail
+
+    with engine.connect() as c:
+        # uppflyttning scratch gone, meaningful data kept
+        assert c.execute(text("SELECT COUNT(*) FROM uppflyttning_entry")).scalar() == 0
+        assert c.execute(text("SELECT COUNT(*) FROM email_template")).scalar() == 1

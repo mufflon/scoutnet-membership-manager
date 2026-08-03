@@ -4,26 +4,43 @@ Database bootstrap for deploys (build-up).
 Brings the database to the current schema, reusing an existing one when possible:
 
 * empty DB            -> run migrations (fresh install);
-* alembic-managed DB  -> ``alembic upgrade head`` (apply pending migrations);
+* alembic-managed DB  -> ``alembic upgrade head``; if that actually advances the
+  revision, the uppflyttning working state is cleared (see below);
 * unmanaged existing DB (e.g. created by ``create_all``) that matches the model
-  -> stamp + upgrade (adopt in place, data kept);
-* incompatible DB, migration not possible -> keep as much as possible (the
-  application's own data: email templates) and nuke everything superfluous, then
-  rebuild the current schema and restore the templates.
+  -> stamp + upgrade with nothing to migrate (adopt in place, data kept);
+* incompatible DB, migration not possible -> keep the meaningful data (email
+  templates, finding acks, message log), rebuild the current schema, and drop
+  everything else.
+
+**Uppflyttning working state is never kept across a migration or a rebuild.**
+It is per-cohort-year scratch data, and a version bump may itself be prompted by
+an incompatibility, so ``uppflyttning_entry`` and ``cohort_target`` are cleared
+whenever migrations are applied. An ordinary redeploy that applies no migration
+leaves them untouched, so in-progress decisions survive normal restarts.
 
 Idempotent — safe to run on every deploy (used as an init step).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import MetaData, inspect, text
+from sqlalchemy import Engine, MetaData, inspect, text
 
-from karverktyg.db.models import Base, EmailTemplate
+from karverktyg.db.models import Base, EmailTemplate, FindingAck, MessageLog
 from karverktyg.db.session import get_session, make_engine, make_sessionmaker
+
+# Per-year uppflyttning scratch — discarded on any migration/rebuild.
+_UPPFLYTTNING_TABLES = ("uppflyttning_entry", "cohort_target")
+
+# Meaningful data preserved across a rebuild: (model, carried columns).
+_MEANINGFUL = {
+    "email_template": (EmailTemplate, ["template_key", "subject", "body", "updated_by"]),
+    "finding_ack": (FindingAck, ["member_no", "finding_type", "value_hash", "acknowledged_by"]),
+    "message_log": (MessageLog, ["member_no", "message_type"]),
+}
 
 
 class IncompatibleSchema(RuntimeError):
@@ -36,13 +53,14 @@ class BootstrapResult:
 
     action: str  # initialised | upgraded | adopted | rebuilt
     detail: str
-    templates_preserved: int = 0
+    preserved: dict[str, int] = field(default_factory=dict)
 
     def render(self) -> str:
         """One-line summary for logs."""
         line = f"db-bootstrap: {self.action} — {self.detail}"
-        if self.templates_preserved:
-            line += f" (preserved {self.templates_preserved} template(s))"
+        if self.preserved:
+            kept = ", ".join(f"{name}×{n}" for name, n in self.preserved.items())
+            line += f" (kept {kept})"
         return line
 
 
@@ -52,8 +70,17 @@ def _alembic_cfg(database_url: str) -> Config:
     return cfg
 
 
-def _assert_compatible(insp: object) -> None:
+def _revision(engine: Engine) -> str | None:
+    if "alembic_version" not in inspect(engine).get_table_names():
+        return None
+    with engine.connect() as conn:
+        row = conn.execute(text("SELECT version_num FROM alembic_version")).first()
+    return row[0] if row else None
+
+
+def _assert_compatible(engine: Engine) -> None:
     """Every model table must exist with at least its model columns."""
+    insp = inspect(engine)
     existing = set(insp.get_table_names())
     for table in Base.metadata.tables.values():
         if table.name not in existing:
@@ -64,35 +91,49 @@ def _assert_compatible(insp: object) -> None:
             raise IncompatibleSchema(f"table {table.name!r} missing columns {sorted(missing)}")
 
 
-def _dump_templates(engine: object) -> list[dict]:
-    if "email_template" not in inspect(engine).get_table_names():
-        return []
-    with engine.connect() as conn:
-        rows = conn.execute(
-            text("SELECT template_key, subject, body, updated_by FROM email_template")
-        ).mappings()
-        return [dict(r) for r in rows]
+def _clear_uppflyttning(engine: Engine) -> None:
+    existing = set(inspect(engine).get_table_names())
+    with engine.begin() as conn:
+        for table in _UPPFLYTTNING_TABLES:
+            if table in existing:
+                conn.execute(text(f"DELETE FROM {table}"))  # noqa: S608 - fixed table names
 
 
-def _drop_everything(engine: object) -> None:
+def _dump_meaningful(engine: Engine) -> dict[str, tuple[type, list[dict]]]:
+    insp = inspect(engine)
+    existing = set(insp.get_table_names())
+    dumped: dict[str, tuple[type, list[dict]]] = {}
+    for table, (model, cols) in _MEANINGFUL.items():
+        if table not in existing:
+            continue
+        have = {c["name"] for c in insp.get_columns(table)}
+        usable = [c for c in cols if c in have]
+        if not usable:
+            continue
+        with engine.connect() as conn:
+            rows = conn.execute(text(f"SELECT {', '.join(usable)} FROM {table}")).mappings()  # noqa: S608
+            dumped[table] = (model, [dict(r) for r in rows])
+    return dumped
+
+
+def _restore_meaningful(
+    engine: Engine, dumped: dict[str, tuple[type, list[dict]]]
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    factory = make_sessionmaker(engine)
+    with get_session(factory) as s:
+        for table, (model, rows) in dumped.items():
+            for r in rows:
+                s.add(model(**r))
+            counts[table] = len(rows)
+    return counts
+
+
+def _drop_everything(engine: Engine) -> None:
     """Drop all tables, including any superfluous ones not in our metadata."""
     md = MetaData()
     md.reflect(bind=engine)
     md.drop_all(bind=engine)
-
-
-def _restore_templates(engine: object, templates: list[dict]) -> None:
-    factory = make_sessionmaker(engine)
-    with get_session(factory) as s:
-        for t in templates:
-            s.add(
-                EmailTemplate(
-                    template_key=t["template_key"],
-                    subject=t["subject"],
-                    body=t["body"],
-                    updated_by=t.get("updated_by"),
-                )
-            )
 
 
 def bootstrap(database_url: str) -> BootstrapResult:
@@ -106,23 +147,28 @@ def bootstrap(database_url: str) -> BootstrapResult:
         return BootstrapResult("initialised", "fresh database, migrations applied")
 
     if "alembic_version" in tables:
+        before = _revision(engine)
         command.upgrade(cfg, "head")
-        return BootstrapResult("upgraded", "migration-managed database brought to head")
+        after = _revision(engine)
+        if before != after:
+            _clear_uppflyttning(engine)
+            return BootstrapResult("upgraded", f"migrated {before}->{after}; uppflyttning cleared")
+        return BootstrapResult("upgraded", "already at head; nothing to migrate")
 
     # Unmanaged existing database. Adopt it if the schema matches the model.
     try:
-        _assert_compatible(inspect(engine))
+        _assert_compatible(engine)
         command.stamp(cfg, "head")
         command.upgrade(cfg, "head")
     except IncompatibleSchema as e:
-        templates = _dump_templates(engine)
+        preserved_data = _dump_meaningful(engine)
         _drop_everything(engine)
         command.upgrade(cfg, "head")
-        _restore_templates(engine, templates)
+        counts = _restore_meaningful(engine, preserved_data)
         return BootstrapResult(
             "rebuilt",
-            f"incompatible ({e}); superfluous data removed",
-            templates_preserved=len(templates),
+            f"incompatible ({e}); uppflyttning discarded, meaningful data kept",
+            preserved=counts,
         )
     else:
         return BootstrapResult("adopted", "existing compatible database kept in place")
