@@ -416,7 +416,7 @@ async function renderUppflyttning(root) {
     el("div", { style: "margin-top:.4rem" }, saveBtn),
   ];
   if (saved) {
-    const clearBtn = el("button", {}, "Rensa sparat urval");
+    const clearBtn = el("button", { class: "secondary" }, "Rensa sparat urval");
     clearBtn.onclick = () => { clearSavedGroup(); refresh(); };
     saveCardChildren[1].append(" ", clearBtn);
   }

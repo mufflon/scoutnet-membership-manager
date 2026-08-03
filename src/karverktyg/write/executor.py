@@ -271,7 +271,6 @@ class WriteExecutor:
         the leader drift rule (§17) — false for a deliberate single-member move.
         """
         now = now or datetime.now(UTC)
-        self._check_allowlist(moves)
         memberlist = self._client.memberlist("active", fresh=True)
         preflight = drift_check(moves, memberlist, exclude_leaders=exclude_leaders)
         actionable = [p for p in preflight if p.category is Category.WILL_APPLY]
@@ -280,6 +279,9 @@ class WriteExecutor:
             chunks = self._plan_chunks(actionable)
             return RunResult(RunMode.DRY_RUN, None, preflight, chunks, run_state="dry_run")
 
+        # A real write: the allowlist bounds the blast radius (§8), enforced here
+        # only — never on the dry-run, so the plan can always be previewed.
+        self._check_allowlist(moves)
         run_id = run_id or str(uuid.uuid4())
         snapshot = write_snapshot(
             self._client, self._settings, self._sm, run_id=run_id, memberlist=memberlist, now=now

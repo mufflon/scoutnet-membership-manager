@@ -165,6 +165,16 @@ def test_execute_refused_for_off_allowlist_member(tmp_path):
     assert c.post("/api/uppflyttning/run", json={"mode": "execute"}).status_code == 400
 
 
+def test_dry_run_previews_regardless_of_allowlist(tmp_path):
+    # A dry-run writes nothing, so it must preview the plan even when nobody is on
+    # the allowlist; only the execute is gated (§8).
+    app, _ = _rw_app(tmp_path, allowlist=("9999",))
+    c = app.test_client()
+    dry = c.post("/api/uppflyttning/run", json={"mode": "dry_run"})
+    assert dry.status_code == 200 and "preflight" in dry.get_json()
+    assert c.post("/api/uppflyttning/run", json={"mode": "execute"}).status_code == 400
+
+
 def test_unknown_run_is_404(tmp_path):
     app, _ = _rw_app(tmp_path)
     c = app.test_client()

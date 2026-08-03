@@ -180,13 +180,15 @@ def api_uppflyttning_run() -> ResponseReturnValue:
     if not moves:
         return jsonify(error="no members are ready to move"), _HTTP_BAD_REQUEST
 
-    assert_allowlist(_settings(), moves)  # clean 400 on violation (errorhandler)
     executor = _executor()
 
     if not execute:
+        # A dry-run writes nothing, so it is not allowlist-gated — the operator can
+        # always preview the full plan. The allowlist gates the execute below (§8).
         result = executor.run(moves, kind="uppflyttning", cohort_year=ms.cohort_year)
         return jsonify(_ser_result(result))
 
+    assert_allowlist(_settings(), moves)  # clean 400 on violation (errorhandler)
     return _launch("uppflyttning", ms.cohort_year, moves, executor)
 
 

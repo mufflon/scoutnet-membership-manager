@@ -60,6 +60,7 @@ th { color: var(--muted); font-weight: 600; font-size: .82rem; }
 .chk-disabled { color: var(--muted); }
 .card.ok-frame { border-color: var(--ok); }
 button.action { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: .5rem .9rem; cursor: pointer; }
+button.secondary { background: #6b7280; color: #fff; border: 0; border-radius: 8px; padding: .5rem .9rem; cursor: pointer; }
 button.danger { background: var(--sec); color: #fff; border: 0; border-radius: 8px; padding: .5rem .9rem; cursor: pointer; }
 button:disabled { opacity: .5; cursor: not-allowed; }
 .card.danger { border-color: var(--sec); }
