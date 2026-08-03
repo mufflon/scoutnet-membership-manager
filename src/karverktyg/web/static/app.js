@@ -1170,7 +1170,12 @@ async function checkApiHealth() {
     } else {
       banner.hidden = true;
     }
-  } catch {
+  } catch (e) {
+    if (e.name === "AbortError") {
+      banner.hidden = true; // just switched blade — not a real failure
+      return;
+    }
+    // A genuine failure/timeout while on a page — worth surfacing.
     banner.textContent = "⚠ Kunde inte kontrollera API-status — klicka för detaljer.";
     banner.hidden = false;
   }

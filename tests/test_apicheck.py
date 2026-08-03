@@ -39,7 +39,8 @@ def test_api_check_lists_write_key_but_never_tests_it():
     r = api_check(s, _Stub(members=[1]))
     write = next(c for c in r["checks"] if c["endpoint"] == "organisation/update/membership")
     assert write["status"] == "untested" and write["configured"] is True
-    assert write["key_hash"] and "aldrig" in write["detail"]  # "testas aldrig automatiskt"
+    assert write["key_hash"] and "Verifiera skrivning" in write["detail"]  # helpful guidance
+    assert "regel" not in write["detail"].lower()  # no design-doc rule references in the UI
     assert r["all_ok"] is True
 
 

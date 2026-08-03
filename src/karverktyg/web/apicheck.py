@@ -96,8 +96,8 @@ def api_check(settings: Settings, client: FixtureClient | ReadOnlyClient) -> dic
         write_row.update(
             configured=True,
             status="untested",
-            detail="nyckel konfigurerad – skrivningar testas aldrig automatiskt "
-            "(kräver en riktig skrivning; regel 6). Verifiera manuellt via Verifiera skrivning.",
+            detail="nyckel konfigurerad – skrivningar testas aldrig automatiskt. "
+            "Verifiera manuellt via fliken Verifiera skrivning.",
         )
     checks.append(write_row)
 
