@@ -8,6 +8,7 @@ const TABS = [
   ["uppflyttning", "Uppflyttning", renderUppflyttning],
   ["findings", "Anmärkningar", renderFindings],
   ["templates", "Mallar", renderTemplates],
+  ["apicheck", "API-koll", renderApiCheck],
   ["capabilities", "Funktioner", renderCapabilities],
 ];
 
@@ -411,6 +412,79 @@ async function renderFindings(root) {
   );
 }
 
+const CHK_SV = { ok: "OK", fail: "FEL", disabled: "Avstängd", fixture: "Fixtur" };
+
+async function renderApiCheck(root) {
+  const d = await api("api-check");
+  const anyFail = d.checks.some((c) => c.status === "fail");
+
+  // Overall status box — green when healthy, green-but-clearly-labelled in
+  // fixture mode, red when any real key failed.
+  if (d.fixture) {
+    root.append(
+      el(
+        "div",
+        { class: "banner banner-fixture" },
+        el("div", {}, el("strong", {}, "ℹ FIXTURE-LÄGE — exempeldata")),
+        el(
+          "div",
+          { class: "banner-sub" },
+          "Inga anrop görs mot Scoutnet. All data kommer från committade exempelfiler. " +
+            "Kontrollerna nedan är gröna för att visa att verktyget fungerar – inte att några riktiga nycklar testats.",
+        ),
+      ),
+    );
+  } else if (anyFail) {
+    root.append(
+      el(
+        "div",
+        { class: "banner banner-fail" },
+        el("div", {}, el("strong", {}, "⚠ Ett eller flera API-anrop misslyckades")),
+        el(
+          "div",
+          { class: "banner-sub" },
+          "En nyckel kan vara felaktig, satt för fel endpoint, eller så stämmer inte entity-id:t. Se detaljer per endpoint nedan.",
+        ),
+      ),
+    );
+  } else {
+    root.append(
+      el(
+        "div",
+        { class: "banner banner-ok" },
+        el("div", {}, el("strong", {}, "✓ Alla aktiva API-nycklar svarar")),
+        el("div", { class: "banner-sub" }, "Läge: " + esc(d.mode) + ". Varje nyckel testades med en riktig läsning."),
+      ),
+    );
+  }
+
+  // A prominent info box per failing key (this is what tells any user something is wrong).
+  for (const c of d.checks.filter((x) => x.status === "fail")) {
+    root.append(
+      el(
+        "div",
+        { class: "card infobox-fail" },
+        el("strong", {}, "Fel: " + esc(c.endpoint) + " (" + esc(c.key_env) + ")"),
+        el("div", { class: "muted" }, "Nyckeln är satt men anropet misslyckades:"),
+        el("pre", { html: esc(c.detail) }),
+      ),
+    );
+  }
+
+  const pill = (c) => el("span", { class: "chk chk-" + c.status }, CHK_SV[c.status] || c.status);
+  root.append(
+    el(
+      "div",
+      { class: "card" + (anyFail ? "" : " ok-frame") },
+      el("strong", {}, "Endpoint-kontroller"),
+      table(
+        ["Endpoint", "Nyckel (env)", "Status", "Svar / detalj", "Fingeravtryck"],
+        d.checks.map((c) => [c.endpoint, c.key_env, pill(c), c.detail, c.key_hash || "–"]),
+      ),
+    ),
+  );
+}
+
 async function renderCapabilities(root) {
   const d = await api("capabilities");
   root.append(
@@ -461,7 +535,29 @@ async function boot() {
   } catch {
     /* capabilities optional for boot */
   }
+  const banner = $("#api-banner");
+  banner.onclick = () => show("apicheck"); // clickable → the blade with details
   show((location.hash || "#overview").slice(1));
+  checkApiHealth(); // non-blocking; surfaces a site-wide banner if a key is broken
+}
+
+// Probe API health for the global banner. Fixture mode is fine (no banner); a
+// real failure shows a red, clickable banner on every blade.
+async function checkApiHealth() {
+  const banner = $("#api-banner");
+  try {
+    const d = await api("api-check");
+    const failed = d.checks.filter((c) => c.status === "fail").map((c) => c.endpoint);
+    if (!d.fixture && failed.length) {
+      banner.textContent = "⚠ API-fel: " + failed.join(", ") + " svarar inte — klicka för detaljer.";
+      banner.hidden = false;
+    } else {
+      banner.hidden = true;
+    }
+  } catch {
+    banner.textContent = "⚠ Kunde inte kontrollera API-status — klicka för detaljer.";
+    banner.hidden = false;
+  }
 }
 
 boot();

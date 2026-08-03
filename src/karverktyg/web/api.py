@@ -32,6 +32,7 @@ from karverktyg.uppflyttning import (
 from karverktyg.uppflyttning.cohort import CohortYearConflict, resolve_cohort_year
 from karverktyg.uppflyttning.models import MoveEntry
 from karverktyg.views import dues_by_avdelning, overview
+from karverktyg.web.apicheck import api_check
 from karverktyg.web.capabilities import capabilities
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -360,3 +361,9 @@ def api_template_update(key: str) -> ResponseReturnValue:
 def api_capabilities() -> ResponseReturnValue:
     """What this deployment can do (§12)."""
     return jsonify(capabilities(_settings(), _config()))
+
+
+@api_bp.get("/api-check")
+def api_api_check() -> ResponseReturnValue:
+    """Probe each Scoutnet endpoint key with a real read (§12)."""
+    return jsonify(api_check(_settings(), current_app.config["SCOUTNET"]))

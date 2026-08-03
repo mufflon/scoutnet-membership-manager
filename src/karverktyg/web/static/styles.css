@@ -40,6 +40,19 @@ th { color: var(--muted); font-weight: 600; font-size: .82rem; }
 .status-pending_target, .status-off_cohort, .status-excluded { color: var(--warn); }
 .table-wrap { overflow-x: auto; }
 .rw-banner { background: var(--sec); color: #fff; text-align: center; padding: .5rem; font-weight: 600; }
+.api-banner { background: var(--sec); color: #fff; text-align: center; padding: .5rem; font-weight: 600; cursor: pointer; }
+.api-banner:hover { filter: brightness(1.08); }
+.banner { border: 1px solid; border-radius: 10px; padding: .8rem 1rem; margin-bottom: 1rem; }
+.banner strong { font-size: 1.05rem; }
+.banner-sub { margin-top: .3rem; }
+.banner-ok, .banner-fixture { background: rgba(47, 125, 79, 0.12); border-color: var(--ok); color: var(--ok); }
+.banner-fail { background: rgba(179, 38, 30, 0.10); border-color: var(--sec); color: var(--sec); }
+.card.infobox-fail { border-color: var(--sec); }
+.chk { display: inline-block; padding: .05rem .55rem; border-radius: 999px; font-size: .78rem; font-weight: 600; border: 1px solid var(--line); }
+.chk-ok, .chk-fixture { color: #fff; background: var(--ok); border-color: var(--ok); }
+.chk-fail { color: #fff; background: var(--sec); border-color: var(--sec); }
+.chk-disabled { color: var(--muted); }
+.card.ok-frame { border-color: var(--ok); }
 button.action { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: .5rem .9rem; cursor: pointer; }
 button.danger { background: var(--sec); color: #fff; border: 0; border-radius: 8px; padding: .5rem .9rem; cursor: pointer; }
 button:disabled { opacity: .5; cursor: not-allowed; }
