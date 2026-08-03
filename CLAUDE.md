@@ -1,8 +1,109 @@
-# Scoutnet kårverktyg — repo instructions
+# Scoutnet kårverktyg — project specification
 
-Standing instructions for any agent working in this repo. Read this before
-touching anything. If a request conflicts with **Hard rules**, stop and ask
-rather than proceeding.
+Standing instructions and reference for anyone, human or agent, working on this
+repo. **Read the preamble before §1.** If a request conflicts with §6 *Hard
+rules*, stop and ask rather than proceeding.
+
+This document is the merge of the former `CLAUDE.md` and `HANDOVER.md`. The
+Phase 0/1/2 scaffolding has been removed — those phases are complete and were
+only meaningful during initial development. Forward-looking work lives in §7
+*Roadmap*.
+
+---
+
+## Authority order
+
+1. **The running code and the live Scoutnet API.** Observed behaviour beats
+   written intent, always.
+2. **This document.** Binding on anything not yet built.
+3. Anything else.
+
+If the code and this document disagree, the code is the fact. Say so, and fix
+whichever is wrong on purpose rather than silently following one.
+
+**Known failure mode.** During one revision cycle three write-safety decisions
+were silently reverted, because the editing session worked from a stale copy.
+When revising this file, diff against the current version rather than
+re-authoring sections from memory, and treat a disappearing safety constraint as
+a merge error rather than a judgement call.
+
+## Current state (2026-08-03)
+
+Built, tested and deployed on local k3s. `uv run pytest` passes offline
+(130 tests); ruff clean.
+
+**Read-only surface — complete.** Nine blades: Översikt, Medlemsavgifter,
+Uppflyttning, Väntelista, Anmärkningar, Mallar, API-koll, Funktioner, plus the
+Excel changelist export and post-hoc reconciliation.
+
+**Uppflyttning write path — complete.** `read_write` mode gate, serial
+one-member-at-a-time executor (dry-run default, pre-flight drift check, journal,
+resume), pre-run snapshots, reconciliation, and undo — plus the *Utför
+uppflyttning* and *Verifiera skrivning* blades and a `verify-write` CLI.
+Exercised end to end against a schema-derived mock, and single-member against
+live Scoutnet.
+
+**`troop_id` is verified (2026-08-03).** `unit.raw_value` is the id
+`POST /organisation/update/membership` accepts — confirmed by moving one member
+Ledare (`10172`) → Hajarna (`10155`) through the tool and undoing it, each step
+checked by hand in the Scoutnet UI. This was the last assumption that could
+block a real bulk run.
+
+**Not built:** the applicant-approval write workflow, auto-send email, the
+förtroendeuppdrag blade (§18), the Översikt blade (§20), and the unpaid-dues
+export (§19). See §7.
+
+## Open actions
+
+**Key handling.**
+
+- [ ] **Keys must not be readable by a coding agent.** `.gitignore` protects git;
+      it does nothing about an agent with filesystem access to the deployment
+      config. Move the config outside the repo tree, or create the Kubernetes
+      Secret out of band so no plaintext key file exists at all. Hard rule 7 is a
+      policy; this is the structural version of it.
+
+**Resilience — before any extended absence.**
+
+- [ ] **Get the work off one machine.** Everything lives on a local `phase-2`
+      branch with no remote configured and nothing pushed. Merge to `main`,
+      configure a private remote, push. Until then the bus factor and the disk
+      factor are both one, and neither of the other two leaders can run
+      anything.
+
+**Discovery — cheap, and one may unlock a feature.**
+
+- [ ] **Probe the three undocumented endpoints**, one read each, own key each:
+      `/organisation/project`, `/group/customlists`, `/group/resources`. None
+      appears in the OpenAPI document, so the drift-check cannot see them.
+      Capture discipline applies: raw response to a gitignored directory, key
+      names and counts only in anything shared. `/organisation/project` may
+      invalidate the attendance conclusion in §5.
+- [ ] **Characterise the `awaiting_approval` read timeout** — intermittent,
+      size-related, or permanent? This gates the applicant workflow (§7).
+
+**Seasonal.**
+
+- [ ] **Re-capture after Höst 2026 is invoiced.** Payment logic is validated
+      against Vår 2026 only; `current_term_due_date` and `kid` parsing is
+      unexercised and new payment-status codes are likely to appear. Until then
+      an unrecognised code must land in the review bucket, never in settled or
+      outstanding.
+
+## Deployment and version control
+
+Local k3s, namespace `karverktyg`, built by `scripts/k8s-up.sh` from a config
+file of API keys. Mode and the write allowlist are deployment config only, never
+entered in the UI (hard rule 7). During write testing the allowlist is bounded to
+a single record and the snapshot volume is PVC-backed.
+
+All write work is on the local branch `phase-2`, branched from the read-only tip
+that `main` points at. Nothing is pushed; there is no remote. See *Open actions*.
+
+## Reference documents
+
+- `docs/runbook.md` — how to run, resume, undo and restore. Written for whichever
+  leader has to do it if the author is unavailable. This is annual software.
 
 ---
 
@@ -34,7 +135,7 @@ code and never invent a synonym:
 | kår | `group` | The whole local organisation |
 | avdelning | `troop` — `unit`, `unit_type`, `troop_id` | The section a scout belongs to |
 | patrull | `patrol` — `patrol_id` | |
-| gren | *(not exposed)* | Scoutnet does not publish which gren an avdelning belongs to |
+| åldersgrupp (colloquially *gren*) | `unit_type` | Spårare, Upptäckare, Äventyrare, Utmanare, Rover, Annat. Scoutnet's own term is åldersgrupp; it does not expose a separate gren field, but `unit_type` is the same concept |
 | arrangemang | `project` | Also how Scoutnet models meeting attendance |
 | termin | `term` — `term_id`, `term_label` | Use Scoutnet's own term values |
 | medlemsnummer | `member_no` | The stable unique identifier. Key everything on this |
@@ -118,7 +219,7 @@ superset of it:
 |---|---|---|
 | `GET /group/memberlist` | yes | in use |
 | `GET /organisation/group` | yes | in use |
-| `POST /organisation/update/membership` | yes | **available** — Phase 2 write path |
+| `POST /organisation/update/membership` | yes | **in use** — the write path |
 | `POST /organisation/register/member` | yes | available, not used |
 | `GET /group/resources` | **no** | undocumented, unexplored |
 | `GET /group/customlists` | **no** | undocumented, unexplored |
@@ -132,8 +233,8 @@ documents — `/project/get/participants`, `/project/get/groups`,
 Two consequences.
 
 **The write endpoints are confirmed available.** The open question of whether
-this kår is even offered `update/membership` is closed. Phase 2 is not blocked on
-credentials.
+this kår is even offered `update/membership` is closed, and the endpoint is in
+production use.
 
 **The vendored spec is incomplete, and the drift-check cannot detect that.**
 Three live endpoints appear nowhere in the OpenAPI document, so upstream being
@@ -143,8 +244,7 @@ source of truth for what exists. Re-read it when anything surprising happens.
 ### The three undocumented endpoints
 
 Unexplored as of 2026-08-03. Each needs its own key. **Probe all three with a
-single read before scoping any further work**, following the Phase 0 capture
-discipline: raw response to a gitignored directory, key names and counts only in
+single read before scoping any further work**, following the capture discipline: raw response to a gitignored directory, key names and counts only in
 anything committed or reported.
 
 - **`/organisation/project`** — the important one. §5 concludes attendance is
@@ -292,9 +392,11 @@ Coverage is uneven between mum and dad fields. That is data-quality territory
 
 Observed only as `Aktiv`, `raw_value` `"2"`. Note the **vocabulary mismatch**:
 the write endpoint expects the strings `confirmed|waiting|cancelled`, while the
-memberlist returns numeric codes. The mapping is on the Phase 2 critical path
-and is currently only one-third known — the `waiting` and `awaiting_approval`
-captures are needed to complete it.
+memberlist returns numeric codes. Only `{"2": "confirmed"}` is known, which is
+sufficient for uppflyttning (every mover is active) but **not** for approving an
+applicant, whose current status is by definition not active. Completing the map
+requires the `waiting` and `awaiting_approval` captures. An unmapped status must
+raise, never default to `confirmed`.
 
 #### extra_info_* — do not read
 
@@ -345,7 +447,7 @@ How the read client calls the API, learned from live use (§6 modes still apply)
   reliably read-times-out for this kår while `waiting` returns quickly). A
   variant that errors or times out must degrade to an inline "unavailable"
   notice and load **independently** — it must never block or 500 the whole blade.
-- **Consequence for Phase 2.** The applicant approval workflow reads *from*
+- **Consequence for Phase B (§7).** The applicant approval workflow reads *from*
   `awaiting_approval`, so on current evidence it cannot be built on a variant
   that reliably times out. Establish whether the timeout is intermittent, a
   payload-size problem, or permanent **before** scoping that slice. Uppflyttning
@@ -454,108 +556,105 @@ A test asserts that write methods are absent in `fixture` and `read_only`.
    Member numbers are Scoutnet-wide, so an invented one probably belongs to a
    real person in some kår — possibly one who later joins Finn. Malform the
    payload's *shape* instead, and only against the mock.
-7. **Keys are never pasted anywhere outside the deployment.** Not into chats,
-   AI tools, issues, tickets, screenshots or logs. If a key is exposed anywhere
-   at all, regenerate it in Scoutnet immediately — keys are permanent until
-   regenerated, so an exposed key stays live until someone acts. Record the
-   rotation and where the exposure occurred.
+7. **Keys are never pasted or read anywhere outside the deployment.** Not into
+   chats, AI sessions, issues, tickets, screenshots or logs. If a key is exposed
+   anywhere at all, regenerate it in Scoutnet — keys are permanent until
+   regenerated, so an exposed key stays live until someone acts.
 8. **Never rename a file to a dot-prefix to hide or soft-delete it.** Delete it.
 9. No new dependencies without stating why.
 
-## 7. Phasing
+## 7. Roadmap
 
-Strictly in order.
+Phases 0–2 are complete and have been removed from this document. What follows is
+the forward plan. Work one phase at a time; each ends somewhere useful on its own.
 
-### Phase 0 — spikes, before any application code
+Every phase inherits §6 *Hard rules* and, where it writes, §8 *Write execution*
+unchanged. New write features are **intent producers feeding the existing
+executor** — do not build a second execution path.
 
-Findings and two throwaway scripts. No implementation.
+### Phase A — Förtroendeuppdrag blade (next)
 
-- **Fixture capture.** One live memberlist call, raw JSON to a gitignored
-  directory, printing **only key names and counts, never values**. The operator
-  runs it. Then a scrubber producing a committable fixture. Everything
-  downstream develops against the fixture; the test suite never touches the
-  network.
+A listing of every kår-level assignment currently held. Read-only, no new key, no
+new endpoint, no capture: the data is already fetched and parsed. Full
+specification in §18.
 
-**Status: substantially complete as of 2026-08-02.** Findings are folded into
-§4, §5 and §11 above; the active-members capture, troop_id resolution and the
-arrangemang spike are all done and decided.
+Lowest-risk phase available, and a good one to take first because it classifies
+nothing — it is pure pass-through, so an unfamiliar role appears by itself rather
+than being silently dropped.
 
-Still outstanding. **Both are Phase 1 inputs, not Phase 2** — take them in one
-sitting near the start of Phase 1:
+### Phase B — Membership applicants and email configuration
 
-- **Capture the `waiting` and `awaiting_approval` variants.** They back the
-  read-only waiting-list and applicant views in Phase 1, and they are also the
-  only way to observe non-active `status.raw_value` codes, which the Phase 2
-  write mapping needs.
-- **Re-capture after Höst 2026 is invoiced.** Invoicing is at least a month
-  away, so **this cannot happen before the summer shift and must not block
-  anything.** Decouple it:
-  - The unpaid-dues feature works *today* against `prev_term` (Vår 2026),
-    which is invoiced and carries real statuses. Build and validate the
-    three-bucket logic against that.
-  - `current_term` is `not_invoiced` for everyone, so `current_term_due_date`
-    and `kid` parsing is unexercised and new payment codes are likely to appear
-    once invoices exist.
-  - Ship the payment views marked as validated against Vår 2026 only, and
-    revisit after invoicing. The uppflyttning path does not depend on payment
-    data at all, so nothing on the critical path waits for this.
+Two halves that belong together because the first is useless without the second.
 
-### Phase 1 — read-only
+**Applicant intake and approval.** The waiting list and awaiting-approval views
+exist read-only. This phase adds the workflow: welcome mail, invitation to try a
+few meetings, recording which avdelning they are trying, and finally accepting the
+membership request with an avdelning allocation. The accept step is a write,
+through the existing executor.
 
-Library, Flask API, frontend, Docker, Kubernetes scaffolding, all read-only
-views. No write code in the repo at this stage.
+**Email configuration and sending.** Currently drafts only. This phase adds real
+sending per §10 — Gmail API, service account with domain-wide delegation, send
+scope only, configurable sending mailbox — plus editable templates and the
+idempotency log.
 
-Phase 1 must end somewhere useful on its own, not merely at "we can see the
-problem but cannot act on it". Two deliverables make that true:
+**Prerequisite, hard.** The approval workflow reads the `awaiting_approval`
+variant, which reliably read-times-out for this kår. Characterise that timeout
+before scoping this phase (see *Open actions*). If it proves permanent, this phase
+needs a different data source — `/group/customlists` is the candidate worth
+testing, since its columns are chosen in the Scoutnet UI and the payload may be
+small enough to return.
 
-**Changelist export.** The computed uppflyttning master set, after review and
-per-member overrides, exported as an **Excel workbook** (openpyxl) for manual
-execution in the Scoutnet UI. This is a permanent first-class output, not a
-stopgap for the first year — once writes exist, "export the changelist" and
-"execute the changelist" are two buttons over the same reviewed set, never two
-code paths.
+Also note the status-vocabulary gap: only `{"2": "confirmed"}` is known. Approving
+an applicant means writing `confirmed` to a member whose current status is *not*
+active, so this phase must complete the mapping from real observed codes — never
+by guessing. An unmapped status must raise, not default.
 
-Design it for the person doing the data entry:
+### Phase C — Endpoint discovery, and possibly attendance
 
-- One sheet per target avdelning, ordered so the operator works through one
-  destination at a time without jumping around the UI. Swedish collation
-  within each sheet.
-- `member_no` in the first column — it is the search key in Scoutnet — with
-  name alongside for confirmation, then source and target avdelning.
-- A "done" column and freeze panes, because a hundred manual edits happens
-  across more than one sitting and the operator needs to record where they
-  stopped.
-- A cover sheet with generation timestamp, term, total counts per avdelning,
-  and the configuration version the set was computed from.
+Depends entirely on what the three undocumented endpoints turn out to be, so it
+cannot be scoped until they are read.
 
-**Post-hoc reconciliation.** After manual execution, re-fetch the memberlist
-and diff it against the changelist: how many applied, which members were not
-found, which ended up somewhere other than intended. Pure read, available
-immediately, and it catches exactly the transcription errors manual entry
-produces. The same reconciliation code is reused by Phase 2.
+If `/organisation/project` provides a group-scoped list of the kår's arrangemang,
+the attendance conclusion in §5 needs revisiting. Note that even then,
+`/project/get/participants` is **not** available to this kår, so reading who
+attended may remain blocked — and nothing anywhere creates arrangemang, so the
+Excel-to-Scoutnet activity import still has no destination.
 
-### Reports
+Treat this as a spike producing written options, not a build.
 
-All reports export to **PDF**, rendered from Jinja2 templates via WeasyPrint so
-the print output and the on-screen view share one source.
+### Standing operational work, not a phase
 
-- **A4**, never US Letter.
-- **One avdelning per page**, with a hard page break between them, so a subset
-  can be selected and printed later.
-- Page header carrying kår, avdelning, term and generation timestamp; page
-  numbers as "x of y".
-- Swedish collation for every name list.
-- Print stylesheet only — no separate report-rendering path to drift out of
-  sync with the screen.
+- **Key handling.** See *Open actions*.
+- **Get the repo onto a remote.** See *Open actions*.
+- **Spec drift check** — re-bundles upstream and diffs against the vendored copy.
+  Never auto-updates; adopting a new spec version is a reviewed change. Cannot
+  see the three undocumented endpoints.
+- **Read-only canary** — scheduled, weekly by default. Confirms the API still
+  answers and the response still parses. A stale success is itself a failure, so
+  the age of the last success is shown on the capabilities page.
+  **Extend it to report the distinct set of `raw_value` codes seen on
+  `current_term` and `prev_term`.** Invoicing for Höst 2026 lands roughly a month
+  out; new payment codes appearing while nobody is watching is exactly the change
+  a structural check misses.
 
-Excel export is offered alongside PDF wherever the content is genuinely
-tabular and someone might want to sort or filter it.
+### Deliberately out of scope
 
-### Phase 2 — writes
+- **Bulk moves out of an Utmanare avdelning — never build this.** Retiring an
+  Utmanare avdelning is not a bulk operation and must not be modelled as one. Where
+  each member goes is an individual judgement: some become Rover, some stay in
+  utmanarverksamhet past the nominal age, some move to Ledare, some leave. There is
+  no rule the tool could apply that would be right often enough to be safe, and a
+  "move everyone in X to Y" control invites exactly the wrong action. This is
+  deliberately human, case-by-case work in the Scoutnet UI. If someone proposes it
+  again, this paragraph is the answer.
+- Weekly attendance tracking via arrangemang (§5), pending Phase C
+- Creating arrangemang programmatically — no endpoint exists
+- Multi-kår tenancy. Branding and kår identity are already configuration, so a
+  second kår is a config exercise, not a code one. Nobody has asked.
+- Any personal data in Postgres, ever (§9)
 
-Only after Phase 1 runs and Phase 0's blockers are closed.
 
-## 8. Write execution (Phase 2)
+## 8. Write execution
 
 ### Chunked writes, and why we do not rely on atomicity
 
@@ -621,6 +720,19 @@ the group a member holds a leader-scoped role in) is recorded too, as a
 belt-and-suspenders audit record — the tool never moves leaders, but if anything
 goes awry we still know who led what. This supersedes an earlier design in which
 snapshots held the full memberlist including personnummer.
+
+**Be explicit about what this narrows.** The earlier full-memberlist snapshot was
+a general recovery artifact for the register; a placement snapshot is not. It
+protects against **this tool's** mistakes — the three fields the tool can write —
+and against nothing else. If the register is damaged by a hand edit, a Scoutnet
+fault, or anyone else's integration, the snapshot cannot help, because it never
+recorded the fields involved.
+
+That is the right trade: the alternative was holding personnummer for 371 people
+on a volume for thirty days in order to guard against damage this tool cannot
+cause and is not responsible for. But it is a **different guarantee** than the
+one originally specified, and both this document and the runbook must say so
+rather than leaving a reader to assume "snapshot" means "backup".
 
 - **A file, not the database, and deliberately so.** The snapshot is an
   out-of-band reference file so it survives a database migration or rebuild —
@@ -773,7 +885,7 @@ Two `MailSender` implementations: Gmail, and a recording fake used in
 development and tests. Nothing in the test suite can send real mail. Sending is
 idempotent — check the message log before, write to it after.
 
-**Drafts vs sending — Phase 1 is drafts.** The Phase 1 path generates email
+**Drafts vs sending — today it is drafts only.** The current path generates email
 *drafts* (recipients, subject, body) for the operator to copy into their own
 mail client. The tool sends nothing during the scout-year startup. The Gmail
 auto-send above is built but deferred to a later, separately-tested rollout; it
@@ -831,6 +943,10 @@ heuristics tuned against real data once the capture exists.
   the real case is a scout who also holds an assistant-leader role elsewhere,
   which is a role and therefore visible. Flag for review, never auto-move.
 - **Members with no avdelning at all.** Present in live data. Manual resolution.
+- **An avdelning with scouts but no recorded leader.** Either a real staffing gap
+  or a missing role assignment; both need a human. **Only fires when the avdelning
+  has at least one member** — a newly created, entirely empty avdelning is not a
+  finding, it is just new.
 - **A very young scout set as a leader** — anyone in a scout bracket (Äventyrare
   or younger) holding a leader-class role. Very young scouts should not be
   leaders, so this is surfaced as an error in the findings blade
@@ -997,7 +1113,7 @@ bundled.yaml
 .DS_Store
 ```
 
-## 16. Definition of done, per phase
+## 16. Definition of done
 
 - `uv run pytest` passes with no network access
 - ruff clean, lint and format
@@ -1014,12 +1130,12 @@ bundled.yaml
   unrecognised payment code routed to the review bucket rather than either
   pile, and `prev_term_due_date` retaining both dates when a reminder shifted it
 
-Additionally, before Phase 2 is considered complete, a **runbook** exists: how
-to obtain a key, how to run a bulk operation, what to do when one fails
-halfway, how to undo a run, and how to restore from a snapshot. Written for
-whichever of the other two leaders would have to run it if the author were
-unavailable — this is annual software and nobody will remember the details
-eleven months later.
+A **runbook** is maintained at `docs/runbook.md`: how to obtain a key, how to run
+a bulk operation, what to do when one fails halfway, how to undo a run, and how to
+restore from a snapshot. Written for whichever of the other two leaders would have
+to run it if the author were unavailable — this is annual software and nobody will
+remember the details eleven months later. **Any phase that adds a write path must
+update it.**
 
 ## 17. Age brackets and uppflyttning
 
@@ -1122,9 +1238,60 @@ Scoutnet's own age range for these avdelningar is a generic 15–18 and does not
 encode the cohort, which is why `cohort_year` lives in our config rather than
 being read from the API.
 
-The tool cannot create avdelningar. So the operator creates it in Scoutnet,
-records its `cohort_year`, and refreshes; until then the transition shows as
-pending with an explanation rather than silently producing an empty move set.
+The tool cannot create avdelningar. So the operator creates it in Scoutnet, then
+selects it here. Two ways to select, because a brand-new avdelning has no members
+and is therefore invisible to the memberlist (§20):
+
+1. **A dropdown** of every avdelning the tool knows — those discovered from
+   `unit.raw_value` plus any registered in config.
+2. **Direct entry of a `troop_id`**, for the case the dropdown cannot cover: an
+   avdelning created minutes ago with nobody in it.
+
+**Direct entry is an explicit, deliberate relaxation of §8's rule that `troop_id`
+may only come from the resolved name → id map.** It is allowed only here, only for
+this election, and only with these guards:
+
+- **The group id is rejected outright.** `1025` is the kår, not a troop, and sits
+  beside troop ids in `roles.value` where it is easy to confuse. Never accepted,
+  with a test asserting it.
+- **Shape check.** Observed troop ids are five digits; the group id is four.
+  Reject anything outside the expected range and say why.
+- **Show what the tool knows before accepting.** For an id absent from the map,
+  state that plainly — *"unknown avdelning, not in config, no members"* — and
+  require an explicit acknowledgement. Do not present an unknown id as if it were
+  verified.
+- **Do not write it to config.** The value matters for a few minutes once a year.
+  In deployment config it would sit stale, pointing at last year's avdelning, and
+  offer itself as a plausible default at the next election — a silent wrong-cohort
+  failure. Persist it as **run metadata keyed to the cohort year** instead, so the
+  record reads *this cohort went to that troop_id*, never *the target is that
+  troop_id*. This is the mirror of hard rule 7: put each value where its lifetime
+  says it belongs. A key lives as long as the deployment; a target avdelning lives
+  as long as one election.
+- **Never allow manual entry anywhere else** — not for the source avdelning, not
+  for per-member overrides. This is one hole, in one place, for one reason.
+
+Accept explicitly that this path is thinner than the map-derived one. Nothing
+validates a hand-typed id against prior data, so the only defences are the checks
+at entry plus the recovery path: the dry run displays the target id before anything
+is written, the operator can open that id in Scoutnet to confirm it is the
+avdelning they meant, and reconciliation plus undo cover a mistake afterwards.
+Until a target is selected the transition shows as pending with an explanation,
+rather than silently producing an empty move set.
+
+**This option exists only because there is no API route to an empty avdelning.**
+The endpoints available to this kår expose troop ids only through members, so an
+avdelning with nobody in it cannot be discovered
+(`/organisation/group` returns `active_troops` as a bare count; `/group/resources`
+is the facilities directory; `/project/get/groups`, which does carry troop objects,
+is not available to us).
+
+**If that ever changes — a new endpoint, an endpoint enabled for this kår, or a
+troop id appearing in the memberlist for member-less avdelningar — remove manual
+entry and read the avdelning from Scoutnet instead.** It is a workaround kept for
+want of an alternative, not a feature to preserve. The spec-drift check (§7) is the
+mechanism most likely to notice, so treat any new group-scoped endpoint touching
+avdelning structure as a prompt to revisit this section.
 
 **The target is elected once, for the whole cohort.** The operator creates the
 new Utmanare avdelning in Scoutnet and elects it as the target; that election
@@ -1170,9 +1337,9 @@ recruited directly into them.
 
 So `cohort_year` may be used to **describe, order and project**: label an
 avdelning in the UI, sort the three by age, feed the next-year membership
-projection, and identify which avdelning is oldest and therefore closest to
-decommissioning. It must **never** be used to generate a finding or to move
-anyone after the avdelning is formed. A member whose birth year differs from
+projection, and order the three by age. It must **never** be used to generate a
+finding, to move anyone after the avdelning is formed, or to suggest that an
+avdelning should be retired. A member whose birth year differs from
 their avdelning's cohort is expected, not an anomaly.
 
 **4. `never_auto` — Utmanare and Rover**
@@ -1180,14 +1347,14 @@ their avdelning's cohort is expected, not an anomaly.
 No age-based moves, ever. An Utmanare sitting in an avdelning whose founding
 cohort does not match their birth year is **not** a finding — do not interfere.
 
-Utmanare only move when an avdelning is **decommissioned**, which is entirely
-operator-initiated. Because the core is one specific year, the tool can *show*
-which avdelning is oldest and therefore nearest retirement — but showing is the
-limit. It never proposes a decommissioning and never initiates one. The operator
-says "move everyone in avdelning X to Y" and the tool executes it as a normal
-run: dry-run, snapshot, chunked, reconciled, undoable. Typical targets are
-Ledare, since the members are 18+, or a Rover avdelning; the operator chooses,
-there is no default.
+**The tool never moves an Utmanare, for any reason.** When an avdelning is
+eventually retired, its members disperse individually — some to Rover, some
+continuing with utmanarverksamhet past the nominal age, some to Ledare, some
+leaving. That is a human decision per person, taken in the Scoutnet UI. No bulk
+move-out control exists and none is to be built (§7, *Deliberately out of scope*).
+
+The tool may still *show* which avdelning is oldest, as ordering information. It
+draws no conclusion from it.
 
 ### Utmanare and Rover are age-exempt
 
@@ -1233,8 +1400,8 @@ automatic move set**. Never moved two brackets automatically.
 
 These require manual intervention. List them prominently, and require the
 operator to explicitly acknowledge the list before proceeding, so they cannot be
-scrolled past. In Phase 2 that gate sits before a run can be confirmed; **in
-Phase 1, where there is no run, it gates the changelist export** — and the
+scrolled past. The gate sits before a run can be confirmed, and equally **before
+the changelist export** when the manual route is used — and the
 acknowledgement, with its timestamp and the count acknowledged, is stamped on
 the workbook's cover sheet. Excludes Utmanare and Rover per above.
 
@@ -1268,3 +1435,435 @@ from N**, not hardcoded as literal years in config. The table above is
 illustrative for N = 2026; the config expresses ages, and the engine resolves
 birth years. Adding a new Utmanare avdelning each year is the operator's job,
 and the app should say so at the point the transition needs it.
+
+## 18. Förtroendeuppdrag (Phase A specification)
+
+Lists every kår-level assignment currently held, from the **`group` scope** of
+`roles.value`. Only Finn roles are in scope: district and national assignments do
+not appear in the memberlist and are explicitly not covered.
+
+`troop`-scoped entries are avdelning leadership and belong to the uppflyttning and
+findings logic, not here. `patrol`-scoped entries are youth roles (§4) and are
+excluded entirely.
+
+Needs no new key, endpoint or capture.
+
+### Presentation
+
+One **solid flat list**, one row per assignment: role, person, member number. A
+person holding several assignments appears once per assignment — this is a register
+of posts, not of people.
+
+Ordering:
+
+1. **Styrelse first**, in constitutional order — ordförande, vice ordförande,
+   kassör, sekreterare, ledamöter, suppleanter.
+2. **All other engagements** after, grouped by role, roles in configured order,
+   any unconfigured role last.
+3. Within a role, people sorted by name using Swedish collation (§2).
+
+Ordering comes from a configured list of `role_key` values. **Ordering is config;
+membership of the list is not.** A `role_key` absent from the config is still
+displayed, sorted last, never dropped. This blade must be pure pass-through:
+unlike leader classification it matches on nothing, so an unfamiliar
+förtroendeuppdrag appears by itself rather than vanishing.
+
+Match, sort and configure on `role_key`. Never on `role_name`.
+
+Exports: Excel and A4 PDF, per §19's report conventions.
+
+### Role labels
+
+Display `role_name` as Scoutnet returns it. Do not translate, rename or reinterpret
+a role — Stugbokare shows as Stugbokare, whatever it is used for locally.
+
+A `role_key` → label override map may exist in config for the case where Scoutnet's
+own name is genuinely unhelpful, but it ships **empty** and nothing depends on it.
+Renaming a role in the tool but not in Scoutnet means two systems disagreeing about
+the same post, which costs more in confusion than it buys in clarity.
+
+Match, sort and configure on `role_key`; display `role_name`. Never the reverse.
+
+If a `role_key` is ever leader-class but used locally for something that is not
+leadership, it needs an explicit exclusion from the leader-classification rules —
+otherwise its holders are silently dropped from age-based moves.
+
+### Reconciliation
+
+`/organisation/group` returns `rolecount`. Compare it against the number of parsed
+assignments and display both. A mismatch means a scope is being missed or the parse
+is wrong — the same independent-total check that confirmed 369 + 2 = 371 for the
+memberlist.
+
+### Optional: vacancies
+
+If a list of expected förtroendeuppdrag is configured, posts that are expected but
+unfilled fall out for free, and are useful ahead of an årsmöte. Strictly opt-in:
+with no config, no vacancies are reported, and an unfilled post is never treated as
+an error.
+
+## 19. Exports and reports
+
+Restored section. The export and report conventions were lost when the phasing
+section was replaced; they were never withdrawn as decisions.
+
+### Report conventions
+
+All reports export to **PDF**, rendered from Jinja2 templates via WeasyPrint so
+the print output and the on-screen view share one source.
+
+- **A4**, never US Letter.
+- **One avdelning per page**, with a hard page break between them, so a subset can
+  be selected and printed later.
+- Page header carrying kår, avdelning, term and generation timestamp; page numbers
+  as "x of y".
+- Swedish collation for every name list.
+- Print stylesheet only — no separate report-rendering path to drift out of sync
+  with the screen.
+
+Excel is offered alongside PDF wherever the content is genuinely tabular and
+someone might want to sort or filter it.
+
+**All exports stream to the browser.** Never written to disk server-side, never
+cached, never stored in Postgres (§9). Once downloaded they are the operator's
+responsibility.
+
+### Changelist export (uppflyttning)
+
+The computed master set, after review and per-member overrides, exported as an
+**Excel workbook** for manual execution in the Scoutnet UI. A permanent
+first-class output, not a stopgap: "export the changelist" and "execute the
+changelist" are two buttons over the same reviewed set, never two code paths.
+
+Designed for the person doing the data entry:
+
+- One sheet per **target** avdelning, so the operator works through one destination
+  at a time without jumping around the UI. Swedish collation within each sheet.
+- `member_no` in the first column — it is the search key in Scoutnet — with name
+  alongside for confirmation, then source and target avdelning.
+- A "done" column and freeze panes: a hundred manual edits happens across more
+  than one sitting and the operator needs to record where they stopped.
+- A cover sheet with generation timestamp, term, per-avdelning totals, the
+  configuration version the set was computed from, and the off-cohort
+  acknowledgement (§17) with its timestamp and count.
+
+**Post-hoc reconciliation.** After manual execution, re-fetch the memberlist and
+diff it against the changelist: how many applied, which members were not found,
+which ended up somewhere other than intended. Pure read, and it catches exactly
+the transcription errors manual entry produces. The same reconciliation code
+serves the write executor (§8).
+
+### Översikt export
+
+The overview (§20) as an Excel workbook **and an A4 PDF**. Treat the PDF as a
+first-class output rather than an afterthought: this is the one artifact in the
+tool that is genuinely interesting to people beyond the person who generated it —
+board members, avdelningsledare, an årsmöte, a bidrag application — and it is
+aggregate-only, so it can be circulated without hesitation.
+
+**Exempt from §19's one-avdelning-per-page rule.** That rule exists for
+per-avdelning reports; the Översikt is a summary, and splitting it across fourteen
+pages would destroy the comparisons that make it useful. Aim for one or two pages:
+composition by åldersgrupp, the leader columns and ratio, the projection with
+recruitment targets, and the KPIs. Everything else from §19 still applies — A4,
+Swedish collation, page header with kår, term and generation timestamp, page
+numbers, and the same Jinja2/WeasyPrint template as the screen view.
+
+One sheet per table on the blade — composition by åldersgrupp, leaders, projection
+(including recruitment targets and pending requests), åldersgrupp transitions,
+KPIs — plus a cover sheet carrying kår, generation timestamp, the current term
+label, and **the cohort year the projection targets**. Without that last one a
+saved workbook is unreadable six months later.
+
+**Everything on the blade goes in the workbook**, including the per-avdelning
+leader count, the adult/youth leader split, the scouts-per-leader ratio, and the
+`-` placeholders where a figure is not applicable. Write `-` as a literal string:
+do not substitute 0, and do not leave the cell blank — a blank reads as missing
+data rather than as not applicable.
+
+**Configured avdelningar with no members appear as rows**, all-`-`, rather than
+being omitted (§20). An avdelning missing entirely from a board paper is worse
+than one showing dashes.
+
+Two rules that matter more in a spreadsheet than on screen:
+
+- **The derived / static / unknown labelling must survive the export** (§20). On
+  the blade the caveat sits next to the number; in Excel someone will copy a
+  column into a board paper. An unqualified projected Spårare figure is exactly how
+  a plan gets built on a number the tool never claimed to know. Carry the
+  qualifier as its own column, not as a footnote.
+- **Numbers as numbers**, not text, so they can be summed and charted by whoever
+  receives them.
+
+Unlike the other two exports this one is **aggregate only — no names, no contact
+details, no member numbers.** It is therefore the one export that can circulate
+freely: board papers, årsmöte handouts, a bidrag application. Say so on the cover
+sheet, because the habit built by the other exports is to treat every download as
+confidential.
+
+### Unpaid dues export (Medlemsavgifter)
+
+Everyone outstanding for **the current or the previous term**, as an Excel
+workbook — a chase list for avdelningsledare.
+
+Membership follows §4's three buckets exactly, and the distinction matters here
+more than anywhere else:
+
+- **Included:** anything in the outstanding bucket for either term.
+- **Excluded:** `not_invoiced`. No invoice exists, so there is nothing to chase.
+  Note that until Höst 2026 is invoiced, `current_term` is `not_invoiced` for
+  everyone and this export is driven entirely by `prev_term`.
+- **Excluded:** `paid`.
+- **Separate sheet, never mixed into the chase list:** any unrecognised payment
+  code. Chasing a family whose status the tool does not understand is worse than
+  not chasing them. Label the sheet as needing review.
+
+`paid_partial_credit` — paid an incorrect amount — is included but must be
+**visibly distinguished** from having paid nothing. The remedy differs: one is a
+correction, the other a reminder.
+
+Layout:
+
+- **One sheet per avdelning**, since avdelningsledare chase their own. Plus a
+  sheet for members with no avdelning (they exist), and one for Ledare — adults
+  owe dues too.
+- Cover sheet: generation timestamp, both term labels, per-avdelning outstanding
+  counts and totals.
+- Sorted by surname within each sheet, Swedish collation.
+
+Columns: `member_no`, name, avdelning, which term(s) are outstanding, the payment
+status per term (Swedish label plus the underlying code), due date — carrying
+**both** dates when `prev_term_due_date` records a reminder shift (§4) — and `kid`
+where present, since it is the payment reference a chase message needs.
+
+Contacts, per §10's dad/mum split: `contact_email_dad`, `contact_email_mum`,
+`contact_mobile_dad`, `contact_mobile_mum`, guardian names, and the member's own
+`contact_email` and `contact_mobile_phone`. Coverage is uneven; empty cells are
+expected and are themselves a data-quality signal (§11). For adult members the
+guardian columns will simply be empty — use their own contact details.
+
+**This is the most sensitive artifact the tool produces.** It combines guardians'
+contact details for minors with payment delinquency, and unlike other exports its
+whole purpose is to be forwarded to other leaders. State that on the cover sheet:
+what it contains, that it should not be circulated beyond those who need it, and
+that it goes stale — a paid family stays on a downloaded copy forever. Regenerate
+rather than reuse.
+
+## 20. Översikt (overview blade)
+
+Read-only, no new key or endpoint. Tables, not charts — see *Presentation* below.
+
+### Current composition
+
+Members per avdelning, **grouped by åldersgrupp** (`unit_type`), with a subtotal
+per group and a kår total. Order the groups by age: Spårare, Upptäckare,
+Äventyrare, Utmanare, Rover, then Annat/Ledare.
+
+**Empty avdelningar are invisible to the API, so config is the registry.** The
+avdelning list cannot come from the memberlist alone: it is derived from
+`unit.raw_value`, so an avdelning with no members appears nowhere in the response.
+This is not hypothetical — a newly created Utmanare avdelning starts with zero
+scouts and zero leaders.
+
+The avdelning config (which already holds weekday and `cohort_year`, §17) is
+therefore the **registry of avdelningar that exist**, and carries an optional
+`troop_id` for exactly this case. Obtain the id from the avdelning's URL in the
+Scoutnet admin UI; there is no API route to it while the avdelning is empty.
+Populating it means a brand-new avdelning can be listed, and **elected as the
+Äventyrare→Utmanare target**, without putting a placeholder member in it.
+
+Merge rules — the memberlist and the config each own different things:
+
+- **Membership counts always come from the memberlist.** Config never asserts a count.
+- **Existence comes from config.** A configured avdelning with no members appears
+  as a row with `-` in every derived column, never omitted.
+- **Discovered but not configured**: show it, and flag that it is missing from
+  config, since its weekday and `cohort_year` are then unknown. Never drop it.
+- **A name-to-`troop_id` disagreement between config and the memberlist is a
+  refusal, not a merge.** Say which two values conflict and stop, in the same
+  spirit as the cohort-year cross-check (§17). Silently preferring one would put
+  moves into the wrong avdelning.
+
+Reconcile against `/organisation/group`: `membercount`, `active_troops` and
+`waitingcount` give independent totals. Display both figures where they should
+agree, and say plainly when they do not — that mismatch is how the 369 + 2 = 371
+check was confirmed in the first place.
+
+### Leaders
+
+**Report two numbers, not one.** The populations differ and a single "leaders"
+figure would be ambiguous:
+
+- **Members of the Ledare avdelning** — adults on the roll.
+- **Holders of a leader-class role** — `troop`- or `group`-scoped, per §11's
+  classification, excluding `patrol` scope.
+
+At the 2026-08-02 capture those were 120 and 95. The gap is real, not an error:
+an adult can sit in Ledare with no recorded role, and a role-holder can sit in a
+scout avdelning. Label each number with its definition. For move-exclusion the
+union is used (§17); say so.
+
+Break the role-holder count down per avdelning, since that feeds the ratio KPI
+below.
+
+### Projection for the next scout year
+
+For each avdelning: **next-year count = current − outgoing cohort + incoming
+cohort**, applying §17's transition rules. Vikingarna, for example, loses its
+oldest Äventyrare year and gains the oldest year from all three Upptäckare
+avdelningar.
+
+Every åldersgrupp's movement is **derived** from §17's rules. Nothing here is a
+forecast:
+
+| Åldersgrupp | Outgoing | Incoming |
+|---|---|---|
+| Spårare | oldest cohort → Upptäckare, same weekday | new recruits — see below |
+| Upptäckare | oldest cohort → Vikingarna | oldest Spårare, same weekday |
+| Äventyrare | oldest cohort → new Utmanare avdelning | oldest Upptäckare, all three |
+| Utmanare | none by age (`never_auto`) | oldest Äventyrare, into the new avdelning |
+| Rover | none | none |
+| Ledare | none by age | none |
+
+**Spårare: state a recruitment target, do not predict an intake.** Spårare is the
+entry åldersgrupp, so its inflow is recruitment, and the tool has no business
+guessing at it. Instead express the outgoing count as what it actually implies —
+**"recruitment target for unchanged membership: N"** for the Spårare
+åldersgrupp as a whole, where N is the number leaving for Upptäckare.
+
+That is a derived fact, not a projection, and it is the number a kår can act on.
+Do not attempt a per-avdelning or per-weekday target — keep this simple and stable
+rather than variable.
+
+**Net the pending requests off the target, and show the whole derivation.**
+State it as one sentence with all three numbers visible:
+
+> *Spårare: 28 leave for Upptäckare, 12 requests are already pending — a
+> recruitment target of 16 for unchanged membership.*
+
+- **X** — members leaving Spårare for Upptäckare. Derived from §17.
+- **Y** — pending membership requests that would fall in Spårare, bucketed by
+  `date_of_birth` using §17's bracket rules. Reuse that logic; do not
+  reimplement the brackets.
+- **Z = X − Y** — the recruitment target.
+
+**Never show Z alone.** All three numbers appear together, so nobody treats the
+net figure as an oracle. Someone reading only "16" cannot tell whether that
+reflects a small cohort leaving or a healthy pipeline.
+
+Handling and honesty:
+
+- **Z can be zero or negative.** Say so in words — *"no recruitment needed;
+  pending requests exceed departures by 4"* — rather than printing a negative
+  number.
+- **Z assumes every pending request becomes a member.** They will not all
+  convert, so Z is a floor. State the assumption once; do not model attrition.
+- **A missing variant makes Z wrong in the optimistic direction.** Y comes from
+  `waiting` and `awaiting_approval` (§4), and `awaiting_approval` reliably
+  read-times-out for this kår. If a variant is unavailable, Y is understated and Z
+  is therefore **overstated** — the tool asks you to recruit more than you need.
+  Show the variant breakdown and mark Z as provisional whenever a source is
+  missing. Do not silently compute Z from a partial Y.
+- Requests go stale. `waiting_since` is available, so show the oldest request date
+  or the age range next to Y. Twelve requests from last week and twelve from two
+  years ago mean different things, and only one of them is a real pipeline.
+
+**Utmanare avdelningar project as static.** Nobody moves out of an Utmanare
+avdelning by rule (§17), and the eventual dispersal when one is retired is
+individual and unmodellable. Say so rather than leaving a reader to wonder why the
+numbers do not move.
+
+Also state explicitly, as its own line per transition: **how many members move
+from each åldersgrupp to the next.** That is the number people actually ask for,
+and it should not have to be inferred by subtracting two columns.
+
+The new Utmanare avdelning may not exist yet. Show it as a pending row with its
+incoming count and a note, not as an error.
+
+### Working in both spring and autumn
+
+The projection target is **the next shift not yet applied**, and the target cohort
+year is displayed in the heading so it is never ambiguous.
+
+Because N is the year of the autumn term the scouts move *into* (§17), and is
+therefore constant from one August through the following July:
+
+- **In spring** the pending uppflyttning is N itself — the same set the
+  Uppflyttning blade is computing. The projection is that set applied.
+- **In autumn**, once the move for N has been entered in Scoutnet, everyone shows
+  as *redan på plats*. The projection then looks one step further, to **N + 1**,
+  using identical arithmetic.
+
+Derive the target by asking whether the shift for N is already applied, and offer
+an explicit selector so the operator can look at either. Never infer the target
+from the calendar month — the term label is the authority (§17).
+
+### KPIs worth having
+
+Small, actionable, and each one either derived from data already fetched or from
+`/organisation/group`:
+
+- **Scouts per leader, per avdelning.** The most useful figure on the blade: 26
+  scouts with two leaders is a staffing problem, and nothing else in the tool
+  surfaces it. Details matter here, because the two halves come from different
+  fields:
+  - **Leaders of an avdelning** come from `roles.value.troop[<troop_id>]` with a
+    leader-class `role_key`. **Not** from membership of the Ledare avdelning, which
+    is not per-avdelning. Patrol-scoped roles are excluded — patrulledare are
+    youth (§11).
+  - **Scouts in an avdelning** come from `unit.raw_value`. A leader of Hajarna
+    typically has `unit` = Ledare, so they are not in Hajarna's member count and
+    there is no double counting.
+  - Express it as **scouts per leader** (e.g. 13:1) rather than a fraction — it is
+    the form people reason in.
+  - **Threshold in config, per åldersgrupp**, since younger avdelningar need
+    denser staffing. Flag when exceeded; do not hardcode a "safe" ratio.
+  - **Print the leader count itself**, as its own column. The ratio alone hides
+    whether 13:1 means 26 scouts and 2 leaders or 13 and 1.
+  - **Split the leader count into adult and youth leaders, and report both.**
+    Utmanare and Äventyrare who hold an assistant-leader role in another avdelning
+    are real staffing, and should count toward the ratio — but they are not
+    interchangeable with adults, so the two figures appear in separate columns and
+    the ratio uses the total. Distinguish by the leader's *own* placement: `unit` =
+    Ledare means adult; a scout åldersgrupp means a youth leader. Patrol-scoped
+    roles remain excluded either way — patrulledare are a within-avdelning youth
+    role, not staffing for the avdelning.
+  - **Where either side is zero, print `-`, not a number.** A newly created
+    avdelning has no scouts and no leaders, and printing `0:1`, `∞` or `0` invites
+    a wrong reading. `-` says "not applicable yet", which is the truth.
+  - For a **kår-wide** leader total, deduplicate: about a third of role-holders
+    hold roles in two avdelningar, so summing the per-avdelning counts overstates
+    the number of people.
+  - This KPI is only as sound as the role-scope classification. The patrol-scope
+    bug would have inflated every leader count on this blade.
+- **Size spread within an åldersgrupp.** Spejarna 26 against Utforskarna 14 on the
+  same bracket, different weekdays, is actionable: it tells you where to steer new
+  recruits.
+- **Projected size crossing a configurable threshold.** This is the actionable
+  output of the projection: Vikingarna at 69, gaining ~32 and losing ~23, lands
+  near 78 in one avdelning. Flag it, because that is the trigger for standing up a
+  second Äventyrare avdelning. Threshold in config, per åldersgrupp.
+- **Waiting-list depth**, total and per bracket where derivable. Feeds both
+  recruitment and the decision to open a new avdelning.
+- **Share paid for the term**, cross-checked against `active_paid` from
+  `/organisation/group`.
+- **Share under 26**, from `below_26`. Relevant to bidrag eligibility, and the kår
+  has no other easy way to see it.
+
+**Not available:** retention and attrition. Computing "how many of last year's
+cohort are still members" needs historical membership data, which this tool
+deliberately does not keep (§9). Do not approximate it — say it is unavailable and
+why. Scoutnet's own reports are the place for that.
+
+### Presentation
+
+Tables. With fourteen avdelningar a chart adds nothing a column of numbers does
+not say more precisely, and a plot invites reading trends into a single snapshot.
+
+One exception worth allowing: a plain horizontal bar per avdelning, current versus
+projected, side by side. That is a comparison rather than a trend, and it makes an
+avdelning about to outgrow itself visible at a glance. No line charts, no
+time series — the tool holds no history to plot.
+
+Exports: see §19. Excel workbook for the tables and an A4 PDF for the printable
+overview, both aggregate-only.
