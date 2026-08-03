@@ -1,0 +1,26 @@
+# karverktyg deploy config. Copy to karverktyg.conf and fill in, then:
+#   scripts/k8s-up.sh karverktyg.conf
+#
+# A BLANK value means "not configured": that endpoint/action is disabled (its
+# capability shows as unavailable in the app) and the tool never consumes it.
+# Never commit a filled-in file — it holds live API keys.
+
+# fixture   = no credentials, uses the committed sample data (safe demo)
+# read_only = live Scoutnet, read-only (no writes)
+SCOUTNET_MODE=fixture
+
+# Internal entity id (== the kår number for Finn). Required for read_only.
+SCOUTNET_ENTITY_ID=1025
+
+# Per-endpoint API keys (from Din kår -> Webbkoppling). Blank = endpoint unused.
+SCOUTNET_MEMBERLIST_KEY=
+SCOUTNET_ORGANISATION_GROUP_KEY=
+
+# Uppflyttning cohort year N. Blank = derive from the live term (guarded).
+SCOUTNET_COHORT_YEAR=2026
+
+# Kår identity / branding.
+SCOUTNET_KAR_NAME=Scoutkåren Finn
+
+# Password for the in-cluster Postgres the build-up provisions (PVC-backed).
+POSTGRES_PASSWORD=devpassword

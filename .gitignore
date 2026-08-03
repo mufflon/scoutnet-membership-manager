@@ -30,3 +30,6 @@ htmlcov/
 node_modules/
 bundled.yaml
 .DS_Store
+
+# Filled-in deploy config (holds API keys)
+karverktyg.conf

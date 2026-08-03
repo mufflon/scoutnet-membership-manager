@@ -9,8 +9,10 @@ from karverktyg.db.models import Base
 from karverktyg.settings import Settings
 
 config = context.config
-settings = Settings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# A caller (e.g. db-bootstrap) may inject the URL via the Config; otherwise take
+# it from Settings.
+url = config.get_main_option("sqlalchemy.url") or Settings().database_url
+config.set_main_option("sqlalchemy.url", url)
 target_metadata = Base.metadata
 
 

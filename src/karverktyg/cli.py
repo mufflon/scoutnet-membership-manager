@@ -36,6 +36,17 @@ def _drift(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _db_bootstrap(args: argparse.Namespace) -> int:
+    from karverktyg.db.bootstrap import bootstrap
+
+    settings = _settings(args.mode)
+    if not settings.database_url:
+        print("db-bootstrap: no SCOUTNET_DATABASE_URL configured", file=sys.stderr)  # noqa: T201
+        return 2
+    print(bootstrap(settings.database_url).render())  # noqa: T201
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Main."""
     p = argparse.ArgumentParser(prog="karverktyg")
@@ -55,6 +66,10 @@ def main(argv: list[str] | None = None) -> int:
     d = sub.add_parser("drift-check", help="OpenAPI spec drift check (§14)")
     d.add_argument("--mode", default=None)
     d.set_defaults(func=_drift)
+
+    b = sub.add_parser("db-bootstrap", help="migrate/adopt the database (build-up)")
+    b.add_argument("--mode", default=None)
+    b.set_defaults(func=_db_bootstrap)
 
     args = p.parse_args(argv)
     return args.func(args)

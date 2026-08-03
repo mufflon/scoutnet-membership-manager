@@ -1,18 +1,5 @@
-# PVC-backed Postgres for the local test deployment. Dev password only — this
-# overlay is for local testing, never production.
-apiVersion: v1
-kind: Secret
-metadata:
-  name: karverktyg-db
-  namespace: karverktyg
-type: Opaque
-stringData:
-  POSTGRES_DB: karverktyg
-  POSTGRES_USER: karverktyg
-  POSTGRES_PASSWORD: devpassword
-  # DSN the app reads (SCOUTNET_ prefix -> pydantic-settings).
-  SCOUTNET_DATABASE_URL: postgresql+psycopg://karverktyg:devpassword@karverktyg-db:5432/karverktyg
----
+# PVC-backed Postgres for the local deployment. The Secret (karverktyg-secrets)
+# is created by scripts/k8s-up.sh from your .conf — not committed here.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -44,7 +31,7 @@ spec:
         - name: postgres
           image: postgres:17
           envFrom:
-            - secretRef: { name: karverktyg-db }
+            - secretRef: { name: karverktyg-secrets }
           ports:
             - containerPort: 5432
           volumeMounts:
