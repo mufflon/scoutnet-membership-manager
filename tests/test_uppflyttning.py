@@ -16,13 +16,15 @@ from karverktyg.uppflyttning.cohort import derive_n_from_term_label
 # --- cohort year N + guard (§17) ------------------------------------------
 def test_derive_n_from_term_label():
     assert derive_n_from_term_label("Höst 2026") == 2026
-    assert derive_n_from_term_label("Vår 2026") == 2025  # scouting year Höst N + Vår N+1
+    # both seasons name the coming-autumn cohort (tool always runs before camp)
+    assert derive_n_from_term_label("Vår 2026") == 2026
     assert derive_n_from_term_label(None) is None
-    assert derive_n_from_term_label("2026") is None  # season unknown
+    assert derive_n_from_term_label("2026") is None  # no season keyword
 
 
 def test_resolve_cohort_year_guard():
     assert resolve_cohort_year(None, "Höst 2026") == 2026
+    assert resolve_cohort_year(None, "Vår 2026") == 2026  # spring planning, same N
     assert resolve_cohort_year(2026, "Höst 2026") == 2026
     with pytest.raises(CohortYearConflict):
         resolve_cohort_year(2025, "Höst 2026")  # config vs live disagree -> refuse

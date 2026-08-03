@@ -288,6 +288,8 @@ is keyed by member number with per-member error strings.
 **Feasible now, read-only:**
 - Unpaid dues per avdelning (field semantics must be confirmed against real data)
 - Applications awaiting approval, and the waiting list
+- Membership-request email drafts (recipients + text) for the waiting list /
+  awaiting approval — copy-paste, no sending (§10)
 - Uppflyttning candidates (age from `date_of_birth`, brackets from config)
 - Next-year membership projection
 - Membership-roll findings and data quality checks (§11)
@@ -591,18 +593,38 @@ Gmail API, service account with domain-wide delegation, scope
 value and must be inside the Workspace domain. No SMTP.
 
 Two `MailSender` implementations: Gmail, and a recording fake used in
-development and tests. Nothing in the test suite can send real mail. Templates
-are editable configuration. Sending is idempotent — check the message log
-before, write to it after.
+development and tests. Nothing in the test suite can send real mail. Sending is
+idempotent — check the message log before, write to it after.
 
-**Recipients.** Scoutnet splits guardian contacts into dad and mum fields, and
-coverage is uneven. **Email both**: send to `contact_email_dad` and
-`contact_email_mum` where present, deduplicating case-insensitively in case the
-family shares an address. Fall back to the member's own `contact_email` when
-neither guardian address exists. If no address at all can be resolved, do not
-fail silently — surface the member in the UI as unsendable so a human can act.
-Show the resolved recipient list before sending, and record only the count and
-timestamp in the message log, never the addresses.
+**Drafts vs sending — Phase 1 is drafts.** The Phase 1 path generates email
+*drafts* (recipients, subject, body) for the operator to copy into their own
+mail client. The tool sends nothing during the scout-year startup. The Gmail
+auto-send above is built but deferred to a later, separately-tested rollout; it
+is never the startup path, and it will be reviewed and improved before use.
+
+**Templates.** Stored in the **database** and editable in-app. Shipped defaults
+are the fallback and serve as worked examples; the resolver returns the DB row
+if present, else the default, so drafts work with no seeding. Jinja variables at
+minimum include `first_name`, `kar`, `birth_year`, `pronoun`,
+`bracket_label` and `avdelningar_sentence`.
+
+**Membership-request drafts.** For waiting / awaiting-approval applicants,
+generate one draft per applicant:
+
+- **Recipients.** Scouts → guardians; **Ledare applicants → the person
+  directly, never their parents.** Guardian resolution: `contact_email_dad` and
+  `contact_email_mum` where present, deduplicated case-insensitively for a shared
+  family address, falling back to the member's own `contact_email`. Ledare
+  resolution: the member's own address only. If nothing resolves, do not fail
+  silently — surface the member as unsendable.
+- **Separate templates** for scouts and for Ledare.
+- **Content.** First-name substitution at minimum; the scout template states the
+  applicant's birth year, the bracket their age makes them eligible for, and that
+  bracket's avdelningar with their weekdays, then asks for a weekday preference.
+  Pronoun from the `sex` field — han/hon, and **hen** when unknown.
+
+When (later) auto-send is used, show the resolved recipient list before sending
+and record only the count and timestamp in the message log, never the addresses.
 
 ## 11. Findings (data quality and enforcement)
 
@@ -972,11 +994,24 @@ The §11 age finding therefore applies only to Spårare, Upptäckare and
 response alone — a mid-cycle capture could silently shift every cohort by a
 year, which would produce a plausible-looking and completely wrong master set.
 
-Cross-check against the `current_term` label: `"Höst YYYY"` means N = YYYY,
-`"Vår YYYY"` means N = YYYY − 1, since the cohort year is the year of the
-autumn term. If the configured N and the derived N disagree, **refuse to compute
-a master set** and say which two values conflict. This is a cheap guard against
-the single most damaging silent error in the whole tool.
+Cross-check against the `current_term` label. N is the year of the autumn term
+the scouts are moved **into**, and the uppflyttning is always computed before
+the summer camp, so **both `"Höst YYYY"` and `"Vår YYYY"` give N = YYYY**:
+
+- In spring (`"Vår YYYY"`) you are planning the coming summer's move into Höst
+  YYYY. The members are still placed for the *prior* scout year — that is
+  expected, and the engine handles it by moving whoever has aged one step past
+  their bracket, not by trusting the nominal age band.
+- In late summer / early autumn (`"Höst YYYY"`, before the move is entered in
+  Scoutnet) you are completing that same move.
+
+Deriving N as `YYYY − 1` in spring — naming the *current* scout year instead of
+the autumn the move feeds — is wrong: every mover then looks correctly placed
+and the master set comes out empty. This bit us against real spring data.
+
+If the configured N and the derived N disagree, **refuse to compute a master
+set** and say which two values conflict. This is a cheap guard against the
+single most damaging silent error in the whole tool.
 
 ### Off-cohort members
 
