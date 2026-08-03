@@ -17,6 +17,14 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
+        # so the mounted snapshot volume is writable by the non-root user
+        fsGroup: 10001
+      volumes:
+        # Pre-run snapshot files for the write path (§8). Harmless in
+        # fixture/read_only — nothing writes here until a read_write bulk run.
+        - name: snapshots
+          persistentVolumeClaim:
+            claimName: karverktyg-snapshots
       initContainers:
         - name: wait-for-db
           image: busybox:1.36
@@ -35,6 +43,9 @@ spec:
           imagePullPolicy: IfNotPresent # image is read from the docker store by k3s
           envFrom:
             - secretRef: { name: karverktyg-secrets }
+          volumeMounts:
+            - name: snapshots
+              mountPath: /var/lib/karverktyg/snapshots
           ports:
             - containerPort: 8000
           livenessProbe:
@@ -48,6 +59,16 @@ spec:
           resources:
             requests: { cpu: "100m", memory: "256Mi" }
             limits: { cpu: "1", memory: "512Mi" }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: karverktyg-snapshots
+  namespace: karverktyg
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests: { storage: 1Gi }
 ---
 apiVersion: v1
 kind: Service
