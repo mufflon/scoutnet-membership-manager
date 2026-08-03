@@ -1,63 +1,54 @@
-# karverktyg deploy config. Copy to karverktyg.conf and fill in, then:
+# karverktyg deploy config. Copy to karverktyg.conf, fill in, then:
 #   scripts/k8s-up.sh karverktyg.conf
 #
-# A BLANK value means "not configured": that endpoint/action is disabled (its
-# capability shows as unavailable in the app) and the tool never consumes it.
-# Never commit a filled-in file — it holds live API keys.
+# A BLANK value means "not configured": that endpoint/action is disabled and the
+# tool never uses it. Never commit a filled-in file — it holds live API keys.
 
-# fixture    = no credentials, uses the committed sample data (safe demo)
-# read_only  = live Scoutnet, read-only (no writes)
-# read_write = live Scoutnet with the Phase 2 write path enabled (needs the
-#              write key + snapshot volume below). Set deliberately; the UI shows
-#              a banner while active.
+# fixture    = no credentials, uses the committed sample data
+# read_only  = live Scoutnet, reads only
+# read_write = live Scoutnet, reads plus the controlled write path (needs the
+#              write key and snapshot volume below); the UI shows a banner while active
 SCOUTNET_MODE=fixture
 
-# Internal entity id (== the kår number for Finn). Required for read_only.
+# Internal entity id (the kår number for Finn). HTTP Basic username; required for
+# read_only and read_write.
 SCOUTNET_ENTITY_ID=1025
 
-# Per-endpoint API keys (from Din kår -> Webbkoppling). Each key authorises ONE
-# endpoint (§4); the name below says which, so it stays clear if keys are moved
-# around in Scoutnet. Blank = that endpoint is unused (its capability disabled).
+# Per-endpoint API keys (Din kår -> Webbkoppling). Each key authorises ONE
+# endpoint; blank = that endpoint is unused.
 #
 # SCOUTNET_MEMBERLIST_KEY -> GET https://scoutnet.se/api/group/memberlist
-#   (the kår's full member list — the primary read for Phase 1)
 SCOUTNET_MEMBERLIST_KEY=
 
 # SCOUTNET_ORGANISATION_GROUP_KEY -> GET https://scoutnet.se/api/organisation/group
-#   (the kår's org tree: avdelningar / units, used to resolve troop structure)
 SCOUTNET_ORGANISATION_GROUP_KEY=
 
-# --- Phase 2 write path (only consumed when SCOUTNET_MODE=read_write) --------
-#
+# Write key — only used when SCOUTNET_MODE=read_write.
 # SCOUTNET_UPDATE_MEMBERSHIP_KEY -> POST https://scoutnet.se/api/organisation/update/membership
-#   The write key. A real secret, like the read keys: it lives here only to be
-#   loaded into the Kubernetes Secret at build-up — never committed, and never
-#   entered in the app UI (hard rule 7). Blank = writing disabled.
+#   Loaded into the Kubernetes Secret at build-up; never entered in the app UI.
+#   Blank = writing disabled.
 SCOUTNET_UPDATE_MEMBERSHIP_KEY=
 
-# Member numbers a write run may touch, as a JSON list. This is deployment
-# config and is NOT editable in the app — the UI only displays it. Keep it tiny
-# during stage-2 testing (just the placeholder account). Empty list = nothing
-# may be written (fail closed).
+# Member numbers a write run may touch, as a JSON list. Shown in the app but only
+# editable here. Keep it small while testing. Empty list = nothing may be written.
 SCOUTNET_WRITE_ALLOWLIST=[]
 
-# Volume path for pre-run snapshot files (the recovery/undo "before" board).
-# Required for read_write, and it MUST point at a mounted volume so snapshots
-# survive a pod restart (see k8s/local app manifest). No personal data is stored.
+# Volume path for pre-run snapshot files, used to reconcile and undo a run. Must
+# point at a mounted volume so snapshots survive a pod restart. Holds no personal data.
 SCOUTNET_SNAPSHOT_DIR=/var/lib/karverktyg/snapshots
 
-# Chunking (§8): default 1 = one member per request, no atomicity assumed. Raise
-# only with observed evidence. Delay is seconds between chunks.
+# Members written per request (default 1) and seconds between requests.
 SCOUTNET_CHUNK_SIZE=1
 SCOUTNET_CHUNK_DELAY_S=1.0
-# How long snapshots (and therefore the ability to undo a run) are retained.
+
+# How long snapshots are kept, and therefore how long a run can be undone.
 SCOUTNET_SNAPSHOT_RETENTION_DAYS=30
 
-# Uppflyttning cohort year N. Blank = derive from the live term (guarded).
+# Uppflyttning cohort year N. Blank = derive from the live term.
 SCOUTNET_COHORT_YEAR=2026
 
 # Kår identity / branding.
 SCOUTNET_KAR_NAME=Scoutkåren Finn
 
-# Password for the in-cluster Postgres the build-up provisions (PVC-backed).
+# Password for the in-cluster Postgres provisioned at build-up.
 POSTGRES_PASSWORD=devpassword
