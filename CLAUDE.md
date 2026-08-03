@@ -371,11 +371,14 @@ How the read client calls the API, learned from live use (§6 modes still apply)
 
 troop_id is **resolved**: `unit.raw_value` carries it, corroborated by the keys
 of `roles.value.troop`. Build the avdelning-name → troop_id map from a single
-memberlist call; no project key is needed. The remaining risk is that
-`unit.raw_value` is not the same id the write endpoint expects — low, but
-unverified, and it is now the **only** assumption that can block a real run.
-**Confirm it against the write endpoint on a single placeholder record before
-any bulk write** (§8, testing stage 2). Record the verified mapping in the repo.
+memberlist call; no project key is needed. The remaining risk was that
+`unit.raw_value` might not be the same id the write endpoint expects.
+
+**Verified 2026-08-03 (stage 2 complete).** `unit.raw_value` *is* the id
+`POST /organisation/update/membership` accepts: member 3020341 was moved from
+Ledare (`10172`) to Hajarna (`10155`) through the tool and then undone, each step
+confirmed by hand in the Scoutnet UI. This was the only assumption that could
+block a real run, and it no longer can.
 
 **Not feasible — but this conclusion is now provisional:**
 - Cross-checking members against reported activities
