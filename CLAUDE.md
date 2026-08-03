@@ -907,11 +907,20 @@ In this order, operator approving each step:
    access this tool depends on. Testing writes against the account you rely on
    for access is worth avoiding wherever the placeholder will do.
 
-   **Enforce a member allowlist.** A config-supplied list of member numbers that
-   writes may touch at this stage; the executor refuses any member number not on
-   it, and a test asserts the refusal. This bounds the blast radius of a bug in
-   the move computation to two records regardless of what the computation
-   produces. Store member numbers in config, never names in the repo.
+   **Enforce a member allowlist — on the stage-2 verify path only.** A
+   config-supplied list of member numbers that the *single-member verify* writes may
+   touch; the executor refuses any member not on it for `kind="stage2_verify"`
+   (dry-run and execute), and a test asserts the refusal. This bounds the blast
+   radius of a stage-2 test write to designated records. Store member numbers in
+   config, never names in the repo.
+
+   **It does not gate a production uppflyttning (amended).** Per-member allowlisting
+   a real bulk move is redundant and self-referencing — the list would just be the
+   300+ computed movers, and the operator will never maintain such a list. Instead:
+   the operator is authorised by `read_write` mode + config (no random user reaches
+   this), and the *change* is authorised by their deliberate **save** in the
+   Uppflyttning blade plus the dry-run review, the confirmation, and snapshot/undo
+   (§8 stage 3). The earlier design that allowlisted every write is superseded.
 
    Three checks, on the placeholder wherever possible:
 

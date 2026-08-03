@@ -92,12 +92,16 @@ def test_status_map_only_confirmed_and_cancelled_unreachable():
 
 
 def test_allowlist_refuses_off_list_member(tmp_path):
+    # The allowlist is a stage-2 verify testing safeguard; it does not gate a
+    # production uppflyttning (kind="uppflyttning"), only the verify path.
     client = FakeReadWrite({"100": {"troop_id": 10}, "200": {"troop_id": 10}})
     ex = WriteExecutor(client, _settings(tmp_path, allowlist=["100"]), _factory())
     moves = [IntendedMove("100", 10, 20), IntendedMove("200", 10, 20)]  # 200 not allowed
     with pytest.raises(AllowlistViolation):
-        ex.run(moves, kind="uppflyttning", mode=RunMode.EXECUTE, now=NOW)
+        ex.run(moves, kind="stage2_verify", mode=RunMode.EXECUTE, now=NOW)
     assert client.calls == []  # nothing sent
+    # An uppflyttning run is not allowlist-gated — the same off-list move is allowed.
+    ex.run(moves, kind="uppflyttning", mode=RunMode.DRY_RUN, now=NOW)  # no raise
 
 
 # --- dry-run ---------------------------------------------------------------

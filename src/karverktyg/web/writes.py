@@ -182,13 +182,13 @@ def api_uppflyttning_run() -> ResponseReturnValue:
 
     executor = _executor()
 
+    # A production uppflyttning is not per-member allowlisted (§8): the operator is
+    # authorised by read_write mode + config, and the change is authorised by their
+    # deliberate save + this dry-run review + the confirmation. The write allowlist
+    # is a stage-2 verify testing safeguard only. Dry-run and execute both proceed.
     if not execute:
-        # A dry-run writes nothing, so it is not allowlist-gated — the operator can
-        # always preview the full plan. The allowlist gates the execute below (§8).
         result = executor.run(moves, kind="uppflyttning", cohort_year=ms.cohort_year)
         return jsonify(_ser_result(result))
-
-    assert_allowlist(_settings(), moves)  # clean 400 on violation (errorhandler)
     return _launch("uppflyttning", ms.cohort_year, moves, executor)
 
 
