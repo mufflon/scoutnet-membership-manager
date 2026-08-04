@@ -776,8 +776,8 @@ the ingress (§14). The data is GDPR-sensitive.
   again, this paragraph is the answer.
 - Weekly attendance tracking via arrangemang (§5), pending Phase C
 - Creating arrangemang programmatically — no endpoint exists
-- Multi-kår tenancy. Branding and kår identity are already configuration, so a
-  second kår is a config exercise, not a code one. Nobody has asked.
+- Multi-kår tenancy. Kår identity (name, avdelningar) is already configuration, so
+  a second kår is a config exercise, not a code one. Nobody has asked.
 - Any personal data in Postgres, ever (§9)
 
 
@@ -1197,18 +1197,20 @@ change** so both stay complete — the script carries a header comment saying so
 a feature needs the demo to exercise it (a new finding, a role kind), extend the
 fabricator. A kår that instead wants realistic test data from its *own* live
 capture uses `scripts/scrub_capture.py --scramble`: fake every personal field, then
-obscure per-avdelning head-counts (`scramble_composition.py`) so the committed
+obscure per-avdelning head-counts (`scramble_composition.py`) so that local
 fixture reveals neither identities nor real composition.
 
 ## 14. Deployment
 
 Single cluster, single deployment, but configuration must vary so different
-configs can be tested. No package index and no container registry yet — treat
-image distribution as unsolved and keep the build reproducible with
-`docker buildx` so a destination can be chosen later.
+configs can be tested. A version tag (`v*`) publishes a reproducible multi-arch
+image (`docker buildx`, amd64 + arm64) to GHCR via
+`.github/workflows/publish.yml` — `ghcr.io/mufflon/scoutnet-membership-manager`.
+Deploy that image with `scripts/k8s-up-upstream.sh`, or build locally with
+`scripts/k8s-up-local.sh`.
 
-Frontend and API may share one image or split across two containers in one pod;
-pick one, justify briefly, keep it simple.
+Frontend and API share one image: the static frontend is served by the same Flask
+service it calls — one container, kept simple.
 
 **Health and readiness probes are required.** Liveness is a cheap local check.
 Readiness additionally verifies Postgres connectivity — and must **not** call
