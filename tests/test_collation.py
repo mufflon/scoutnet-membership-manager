@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from karverktyg.collation import sorted_sv
+from scoutnet_membership_manager.collation import sorted_sv
 
 
 def test_aao_sort_after_z():

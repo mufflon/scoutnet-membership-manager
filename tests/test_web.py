@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from karverktyg.settings import Mode, Settings
-from karverktyg.web import create_app
+from scoutnet_membership_manager.settings import Mode, Settings
+from scoutnet_membership_manager.web import create_app
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def test_fixture_on_postgres_url_uses_normal_engine(monkeypatch):
     # (which psycopg rejects — it would crash the local buildup).
     from sqlalchemy import create_engine
 
-    import karverktyg.web.app as appmod
+    import scoutnet_membership_manager.web.app as appmod
 
     seen = {}
 
@@ -45,9 +45,12 @@ def test_fixture_on_postgres_url_uses_normal_engine(monkeypatch):
 
     monkeypatch.setattr(appmod, "make_engine", fake_make_engine)
     appmod._build_engine(
-        Settings(mode=Mode.FIXTURE, database_url="postgresql+psycopg://u:p@db/karverktyg")
+        Settings(
+            mode=Mode.FIXTURE,
+            database_url="postgresql+psycopg://u:p@db/scoutnet_membership_manager",
+        )
     )
-    assert seen["url"] == "postgresql+psycopg://u:p@db/karverktyg"
+    assert seen["url"] == "postgresql+psycopg://u:p@db/scoutnet_membership_manager"
 
 
 def test_capabilities_reports_mode_and_no_writes(client):

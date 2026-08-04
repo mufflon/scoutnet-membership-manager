@@ -4,7 +4,7 @@ from pathlib import Path
 
 from sqlalchemy import create_engine, select
 
-from karverktyg.db import (
+from scoutnet_membership_manager.db import (
     Base,
     FindingAck,
     UppflyttningEntry,
@@ -12,8 +12,12 @@ from karverktyg.db import (
     WriteRun,
     make_sessionmaker,
 )
-from karverktyg.db.bootstrap import _MEANINGFUL, _UPPFLYTTNING_TABLES, _clear_uppflyttning
-from karverktyg.db.session import get_session
+from scoutnet_membership_manager.db.bootstrap import (
+    _MEANINGFUL,
+    _UPPFLYTTNING_TABLES,
+    _clear_uppflyttning,
+)
+from scoutnet_membership_manager.db.session import get_session
 
 ROOT = Path(__file__).resolve().parent.parent
 

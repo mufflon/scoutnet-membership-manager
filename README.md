@@ -1,4 +1,4 @@
-# karverktyg — a Scoutnet kårverktyg
+# scoutnet-membership-manager — a Scoutnet kårverktyg
 
 An internal tool for a Swedish scoutkår (default demo: **Scoutkåren Finn**, Lund).
 It reads member data from Scoutnet, surfaces what leaders need to act on each term
@@ -32,7 +32,7 @@ memberlist — no credentials, no database, no network. Requires Python 3.14 and
 
 ```bash
 uv sync
-uv run karverktyg serve --mode fixture --port 8000
+uv run scoutnet-membership-manager serve --mode fixture --port 8000
 # open http://localhost:8000
 ```
 
@@ -53,7 +53,7 @@ keys**, and where you **deploy**.
 
 ### 1. Edit your config
 
-Everything non-secret is one committed file, **`karverktyg.json`** (Finn ships as
+Everything non-secret is one committed file, **`scoutnet-membership-manager.json`** (Finn ships as
 the default): `mode`, `cohort_year`, `entity_id`, and the **kår** — a name plus
 **which avdelningar you have**. The age-bracket ladder is national and lives in
 code, so each avdelning just takes a `bracket`, an optional meeting `weekday`, and
@@ -61,8 +61,8 @@ an optional explicit move `target`. The file has inline `_comment` fields
 explaining each part.
 
 Edit it directly, or build the kår block interactively with
-`python3 scripts/make_config.py`. `karverktyg validate-config karverktyg.json`
-checks it against `docs/karverktyg.schema.json`. **With no avdelningar declared
+`python3 scripts/make_config.py`. `scoutnet-membership-manager validate-config scoutnet-membership-manager.json`
+checks it against `docs/scoutnet-membership-manager.schema.json`. **With no avdelningar declared
 the tool still runs** — avdelningar are inferred from the member data and moves
 fall back to selecting a target per person where there's more than one candidate.
 
@@ -77,17 +77,17 @@ Keys are **per endpoint, per body** (not per user), permanent until regenerated.
    — not necessarily the visible kår number.
 4. Put the keys in `apikeys.conf` (copy `apikeys.conf.example` — it notes the
    Scoutnet endpoint each key is for). **This is the only secret file** — `*.conf`
-   is gitignored; everything non-secret lives in the committed `karverktyg.json`.
+   is gitignored; everything non-secret lives in the committed `scoutnet-membership-manager.json`.
 
 ### 3. Deploy
 
 The tool runs on Kubernetes (developed against a local k3s / Rancher Desktop).
 `scripts/k8s-up.sh` reads your `apikeys.conf` (secrets → a Secret), builds the
-image (which bundles `karverktyg.json`), and rolls out:
+image (which bundles `scoutnet-membership-manager.json`), and rolls out:
 
 ```bash
 ./scripts/k8s-up.sh                       # reads ./apikeys.conf
-kubectl -n karverktyg port-forward svc/karverktyg 8000:80   # then open :8000
+kubectl -n scoutnet-membership-manager port-forward svc/scoutnet-membership-manager 8000:80   # then open :8000
 ```
 
 The service is a ClusterIP — put human authentication at the ingress
@@ -103,7 +103,7 @@ you can run the whole thing with one command — the demo needs no keys and no
 database:
 
 ```bash
-docker run -e SCOUTNET_MODE=fixture -p 8000:8000 ghcr.io/OWNER/karverktyg:latest
+docker run -e SCOUTNET_MODE=fixture -p 8000:8000 ghcr.io/mufflon/scoutnet-membership-manager:latest
 ```
 
 For real use, pass your keys and (for writes) a Postgres URL as env vars:
@@ -112,8 +112,8 @@ For real use, pass your keys and (for writes) a Postgres URL as env vars:
 docker run -p 8000:8000 \
   -e SCOUTNET_MODE=read_only \
   -e SCOUTNET_ENTITY_ID=... -e SCOUTNET_MEMBERLIST_KEY=... \
-  -v "$PWD/karverktyg.json:/app/karverktyg.json:ro" \
-  ghcr.io/OWNER/karverktyg:latest
+  -v "$PWD/scoutnet-membership-manager.json:/app/scoutnet-membership-manager.json:ro" \
+  ghcr.io/mufflon/scoutnet-membership-manager:latest
 ```
 
 ## Modes
@@ -159,14 +159,14 @@ year's arrangemang (see `CLAUDE.md` §5).
 
 ## Configuration reference
 
-Non-secret settings live in `karverktyg.json` (committed); the API keys come from
+Non-secret settings live in `scoutnet-membership-manager.json` (committed); the API keys come from
 the environment (`apikeys.conf`, prefix `SCOUTNET_`). Environment overrides the
 file, so k8s/`docker run` can set any of these:
 
 | Variable | Purpose |
 |---|---|
 | `SCOUTNET_MODE` | `fixture` \| `read_only` (default) \| `read_write` |
-| `SCOUTNET_CONFIG_PATH` | path to your kår config JSON (default `karverktyg.json`; absent = infer) |
+| `SCOUTNET_CONFIG_PATH` | path to your kår config JSON (default `scoutnet-membership-manager.json`; absent = infer) |
 | `SCOUTNET_ENTITY_ID` | HTTP Basic username — the internal entity id (also the kår id) |
 | `SCOUTNET_MEMBERLIST_KEY` | per-endpoint key for `/group/memberlist` |
 | `SCOUTNET_ORGANISATION_GROUP_KEY` | per-endpoint key for `/organisation/group` |
@@ -192,7 +192,7 @@ file, so k8s/`docker run` can set any of these:
 ## Layout
 
 ```
-src/karverktyg/
+src/scoutnet_membership_manager/
   settings.py            app settings (pydantic-settings)
   collation.py i18n.py   Swedish collation and UI strings
   config/                config model (avdelningar), loader, national brackets

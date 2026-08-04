@@ -5,11 +5,11 @@ from io import BytesIO
 
 from openpyxl import load_workbook
 
-from karverktyg.export.oversikt_xlsx import build_oversikt_xlsx
-from karverktyg.oversikt import OversiktInputs, build_oversikt
-from karverktyg.scoutnet.models import Member, MemberList, Role
-from karverktyg.settings import Mode, Settings
-from karverktyg.web import create_app
+from scoutnet_membership_manager.export.oversikt_xlsx import build_oversikt_xlsx
+from scoutnet_membership_manager.oversikt import OversiktInputs, build_oversikt
+from scoutnet_membership_manager.scoutnet.models import Member, MemberList, Role
+from scoutnet_membership_manager.settings import Mode, Settings
+from scoutnet_membership_manager.web import create_app
 
 WHEN = datetime(2026, 8, 3, 9, 0, 0)
 

@@ -2,18 +2,18 @@ from __future__ import annotations
 
 from sqlalchemy import create_engine
 
-from karverktyg.config.models import Bracket
-from karverktyg.db import Base, make_sessionmaker
-from karverktyg.db.session import get_session
-from karverktyg.membership import eligible_bracket, pronoun_sv
-from karverktyg.membership.drafts import build_draft
-from karverktyg.membership.templates import (
+from scoutnet_membership_manager.config.models import Bracket
+from scoutnet_membership_manager.db import Base, make_sessionmaker
+from scoutnet_membership_manager.db.session import get_session
+from scoutnet_membership_manager.membership import eligible_bracket, pronoun_sv
+from scoutnet_membership_manager.membership.drafts import build_draft
+from scoutnet_membership_manager.membership.templates import (
     DEFAULT_TEMPLATES,
     effective_templates,
     get_template,
     upsert_template,
 )
-from karverktyg.scoutnet.models import Member
+from scoutnet_membership_manager.scoutnet.models import Member
 
 
 def _m(**kw):

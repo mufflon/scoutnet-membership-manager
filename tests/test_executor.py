@@ -5,11 +5,11 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import create_engine
 
-from karverktyg.db import Base, make_sessionmaker
-from karverktyg.scoutnet.client import ScoutnetError
-from karverktyg.scoutnet.models import Member, MemberList, Role
-from karverktyg.settings import Mode, Settings
-from karverktyg.write.executor import (
+from scoutnet_membership_manager.db import Base, make_sessionmaker
+from scoutnet_membership_manager.scoutnet.client import ScoutnetError
+from scoutnet_membership_manager.scoutnet.models import Member, MemberList, Role
+from scoutnet_membership_manager.settings import Mode, Settings
+from scoutnet_membership_manager.write.executor import (
     AllowlistViolation,
     Category,
     ExecutorError,
@@ -76,7 +76,7 @@ def _settings(tmp_path, allowlist, **kw):
 
 
 def test_status_map_only_confirmed_and_cancelled_unreachable():
-    from karverktyg.write.executor import _STATUS_WRITE_TOKENS
+    from scoutnet_membership_manager.write.executor import _STATUS_WRITE_TOKENS
 
     assert write_status_token("2") == "confirmed"
     with pytest.raises(ExecutorError):
@@ -118,7 +118,7 @@ def test_dry_run_has_no_side_effects_but_faithful_payload(tmp_path):
     assert result.run_state == "dry_run" and result.run_id is None
     assert client.calls == []  # no send
     assert list(tmp_path.glob("*.json")) == []  # no snapshot file
-    from karverktyg.write import list_snapshots
+    from scoutnet_membership_manager.write import list_snapshots
 
     assert list_snapshots(sm) == []  # no DB rows
     # payload it *would* send is faithful
@@ -320,7 +320,7 @@ def test_undo_dry_run_shows_inverse_and_exclusions(tmp_path):
 
 
 def test_undo_unavailable_after_snapshot_purge(tmp_path):
-    from karverktyg.write import delete_snapshot, list_snapshots
+    from scoutnet_membership_manager.write import delete_snapshot, list_snapshots
 
     client = FakeReadWrite({"100": {"troop_id": 10}})
     sm = _factory()

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from karverktyg.scoutnet.models import Member, PaymentBucket, Role
-from karverktyg.scoutnet.parse import EXTRA_INFO_PREFIX, parse_memberlist
+from scoutnet_membership_manager.scoutnet.models import Member, PaymentBucket, Role
+from scoutnet_membership_manager.scoutnet.parse import EXTRA_INFO_PREFIX, parse_memberlist
 
 
 def test_parses_all_active_members(memberlist):

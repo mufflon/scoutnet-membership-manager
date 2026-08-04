@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from sqlalchemy import create_engine, inspect, select, text
 
-from karverktyg.db import Base, EmailTemplate, make_sessionmaker
-from karverktyg.db.bootstrap import bootstrap
-from karverktyg.db.session import get_session
+from scoutnet_membership_manager.db import Base, EmailTemplate, make_sessionmaker
+from scoutnet_membership_manager.db.bootstrap import bootstrap
+from scoutnet_membership_manager.db.session import get_session
 
 
 def _url(tmp_path):
@@ -106,7 +106,7 @@ def test_bootstrap_rebuilds_incompatible_keeping_templates(tmp_path):
 def test_bootstrap_at_head_keeps_data(tmp_path):
     from alembic import command
 
-    from karverktyg.db.bootstrap import _alembic_cfg
+    from scoutnet_membership_manager.db.bootstrap import _alembic_cfg
 
     url = _url(tmp_path)
     engine = create_engine(url)

@@ -1,9 +1,9 @@
 # Config examples
 
-## The config file (`karverktyg.json`)
+## The config file (`scoutnet-membership-manager.json`)
 
 All non-secret configuration is one committed file at the repo root,
-`karverktyg.json` (the API keys live in `apikeys.conf`). Its shape:
+`scoutnet-membership-manager.json` (the API keys live in `apikeys.conf`). Its shape:
 
 ```jsonc
 {
@@ -27,7 +27,7 @@ set them. Each **avdelning** takes a `bracket`
 move `target`. Everything else — which bracket a member is in, troop ids, the kår's
 group id — is read live from the member data; the national åldersgrupp ladder is in
 code. The `.json.example` files below are just the **`kar` block** (validated by
-`../karverktyg.schema.json`). With **no config at all** the tool still runs:
+`../scoutnet-membership-manager.schema.json`). With **no config at all** the tool still runs:
 avdelningar are inferred from the data and moves fall back to selecting a target per
 person when there is more than one candidate.
 
@@ -46,7 +46,7 @@ person when there is more than one candidate.
 
 ## What the demo data shows
 
-Run the app in fixture mode (`karverktyg serve --mode fixture`) and it loads
+Run the app in fixture mode (`scoutnet-membership-manager serve --mode fixture`) and it loads
 `../../fixtures/memberlist.demo.json` — a **completely fabricated** memberlist
 (built by `scripts/make_fixture.py`; no real person appears anywhere). Looking at
 it you'll see ~180 invented members spread across the Finn avdelningar: scouts

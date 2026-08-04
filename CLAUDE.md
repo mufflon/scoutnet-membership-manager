@@ -62,7 +62,7 @@ leads the older §18–§20 prose, the code is the fact (Authority order):
 - **Förtroendeuppdrag** splits into three sections — **Kårstyrelse**, **Övriga
   förtroendeuppdrag**, **Ombud och representanter** (one-day delegates last). The
   board/other/delegate classification is **hard-coded by `role_key`** in
-  `karverktyg.fortroende` (uniform for this kår; Utmanarscoutrepresentant is a
+  `scoutnet-membership-manager.fortroende` (uniform for this kår; Utmanarscoutrepresentant is a
   board seat, `district_voter` a delegate); config no longer carries the ordering.
 - **Unpaid-dues export is a single flat sheet** (operator preference for an expert
   tool), not §19's one-sheet-per-avdelning + cover + review-sheet split.
@@ -127,7 +127,7 @@ leads the older §18–§20 prose, the code is the fact (Authority order):
 
 ## Deployment and version control
 
-Local k3s, namespace `karverktyg`, built by `scripts/k8s-up.sh` from a config
+Local k3s, namespace `scoutnet-membership-manager`, built by `scripts/k8s-up.sh` from a config
 file of API keys. Mode and the write allowlist are deployment config only, never
 entered in the UI (hard rule 7). During write testing the allowlist is bounded to
 a single record and the snapshot volume is PVC-backed.
@@ -725,12 +725,12 @@ and `test_misplaced_member_routes_per_person`.
 **B. Config architecture — done.**
 
 - **Two files, split by secrecy.** All non-secret configuration is one committed
-  JSON, **`karverktyg.json`** (Finn as default, bundled into the image): a root
+  JSON, **`scoutnet-membership-manager.json`** (Finn as default, bundled into the image): a root
   `schema_version`, then `mode` / `cohort_year` / `entity_id` and the `kar`
   (name + avdelningar). The **only** secret file is **`apikeys.conf`** (gitignored,
   `apikeys.conf.example` committed): the Scoutnet API keys + the DB password. This
   keeps the config freely shareable (it holds nothing secret) while the keys never
-  taint it. `Settings` reads `karverktyg.json` via a JSON source, with the env (the
+  taint it. `Settings` reads `scoutnet-membership-manager.json` via a JSON source, with the env (the
   keys, injected from `apikeys.conf` into a k8s Secret) taking precedence; the whole
   file carries `schema_version` for forward migration. `.dockerignore` keeps
   `*.conf` out of the image. Brackets are national and in code; avdelningar/troop
@@ -1153,8 +1153,8 @@ data, not testing live keys.
 
 Two files at the **repo root**, split by secrecy (see §7-B):
 
-- **`./karverktyg.json`** — all non-secret configuration; **committed** (Finn is the
-  default) and bundled into the image at `/app/karverktyg.json`. Loaded by
+- **`./scoutnet-membership-manager.json`** — all non-secret configuration; **committed** (Finn is the
+  default) and bundled into the image at `/app/scoutnet-membership-manager.json`. Loaded by
   `Settings` via a JSON source. Path is overridable with `SCOUTNET_CONFIG_PATH`.
 - **`./apikeys.conf`** — the **only** secrets file: the Scoutnet API keys + the DB
   password. **Gitignored** (`*.conf`, so `git`) and in **`.dockerignore`** (so it
@@ -1165,7 +1165,7 @@ Environment (the keys) overrides the file (the rest).
 
 - **Age brackets are national and in code** (`BRACKETS`; Utmanare 15–19), not
   config — they are identical for every Swedish kår (§17).
-- **Kår identity:** the display `name` is in `karverktyg.json`; the group id is
+- **Kår identity:** the display `name` is in `scoutnet-membership-manager.json`; the group id is
   inferred from the member data.
 - **A kår's config is just its avdelningar** (name, bracket, optional weekday,
   optional target). troop ids and brackets are inferred from the data; with no
@@ -1181,10 +1181,10 @@ Environment (the keys) overrides the file (the rest).
   "keep" carries an expiry year, so shifting scouts off leaves no state behind
   for the future (§9 purge). A reset clears the whole year's working state.
 
-**Config and fixture tooling (`scripts/`).** A kår edits `karverktyg.json`
+**Config and fixture tooling (`scripts/`).** A kår edits `scoutnet-membership-manager.json`
 directly, or builds the `kar` block interactively with `scripts/make_config.py`
-(it validates against the config model). `karverktyg validate-config <file>` checks
-a config, and `docs/karverktyg.schema.json` (generated from the model, with a
+(it validates against the config model). `scoutnet-membership-manager validate-config <file>` checks
+a config, and `docs/scoutnet-membership-manager.schema.json` (generated from the model, with a
 sync test) validates it independently. **When the config model gains or drops a
 configurable field, update `make_config.py` and regenerate the schema in the same
 change** so both stay complete — the script carries a header comment saying so. The committed demo memberlist

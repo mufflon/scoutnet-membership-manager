@@ -6,15 +6,15 @@ The config is only a kår's **avdelningar** — each with an optional meeting we
 and an optional explicit move target. Brackets are national and live in code; the
 kår's group id and every avdelning's troop_id are read live from the data. The
 result is a single JSON that the app reads via ``SCOUTNET_CONFIG_PATH`` (default
-``karverktyg.json``, which is gitignored). Running it with **no config at all**
+``scoutnet-membership-manager.json``, which is gitignored). Running it with **no config at all**
 also works — avdelningar are inferred and moves fall back to the universal rule.
 
 Run from the repo root so the result can be validated against the real model:
 
     python3 scripts/make_config.py            # asks where to save
-    python3 scripts/make_config.py -o karverktyg.json
+    python3 scripts/make_config.py -o scoutnet-membership-manager.json
 
-Keep this in step with the config model: when ``karverktyg/config/models.py`` gains
+Keep this in step with the config model: when ``scoutnet_membership_manager/config/models.py`` gains
 or drops a configurable field, update the questions here too (CLAUDE.md §13).
 """
 
@@ -110,7 +110,7 @@ def build_config() -> dict:
         if not ask_yes_no("Lägg till en till?", default=True):
             break
     return {
-        "$schema": "docs/karverktyg.schema.json",
+        "$schema": "docs/scoutnet-membership-manager.schema.json",
         "version": 1,
         "name": name,
         "avdelningar": avdelningar,
@@ -121,8 +121,8 @@ def validate(cfg: dict) -> str | None:
     """Validate against the real config model if importable; else skip."""
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-        from karverktyg.config.loader import migrate
-        from karverktyg.config.models import KarConfig
+        from scoutnet_membership_manager.config.loader import migrate
+        from scoutnet_membership_manager.config.models import KarConfig
     except Exception:  # noqa: BLE001 - validation is a bonus, never a hard dependency
         return "kunde inte importera konfigurationsmodellen (kör från repo-roten för validering)"
     try:
@@ -149,11 +149,13 @@ def main() -> None:
     else:
         print("\n✓ Konfigurationen validerar mot modellen.")
 
-    out = args.output or Path(ask("\nSpara till", default="karverktyg.json"))
+    out = args.output or Path(ask("\nSpara till", default="scoutnet-membership-manager.json"))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Sparade {len(cfg['avdelningar'])} avdelningar till {out}")
-    print("Peka appen på filen via SCOUTNET_CONFIG_PATH (eller lägg den som karverktyg.json).")
+    print(
+        "Peka appen på filen via SCOUTNET_CONFIG_PATH (standard: scoutnet-membership-manager.json)."
+    )
 
 
 if __name__ == "__main__":

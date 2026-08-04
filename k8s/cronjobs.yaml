@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: karverktyg-canary
+  name: scoutnet-membership-manager-canary
 spec:
   # Weekly by default and configurable. Seasonal software — catch breakage in
   # April, not the day two hundred scouts need moving (§14).
@@ -15,16 +15,16 @@ spec:
           restartPolicy: Never
           containers:
             - name: canary
-              image: karverktyg:latest
-              args: ["karverktyg", "canary", "--mode", "read_only"]
+              image: scoutnet-membership-manager:latest
+              args: ["membership-manager", "canary", "--mode", "read_only"]
               envFrom:
-                - configMapRef: { name: karverktyg-config }
-                - secretRef: { name: karverktyg-secrets }
+                - configMapRef: { name: scoutnet-membership-manager-config }
+                - secretRef: { name: scoutnet-membership-manager-secrets }
 ---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: karverktyg-spec-drift
+  name: scoutnet-membership-manager-spec-drift
 spec:
   schedule: "0 7 * * 1"
   concurrencyPolicy: Forbid
@@ -35,7 +35,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: spec-drift
-              image: karverktyg:latest
-              args: ["karverktyg", "drift-check"]
+              image: scoutnet-membership-manager:latest
+              args: ["membership-manager", "drift-check"]
               envFrom:
-                - configMapRef: { name: karverktyg-config }
+                - configMapRef: { name: scoutnet-membership-manager-config }

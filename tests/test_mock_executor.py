@@ -12,11 +12,11 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import create_engine
 
-from karverktyg.db import Base, make_sessionmaker
-from karverktyg.scoutnet.client import ReadWriteClient, ScoutnetError
-from karverktyg.settings import Mode, Settings
-from karverktyg.write.executor import IntendedMove, RunMode, WriteExecutor
 from mock_scoutnet import MockScoutnet, load_update_membership_contract
+from scoutnet_membership_manager.db import Base, make_sessionmaker
+from scoutnet_membership_manager.scoutnet.client import ReadWriteClient, ScoutnetError
+from scoutnet_membership_manager.settings import Mode, Settings
+from scoutnet_membership_manager.write.executor import IntendedMove, RunMode, WriteExecutor
 
 NOW = datetime(2026, 8, 3, 12, 0, tzinfo=UTC)
 

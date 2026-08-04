@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from sqlalchemy import create_engine, select
 
-from karverktyg.cli import main
-from karverktyg.db import Base, WriteRun, get_session, make_sessionmaker
+from scoutnet_membership_manager.cli import main
+from scoutnet_membership_manager.db import Base, WriteRun, get_session, make_sessionmaker
 from test_executor import FakeReadWrite
 
 
@@ -33,7 +33,7 @@ def test_verify_write_requires_read_write(monkeypatch):
 def test_verify_write_dry_run_writes_nothing(monkeypatch, tmp_path):
     _rw_env(monkeypatch, tmp_path)
     fake = FakeReadWrite({"100": {"troop_id": 10}})
-    monkeypatch.setattr("karverktyg.cli._build_rw", lambda _s: (fake, _factory()))
+    monkeypatch.setattr("scoutnet_membership_manager.cli._build_rw", lambda _s: (fake, _factory()))
 
     assert main(["verify-write", "--member", "100", "--to", "20"]) == 0
     assert fake.calls == []  # dry-run sent nothing
@@ -43,7 +43,7 @@ def test_verify_write_dry_run_writes_nothing(monkeypatch, tmp_path):
 def test_verify_write_execute_moves_the_member(monkeypatch, tmp_path):
     _rw_env(monkeypatch, tmp_path)
     fake = FakeReadWrite({"100": {"troop_id": 10}})
-    monkeypatch.setattr("karverktyg.cli._build_rw", lambda _s: (fake, _factory()))
+    monkeypatch.setattr("scoutnet_membership_manager.cli._build_rw", lambda _s: (fake, _factory()))
 
     assert main(["verify-write", "--member", "100", "--to", "20", "--execute"]) == 0
     assert fake._members["100"]["troop_id"] == 20
@@ -52,7 +52,7 @@ def test_verify_write_execute_moves_the_member(monkeypatch, tmp_path):
 def test_verify_write_refuses_off_allowlist(monkeypatch, tmp_path):
     _rw_env(monkeypatch, tmp_path, allowlist='["999"]')  # 100 not allowed
     fake = FakeReadWrite({"100": {"troop_id": 10}})
-    monkeypatch.setattr("karverktyg.cli._build_rw", lambda _s: (fake, _factory()))
+    monkeypatch.setattr("scoutnet_membership_manager.cli._build_rw", lambda _s: (fake, _factory()))
 
     assert main(["verify-write", "--member", "100", "--to", "20", "--execute"]) == 1
     assert fake._members["100"]["troop_id"] == 10  # untouched
@@ -62,7 +62,7 @@ def test_verify_write_round_trip_and_idempotency(monkeypatch, tmp_path):
     _rw_env(monkeypatch, tmp_path)
     fake = FakeReadWrite({"100": {"troop_id": 10}})
     sm = _factory()
-    monkeypatch.setattr("karverktyg.cli._build_rw", lambda _s: (fake, sm))
+    monkeypatch.setattr("scoutnet_membership_manager.cli._build_rw", lambda _s: (fake, sm))
 
     # execute + idempotency re-apply
     assert (

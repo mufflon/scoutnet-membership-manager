@@ -1,14 +1,14 @@
 # PostgreSQL for the local deployment, managed by CloudNativePG. The CNPG operator
 # is installed by scripts/k8s-up.sh (once); CNPG then creates the pods, PVCs and the
-# karverktyg-db-rw / -ro / -r services, and manages failover/backups. The app
-# connects to karverktyg-db-rw. The app-role password comes from the
-# karverktyg-db-app secret that k8s-up.sh writes from your .conf (CNPG adopts a
+# scoutnet-membership-manager-db-rw / -ro / -r services, and manages failover/backups. The app
+# connects to scoutnet-membership-manager-db-rw. The app-role password comes from the
+# scoutnet-membership-manager-db-app secret that k8s-up.sh writes from your .conf (CNPG adopts a
 # pre-existing "<cluster>-app" secret instead of generating one).
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: karverktyg-db
-  namespace: karverktyg
+  name: scoutnet-membership-manager-db
+  namespace: scoutnet-membership-manager
 spec:
   instances: 1 # single instance for the local cluster; raise for real deployments
   imageName: ghcr.io/cloudnative-pg/postgresql:17
@@ -17,5 +17,5 @@ spec:
     storageClass: local-path
   bootstrap:
     initdb:
-      database: karverktyg
-      owner: karverktyg
+      database: scoutnet-membership-manager
+      owner: scoutnet-membership-manager

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from karverktyg.scoutnet.client import FixtureClient, ScoutnetError
-from karverktyg.settings import Mode, Settings
-from karverktyg.web.apicheck import api_check
+from scoutnet_membership_manager.scoutnet.client import FixtureClient, ScoutnetError
+from scoutnet_membership_manager.settings import Mode, Settings
+from scoutnet_membership_manager.web.apicheck import api_check
 
 
 class _Stub:

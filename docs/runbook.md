@@ -69,8 +69,8 @@ account, since that is the one your access depends on. Put its `member_no` on th
 allowlist, note its current avdelning, then:
 
 ```bash
-karverktyg verify-write --member <placeholder_no> --to <target_troop_id>
-karverktyg verify-write --member <placeholder_no> --to <target_troop_id> --execute --idempotency
+scoutnet-membership-manager verify-write --member <placeholder_no> --to <target_troop_id>
+scoutnet-membership-manager verify-write --member <placeholder_no> --to <target_troop_id> --execute --idempotency
 ```
 
 The first command is a dry run and writes nothing. Check in the Scoutnet UI that
@@ -78,7 +78,7 @@ the placeholder actually landed in the target avdelning, then undo with the prin
 command:
 
 ```bash
-karverktyg verify-write --undo-run <run_id> --execute
+scoutnet-membership-manager verify-write --undo-run <run_id> --execute
 ```
 
 `--idempotency` re-applies the same move once and confirms Scoutnet treats it as a
@@ -160,14 +160,14 @@ happened. Find them before you start improvising.
 | **Intent and outcome** — what each member was meant to change to, and whether it applied | Postgres: `write_run`, `write_journal`, and a `snapshot` index row | **No** |
 | **Current truth** | Live Scoutnet | n/a |
 
-To look at them, from the `karverktyg` namespace:
+To look at them, from the `scoutnet-membership-manager` namespace:
 
 ```bash
 # snapshot files
-kubectl -n karverktyg exec deploy/karverktyg -- ls -la "$SCOUTNET_SNAPSHOT_DIR"
+kubectl -n scoutnet-membership-manager exec deploy/scoutnet-membership-manager -- ls -la "$SCOUTNET_SNAPSHOT_DIR"
 
 # the journal
-kubectl -n karverktyg exec -it deploy/<postgres> -- psql -U <user> -d <db> \
+kubectl -n scoutnet-membership-manager exec -it deploy/<postgres> -- psql -U <user> -d <db> \
   -c 'select * from write_run order by id desc limit 10;'
 ```
 

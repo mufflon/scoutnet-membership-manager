@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from karverktyg.scoutnet.client import (
+from scoutnet_membership_manager.scoutnet.client import (
     DEFAULT_FIXTURE,
     FixtureClient,
     ReadOnlyClient,
     ReadWriteClient,
     build_client,
 )
-from karverktyg.settings import MissingCredentialError, Mode, Settings
+from scoutnet_membership_manager.settings import MissingCredentialError, Mode, Settings
 
 # Names that would indicate a write path. None may exist on a read client (§6).
 FORBIDDEN = (

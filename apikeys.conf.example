@@ -1,6 +1,6 @@
 # apikeys.conf — SECRETS ONLY. Copy to apikeys.conf and fill in; the real file is
 # gitignored and never baked into the image. Everything non-secret (mode, kår,
-# avdelningar, cohort year) lives in karverktyg.json instead.
+# avdelningar, cohort year) lives in scoutnet-membership-manager.json instead.
 #
 # Locally, load these into the environment before running:  set -a; . ./apikeys.conf; set +a
 # In Kubernetes, scripts/k8s-up.sh reads this file into a Secret.
@@ -25,4 +25,4 @@ SCOUTNET_UPDATE_MEMBERSHIP_KEY=
 # Database. For the local CloudNativePG cluster just set a password; for an external
 # DB give the full DSN instead (it contains the password, hence a secret).
 POSTGRES_PASSWORD=devpassword
-# SCOUTNET_DATABASE_URL=postgresql+psycopg://user:pass@host:5432/karverktyg
+# SCOUTNET_DATABASE_URL=postgresql+psycopg://user:pass@host:5432/scoutnet-membership-manager

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from karverktyg.findings import compute_findings
-from karverktyg.findings.models import FindingType, Severity, value_hash
-from karverktyg.scoutnet.models import Member, MemberList, Role
+from scoutnet_membership_manager.findings import compute_findings
+from scoutnet_membership_manager.findings.models import FindingType, Severity, value_hash
+from scoutnet_membership_manager.scoutnet.models import Member, MemberList, Role
 
 
 def _mk(member_no, unit, code, troop, birth_year, roles=(), phones=None, emails=None):

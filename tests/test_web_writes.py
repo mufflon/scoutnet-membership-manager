@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import json
 
-from karverktyg.db import WriteRun, get_session
-from karverktyg.scoutnet.client import FixtureClient
-from karverktyg.settings import Mode, Settings
-from karverktyg.web import create_app
+from scoutnet_membership_manager.db import WriteRun, get_session
+from scoutnet_membership_manager.scoutnet.client import FixtureClient
+from scoutnet_membership_manager.settings import Mode, Settings
+from scoutnet_membership_manager.web import create_app
 
 
 def _member(mno: str, unit: str, troop_id: int, unit_type: int, dob: str) -> dict:

@@ -2,27 +2,27 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: karverktyg
-  labels: { app: karverktyg }
+  name: scoutnet-membership-manager
+  labels: { app: scoutnet-membership-manager }
 spec:
   replicas: 1
   selector:
-    matchLabels: { app: karverktyg }
+    matchLabels: { app: scoutnet-membership-manager }
   template:
     metadata:
-      labels: { app: karverktyg }
+      labels: { app: scoutnet-membership-manager }
     spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
       containers:
-        - name: karverktyg
-          image: karverktyg:latest   # registry unsolved (§14); set at deploy time
+        - name: scoutnet-membership-manager
+          image: scoutnet-membership-manager:latest   # registry unsolved (§14); set at deploy time
           ports:
             - containerPort: 8000
           envFrom:
-            - configMapRef: { name: karverktyg-config }
-            - secretRef: { name: karverktyg-secrets }
+            - configMapRef: { name: scoutnet-membership-manager-config }
+            - secretRef: { name: scoutnet-membership-manager-secrets }
           # Liveness: cheap local check. Readiness: verifies Postgres, never
           # Scoutnet, so an upstream outage does not cycle pods (§14).
           livenessProbe:
@@ -44,12 +44,12 @@ spec:
       volumes:
         - name: snapshots
           persistentVolumeClaim:
-            claimName: karverktyg-snapshots
+            claimName: scoutnet-membership-manager-snapshots
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: karverktyg-snapshots
+  name: scoutnet-membership-manager-snapshots
 spec:
   accessModes: ["ReadWriteOnce"]
   resources:

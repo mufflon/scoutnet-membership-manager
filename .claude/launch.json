@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "karverktyg-fixture",
+      "name": "scoutnet-membership-manager-fixture",
       "runtimeExecutable": ".venv/bin/python",
-      "runtimeArgs": ["-m", "karverktyg.cli", "serve", "--mode", "fixture", "--host", "127.0.0.1", "--port", "8013"],
+      "runtimeArgs": ["-m", "scoutnet_membership_manager.cli", "serve", "--mode", "fixture", "--host", "127.0.0.1", "--port", "8013"],
       "port": 8013
     }
   ]

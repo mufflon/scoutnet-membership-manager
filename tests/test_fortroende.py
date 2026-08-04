@@ -7,18 +7,18 @@ from io import BytesIO
 import pytest
 from openpyxl import load_workbook
 
-from karverktyg.config.models import ExpectedPost
-from karverktyg.export.fortroende_xlsx import build_fortroende_xlsx
-from karverktyg.export.report import PdfUnavailable, html_to_pdf, render_html
-from karverktyg.fortroende import (
+from scoutnet_membership_manager.config.models import ExpectedPost
+from scoutnet_membership_manager.export.fortroende_xlsx import build_fortroende_xlsx
+from scoutnet_membership_manager.export.report import PdfUnavailable, html_to_pdf, render_html
+from scoutnet_membership_manager.fortroende import (
     Assignment,
     fortroendeuppdrag,
     group_by_section,
     rolecount_reconciliation,
 )
-from karverktyg.scoutnet.models import Member, MemberList, Role
-from karverktyg.settings import Mode, Settings
-from karverktyg.web import create_app
+from scoutnet_membership_manager.scoutnet.models import Member, MemberList, Role
+from scoutnet_membership_manager.settings import Mode, Settings
+from scoutnet_membership_manager.web import create_app
 
 WHEN = datetime(2026, 8, 3, 9, 0, 0)
 HAS_WEASYPRINT = importlib.util.find_spec("weasyprint") is not None

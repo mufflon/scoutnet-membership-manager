@@ -1,13 +1,13 @@
 # Non-secret deployment knobs only. mode, entity_id, cohort_year and the kår live in
-# the committed karverktyg.json (bundled in the image); do NOT re-declare them here,
+# the committed scoutnet-membership-manager.json (bundled in the image); do NOT re-declare them here,
 # or env would silently override the file. Keys live in a Secret, never here.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: karverktyg-config
+  name: scoutnet-membership-manager-config
 data:
   SCOUTNET_BASE_URL: "https://scoutnet.se/api"
-  # Path to the config file inside the container (bundled at /app/karverktyg.json).
-  SCOUTNET_CONFIG_PATH: "karverktyg.json"
+  # Path to the config file inside the container (bundled at /app/scoutnet-membership-manager.json).
+  SCOUTNET_CONFIG_PATH: "scoutnet-membership-manager.json"
   SCOUTNET_CHUNK_SIZE: "25"
   SCOUTNET_SNAPSHOT_RETENTION_DAYS: "30"

@@ -6,10 +6,10 @@ from io import BytesIO
 import pytest
 from openpyxl import load_workbook
 
-from karverktyg.config.models import TransitionKind
-from karverktyg.export import ChangelistAckRequired, build_changelist, reconcile
-from karverktyg.scoutnet.models import Member, MemberList
-from karverktyg.uppflyttning.models import MasterSet, MoveEntry, MoveStatus
+from scoutnet_membership_manager.config.models import TransitionKind
+from scoutnet_membership_manager.export import ChangelistAckRequired, build_changelist, reconcile
+from scoutnet_membership_manager.scoutnet.models import Member, MemberList
+from scoutnet_membership_manager.uppflyttning.models import MasterSet, MoveEntry, MoveStatus
 
 WHEN = datetime(2026, 8, 3, 9, 0, 0)
 

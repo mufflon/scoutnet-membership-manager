@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 from sqlalchemy import create_engine
 
-from karverktyg.db import Base, make_sessionmaker
-from karverktyg.scoutnet.client import DEFAULT_FIXTURE, FixtureClient
-from karverktyg.scoutnet.models import Member, MemberList, Role
-from karverktyg.settings import Mode, Settings
-from karverktyg.write import (
+from scoutnet_membership_manager.db import Base, make_sessionmaker
+from scoutnet_membership_manager.scoutnet.client import DEFAULT_FIXTURE, FixtureClient
+from scoutnet_membership_manager.scoutnet.models import Member, MemberList, Role
+from scoutnet_membership_manager.settings import Mode, Settings
+from scoutnet_membership_manager.write import (
     SnapshotError,
     build_snapshot_payload,
     delete_snapshot,

@@ -34,4 +34,4 @@ node_modules/
 # API keys / secrets — never commit; keep only *.conf.example (e.g. apikeys.conf)
 *.conf
 !*.conf.example
-# karverktyg.json holds NO secrets (keys live in apikeys.conf), so it is committed.
+# scoutnet-membership-manager.json holds NO secrets (keys live in apikeys.conf), so it is committed.

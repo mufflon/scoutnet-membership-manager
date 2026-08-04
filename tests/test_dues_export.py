@@ -4,11 +4,11 @@ from io import BytesIO
 
 from openpyxl import load_workbook
 
-from karverktyg.export.dues_xlsx import build_dues_xlsx
-from karverktyg.scoutnet.models import DueDate, Member, MemberList
-from karverktyg.scoutnet.parse import parse_due_date
-from karverktyg.settings import Mode, Settings
-from karverktyg.web import create_app
+from scoutnet_membership_manager.export.dues_xlsx import build_dues_xlsx
+from scoutnet_membership_manager.scoutnet.models import DueDate, Member, MemberList
+from scoutnet_membership_manager.scoutnet.parse import parse_due_date
+from scoutnet_membership_manager.settings import Mode, Settings
+from scoutnet_membership_manager.web import create_app
 
 
 def _m(no, first, last, unit, prev_code, cur_code="not_invoiced", **kw):

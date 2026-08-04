@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Build-up: deploy karverktyg to the local k3s cluster from a .conf of API keys.
+# Build-up: deploy scoutnet-membership-manager to the local k3s cluster from a .conf of API keys.
 #
-#   scripts/k8s-up.sh [karverktyg.conf]
+#   scripts/k8s-up.sh [scoutnet-membership-manager.conf]
 #
 # Blank values in the .conf disable that endpoint/action (the key is omitted, so
 # the app reports the capability as unavailable). An existing database is reused
@@ -9,11 +9,11 @@
 # rebuilt (see db.bootstrap, run as an init step). POSIX-bash compatible (3.2+).
 set -eu
 
-NS=karverktyg
+NS=scoutnet-membership-manager
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE"
 # Secrets (API keys + DB password) come from apikeys.conf; everything else is in
-# the committed karverktyg.json.
+# the committed scoutnet-membership-manager.json.
 CONF="${1:-apikeys.conf}"
 
 [ -f "$CONF" ] || {
@@ -26,16 +26,16 @@ conf_val() {
   sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\(.*\)\$/\1/p" "$CONF" | tail -n1 | sed 's/[[:space:]]*$//'
 }
 
-PGDB=karverktyg
-PGUSER=karverktyg
+PGDB=scoutnet-membership-manager
+PGUSER=scoutnet-membership-manager
 PGPASS="$(conf_val POSTGRES_PASSWORD)"; PGPASS="${PGPASS:-devpassword}"
 DSN="$(conf_val SCOUTNET_DATABASE_URL)"
-# CloudNativePG exposes the primary at <cluster>-rw (karverktyg-db-rw).
-DSN="${DSN:-postgresql+psycopg://${PGUSER}:${PGPASS}@karverktyg-db-rw:5432/${PGDB}}"
+# CloudNativePG exposes the primary at <cluster>-rw (scoutnet-membership-manager-db-rw).
+DSN="${DSN:-postgresql+psycopg://${PGUSER}:${PGPASS}@scoutnet-membership-manager-db-rw:5432/${PGDB}}"
 MODE="$(conf_val SCOUTNET_MODE)"; MODE="${MODE:-read_only}"
 
-echo "==> building image karverktyg:latest"
-docker build -t karverktyg:latest "$HERE" >/dev/null
+echo "==> building image scoutnet-membership-manager:latest"
+docker build -t scoutnet-membership-manager:latest "$HERE" >/dev/null
 
 kubectl get ns "$NS" >/dev/null 2>&1 || kubectl create ns "$NS" >/dev/null
 
@@ -62,7 +62,7 @@ while IFS= read -r line || [ -n "$line" ]; do
       ;;
   esac
 done < "$CONF"
-kubectl -n "$NS" create secret generic karverktyg-secrets "$@" \
+kubectl -n "$NS" create secret generic scoutnet-membership-manager-secrets "$@" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 echo "==> secret applied (${scoutnet_keys} SCOUTNET_ key(s) set; blanks disabled), mode=${MODE}"
 
@@ -77,7 +77,7 @@ if ! kubectl get crd clusters.postgresql.cnpg.io >/dev/null 2>&1; then
 fi
 
 # The app-role password for the CNPG cluster — CNPG adopts the <cluster>-app secret.
-kubectl -n "$NS" create secret generic karverktyg-db-app \
+kubectl -n "$NS" create secret generic scoutnet-membership-manager-db-app \
   --type=kubernetes.io/basic-auth \
   --from-literal=username="$PGUSER" \
   --from-literal=password="$PGPASS" \
@@ -85,16 +85,16 @@ kubectl -n "$NS" create secret generic karverktyg-db-app \
 
 echo "==> applying manifests"
 kubectl apply -f k8s/local/ >/dev/null
-kubectl -n "$NS" rollout restart deploy/karverktyg >/dev/null 2>&1 || true
+kubectl -n "$NS" rollout restart deploy/scoutnet-membership-manager >/dev/null 2>&1 || true
 
 echo "==> waiting for Postgres (CNPG cluster)"
 # Wait on the Cluster resource (present immediately after apply) rather than its
 # pods, which the operator creates a moment later (a label wait would race).
-kubectl -n "$NS" wait --for=condition=Ready cluster/karverktyg-db --timeout=300s
+kubectl -n "$NS" wait --for=condition=Ready cluster/scoutnet-membership-manager-db --timeout=300s
 echo "==> waiting for app (db-bootstrap runs first)"
-kubectl -n "$NS" rollout status deploy/karverktyg --timeout=180s
+kubectl -n "$NS" rollout status deploy/scoutnet-membership-manager --timeout=180s
 
 echo
-echo "karverktyg is up in namespace '$NS'."
-echo "  db-bootstrap log:  kubectl -n $NS logs deploy/karverktyg -c db-bootstrap"
-echo "  open the app:      kubectl -n $NS port-forward svc/karverktyg 8000:80   # http://localhost:8000"
+echo "scoutnet-membership-manager is up in namespace '$NS'."
+echo "  db-bootstrap log:  kubectl -n $NS logs deploy/scoutnet-membership-manager -c db-bootstrap"
+echo "  open the app:      kubectl -n $NS port-forward svc/scoutnet-membership-manager 8000:80   # http://localhost:8000"

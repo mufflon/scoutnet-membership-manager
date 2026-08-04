@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from karverktyg.scoutnet.models import PaymentBucket, classify_payment
+from scoutnet_membership_manager.scoutnet.models import PaymentBucket, classify_payment
 
 
 @pytest.mark.parametrize(

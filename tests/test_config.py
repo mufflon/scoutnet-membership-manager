@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from karverktyg.config import TransitionKind
-from karverktyg.config.loader import default_config
-from karverktyg.config.models import BRACKETS, Bracket, KarConfig, transition_for
+from scoutnet_membership_manager.config import TransitionKind
+from scoutnet_membership_manager.config.loader import default_config
+from scoutnet_membership_manager.config.models import BRACKETS, Bracket, KarConfig, transition_for
 
 
 def test_config_loads(config):
@@ -31,8 +31,8 @@ def test_transition_groups_by_source_bracket():
 
 
 def test_same_weekday_target_resolves(config, memberlist):
-    from karverktyg.roster import build_troop_index
-    from karverktyg.uppflyttning.engine import infer_target_name
+    from scoutnet_membership_manager.roster import build_troop_index
+    from scoutnet_membership_manager.uppflyttning.engine import infer_target_name
 
     index = build_troop_index(memberlist, config)
     # Hajarna (Mon) -> the Mon Upptäckare (Kämparna), by same-weekday inference.

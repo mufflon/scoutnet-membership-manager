@@ -1,5 +1,5 @@
 {
-  "$schema": "../karverktyg.schema.json",
+  "$schema": "../scoutnet-membership-manager.schema.json",
   "name": "Scoutkåren Finn (stående Utmanare)",
   "avdelningar": [
     { "name": "Hajarna",       "bracket": "sparare",    "weekday": 0 },

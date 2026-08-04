@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from sqlalchemy import create_engine
 
-from karverktyg.db import Base, make_sessionmaker
-from karverktyg.db.session import get_session
-from karverktyg.mail import (
+from scoutnet_membership_manager.db import Base, make_sessionmaker
+from scoutnet_membership_manager.db.session import get_session
+from scoutnet_membership_manager.mail import (
     MailMessage,
     MailSender,
     RecordingMailSender,
     resolve_recipients,
     send_once,
 )
-from karverktyg.scoutnet.models import Member
+from scoutnet_membership_manager.scoutnet.models import Member
 
 
 def _member(**emails):

@@ -1,4 +1,4 @@
-# karverktyg in a page
+# scoutnet-membership-manager in a page
 
 A small internal tool for a Swedish scoutkår. It reads member data from Scoutnet
 and helps leaders with the recurring termly work — see the composition, chase
@@ -10,7 +10,7 @@ problems — and apply the yearly **uppflyttning** (moving each cohort up an
 
 ```bash
 uv sync
-uv run karverktyg serve --mode fixture --port 8000    # then open http://localhost:8000
+uv run scoutnet-membership-manager serve --mode fixture --port 8000    # then open http://localhost:8000
 ```
 
 Fixture mode needs no API key and no database: it runs against a completely

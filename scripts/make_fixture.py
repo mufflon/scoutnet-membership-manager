@@ -32,7 +32,11 @@ from random import Random
 import scrub_capture as sc  # sibling spike: name/ssno/phone/email fakers
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from karverktyg.config.models import Bracket, KarConfig, unit_type_code  # noqa: E402
+from scoutnet_membership_manager.config.models import (  # noqa: E402
+    Bracket,
+    KarConfig,
+    unit_type_code,
+)
 
 DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "docs" / "examples" / "finn.json.example"
 DEMO_GROUP_ID = "1025"  # the kår's group id, carried on group-scoped förtroende roles

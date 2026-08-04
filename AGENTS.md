@@ -23,4 +23,4 @@ If you are an AI assistant working in this repo, read these first, in order:
 - **Config is small and optional:** brackets are national code, a kår's config is
   just its avdelningar; the app runs with no config by inferring from the data.
   If you change what is configurable, update `scripts/make_config.py`,
-  `docs/karverktyg.schema.json` (there is a sync test), and CLAUDE.md §13 together.
+  `docs/scoutnet-membership-manager.schema.json` (there is a sync test), and CLAUDE.md §13 together.

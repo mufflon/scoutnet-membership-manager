@@ -1,18 +1,18 @@
 # The app, wired to the in-cluster Postgres. Config (mode, keys, DSN) comes from
-# the karverktyg-secrets secret that scripts/k8s-up.sh builds from your .conf.
+# the scoutnet-membership-manager-secrets secret that scripts/k8s-up.sh builds from your .conf.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: karverktyg
-  namespace: karverktyg
-  labels: { app: karverktyg }
+  name: scoutnet-membership-manager
+  namespace: scoutnet-membership-manager
+  labels: { app: scoutnet-membership-manager }
 spec:
   replicas: 1
   selector:
-    matchLabels: { app: karverktyg }
+    matchLabels: { app: scoutnet-membership-manager }
   template:
     metadata:
-      labels: { app: karverktyg }
+      labels: { app: scoutnet-membership-manager }
     spec:
       securityContext:
         runAsNonRoot: true
@@ -24,28 +24,28 @@ spec:
         # fixture/read_only — nothing writes here until a read_write bulk run.
         - name: snapshots
           persistentVolumeClaim:
-            claimName: karverktyg-snapshots
+            claimName: scoutnet-membership-manager-snapshots
       initContainers:
         - name: wait-for-db
           image: busybox:1.36
-          command: ["sh", "-c", "until nc -z karverktyg-db-rw 5432; do echo waiting for db; sleep 1; done"]
+          command: ["sh", "-c", "until nc -z scoutnet-membership-manager-db-rw 5432; do echo waiting for db; sleep 1; done"]
         # Bring the DB to the current schema: reuse/migrate if compatible, else
         # keep templates and rebuild (see db.bootstrap). Idempotent.
         - name: db-bootstrap
-          image: karverktyg:latest
+          image: scoutnet-membership-manager:latest
           imagePullPolicy: IfNotPresent
-          args: ["karverktyg", "db-bootstrap"]
+          args: ["membership-manager", "db-bootstrap"]
           envFrom:
-            - secretRef: { name: karverktyg-secrets }
+            - secretRef: { name: scoutnet-membership-manager-secrets }
       containers:
-        - name: karverktyg
-          image: karverktyg:latest
+        - name: scoutnet-membership-manager
+          image: scoutnet-membership-manager:latest
           imagePullPolicy: IfNotPresent # image is read from the docker store by k3s
           envFrom:
-            - secretRef: { name: karverktyg-secrets }
+            - secretRef: { name: scoutnet-membership-manager-secrets }
           volumeMounts:
             - name: snapshots
-              mountPath: /var/lib/karverktyg/snapshots
+              mountPath: /var/lib/scoutnet-membership-manager/snapshots
           ports:
             - containerPort: 8000
           livenessProbe:
@@ -65,8 +65,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: karverktyg-snapshots
-  namespace: karverktyg
+  name: scoutnet-membership-manager-snapshots
+  namespace: scoutnet-membership-manager
 spec:
   accessModes: ["ReadWriteOnce"]
   resources:
@@ -75,10 +75,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: karverktyg
-  namespace: karverktyg
+  name: scoutnet-membership-manager
+  namespace: scoutnet-membership-manager
 spec:
-  selector: { app: karverktyg }
+  selector: { app: scoutnet-membership-manager }
   ports:
     - port: 80
       targetPort: 8000

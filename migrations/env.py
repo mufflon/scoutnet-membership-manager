@@ -5,8 +5,8 @@ from __future__ import annotations
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from karverktyg.db.models import Base
-from karverktyg.settings import Settings
+from scoutnet_membership_manager.db.models import Base
+from scoutnet_membership_manager.settings import Settings
 
 config = context.config
 # A caller (e.g. db-bootstrap) may inject the URL via the Config; otherwise take

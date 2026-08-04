@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import pytest
 
-from karverktyg.config.models import TransitionKind
-from karverktyg.scoutnet.models import Member, MemberList, Role
-from karverktyg.uppflyttning import (
+from scoutnet_membership_manager.config.models import TransitionKind
+from scoutnet_membership_manager.scoutnet.models import Member, MemberList, Role
+from scoutnet_membership_manager.uppflyttning import (
     CohortYearConflict,
     ElectedTarget,
     MoveStatus,
     compute_master_set,
     resolve_cohort_year,
 )
-from karverktyg.uppflyttning.cohort import derive_n_from_term_label
+from scoutnet_membership_manager.uppflyttning.cohort import derive_n_from_term_label
 
 
 # --- cohort year N + guard (§17) ------------------------------------------
@@ -109,7 +109,7 @@ def test_master_set_moves(config):
 
 def test_ambiguous_merge_needs_per_member_target(config):
     """Two candidate Äventyrare avdelningar and no flow hint -> must select per member."""
-    from karverktyg.config.models import KarConfig
+    from scoutnet_membership_manager.config.models import KarConfig
 
     raw = config.model_dump(mode="json")
     raw["avdelningar"].append({"name": "Sjörövarna", "bracket": "aventyrare", "weekday": 4})
@@ -125,9 +125,9 @@ def test_ambiguous_merge_needs_per_member_target(config):
 
 def test_misplaced_member_routes_per_person(config):
     """An off-cohort member assigned a target becomes READY yet stays in 'misplaced'."""
-    from karverktyg.roster import build_troop_index
-    from karverktyg.uppflyttning import MISPLACED_GROUP, scope_master_set
-    from karverktyg.uppflyttning.overrides import Override, apply_overrides
+    from scoutnet_membership_manager.roster import build_troop_index
+    from scoutnet_membership_manager.uppflyttning import MISPLACED_GROUP, scope_master_set
+    from scoutnet_membership_manager.uppflyttning.overrides import Override, apply_overrides
 
     ml = _synthetic()
     ms = compute_master_set(ml, config, config_cohort_year_n=2026)
@@ -146,7 +146,7 @@ def test_misplaced_member_routes_per_person(config):
 
 def test_structural_misplacements_join_misplaced_group(config):
     """No-avdelning and under-18-in-Ledare members are routable in 'misplaced'."""
-    from karverktyg.uppflyttning import MISPLACED_GROUP, scope_master_set
+    from scoutnet_membership_manager.uppflyttning import MISPLACED_GROUP, scope_master_set
 
     ml = MemberList(
         members=[

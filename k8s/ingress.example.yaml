@@ -4,7 +4,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: karverktyg
+  name: scoutnet-membership-manager
   annotations:
     # Example: require auth in front of everything. Replace with your mechanism.
     # nginx.ingress.kubernetes.io/auth-url: "https://auth.example.se/oauth2/auth"
@@ -12,13 +12,13 @@ metadata:
     {}
 spec:
   rules:
-    - host: karverktyg.example.se
+    - host: scoutnet-membership-manager.example.se
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: karverktyg
+                name: scoutnet-membership-manager
                 port:
                   number: 80

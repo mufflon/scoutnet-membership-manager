@@ -1,5 +1,5 @@
 {
-  "$schema": "../karverktyg.schema.json",
+  "$schema": "../scoutnet-membership-manager.schema.json",
   "name": "Exempelkåren (minimal)",
   "avdelningar": [
     { "name": "Spårarna",    "bracket": "sparare",    "weekday": 0 },

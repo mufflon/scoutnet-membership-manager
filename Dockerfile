@@ -16,7 +16,7 @@ RUN uv sync --frozen --no-install-project --no-dev --extra pdf
 # App layer.
 COPY src ./src
 COPY docs ./docs
-COPY karverktyg.json ./
+COPY scoutnet-membership-manager.json ./
 COPY fixtures ./fixtures
 COPY migrations ./migrations
 COPY vendor ./vendor
@@ -54,4 +54,4 @@ EXPOSE 8000
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", \
      "--worker-class", "gthread", "--workers", "1", "--threads", "16", \
      "--timeout", "120", "--graceful-timeout", "30", \
-     "karverktyg.wsgi:app"]
+     "scoutnet_membership_manager.wsgi:app"]
