@@ -33,7 +33,6 @@ from karverktyg.uppflyttning import (
     MISPLACED_GROUP,
     ElectedTarget,
     MasterSet,
-    MoveStatus,
     apply_overrides,
     clear_all_decisions,
     clear_decision,
@@ -431,7 +430,7 @@ def _group_counts(master: MasterSet) -> dict[str, int]:
     """Member count per group from the full master set, for the selector (§7 A)."""
     counts: dict[str, int] = {}
     for e in master.entries:
-        key = MISPLACED_GROUP if e.status is MoveStatus.OFF_COHORT else str(e.transition)
+        key = MISPLACED_GROUP if e.off_cohort else str(e.transition)
         counts[key] = counts.get(key, 0) + 1
     return counts
 

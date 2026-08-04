@@ -179,6 +179,26 @@ def compute_findings(
                     m.member_no,
                 )
             )
+        # A minor sitting in the Ledare (18+) avdelning — a placement/permission
+        # anomaly the leaders very much want surfaced. The structural-bracket checks
+        # above skip Ledare (bracket "annat"), so it is caught here explicitly.
+        elif (
+            m.unit_troop_id in ledare_ids
+            and cohort_year_n
+            and m.birth_year
+            and (cohort_year_n - m.birth_year) < ADULT_AGE
+        ):
+            findings.append(
+                _finding(
+                    FindingType.UNDERAGE_IN_LEDARE,
+                    Severity.WARNING,
+                    m,
+                    m.unit,
+                    f"Under 18 (fyller {cohort_year_n - m.birth_year} år {cohort_year_n}) "
+                    "men medlem i avdelningen Ledare – ska granskas/flyttas.",
+                    str(m.birth_year),
+                )
+            )
         if m.bracket in structural:
             findings.extend(_structural_findings(m, cohort_year_n, index, rover_ids))
         findings.extend(_data_quality_findings(m))

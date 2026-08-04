@@ -20,10 +20,13 @@ def test_ledare_is_the_only_18plus(config):
 
 
 def test_same_weekday_targets_resolve(config):
+    from karverktyg.uppflyttning.engine import infer_target_name
+
     hajarna = config.avdelning("Hajarna")
-    assert hajarna.bracket is Bracket.SPARARE
-    assert hajarna.weekday == 0
-    assert config.avdelning(hajarna.default_target).weekday == 0  # matched weekday
+    assert hajarna.bracket is Bracket.SPARARE and hajarna.weekday == 0
+    # Target inferred by the same weekday in the next bracket (no hardcoded default).
+    target = infer_target_name(hajarna, config)
+    assert target == "Kämparna" and config.avdelning(target).weekday == 0
 
 
 def test_transition_kinds(config):

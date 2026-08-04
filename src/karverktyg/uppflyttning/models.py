@@ -39,6 +39,11 @@ class MoveEntry:
     target_troop_id: int | None
     transition: TransitionKind
     status: MoveStatus
+    # Classified off-cohort (wrong age for the bracket). A **stable** marker: it
+    # stays true even after a manual target override turns the row into a READY
+    # move, so the member remains in the "misplaced" group rather than jumping into
+    # an age transition (§7 Deferred architecture A).
+    off_cohort: bool = False
     note: str = ""
     # The computed default target (before any override), so the UI can mark it.
     default_target: str | None = None

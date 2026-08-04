@@ -30,7 +30,7 @@ a merge error rather than a judgement call.
 ## Current state (2026-08-03)
 
 Built, tested and deployed on local k3s. `uv run pytest` passes offline
-(170 tests); ruff clean.
+(178 tests); ruff clean.
 
 **Read-only surface — complete.** Blades: Översikt, Medlemsavgifter,
 Förtroendeuppdrag, Väntelista, Anmärkningar, Uppflyttning, Mallar, API-koll,
@@ -662,7 +662,7 @@ Treat this as a spike producing written options, not a build.
 Forward work agreed after Phase A, in three workstreams. **A is discussed next; B
 and C are parked here.**
 
-**A. Uppflyttning multi-target rework — in progress.** A **second Äventyrare
+**A. Uppflyttning multi-target rework — done (bar the even-split nice-to-have).** A **second Äventyrare
 avdelning** exists for the upcoming scout year (permanent, unlike the yearly-new
 Utmanare avdelning), which breaks the "only one avdelning in the bracket →
 auto-target" assumption.
@@ -672,11 +672,18 @@ group at a time — Spårare→Upptäckare (`same_weekday`), Upptäckare→Även
 (`merge`), Äventyrare→Utmanare (`new_cohort_avdelning`), or **Felplacerade**
 (`misplaced`). `scope_master_set` narrows the master set by group, and the
 selection scopes the **view, the changelist export and the executor run** together
-— a run only writes the group being looked at. Off-cohort (wrong-age) members are
-their own `misplaced` group now, not mixed into the age transitions. This is the
-escape hatch for this year: run the clean Spårare→Upptäckare and Äventyrare→Utmanare
-groups, and leave Upptäckare→Äventyrare (ambiguous with two Äventyrare avdelningar)
-for later / by hand.
+— a run only writes the group being looked at. The `misplaced` group (**"Felplacerade
+(granska)"** in the UI) collects everyone who needs a per-person placement decision
+rather than an age transition: wrong-age members, members **with no avdelning at all**,
+and **minors sitting in the Ledare avdelning**. All three carry a stable `off_cohort`
+flag, are routed one-by-one via the same per-member target dropdown, and write through
+the same executor (which already handles a `None` source troop as an "add"). The same
+placement anomalies are also reported read-only in Anmärkningar (§11) — the tool is the
+single actionable place, findings the review list; not duplicated logic beyond a couple
+of detection lines. This is the escape hatch for this year: run the clean
+Spårare→Upptäckare and Äventyrare→Utmanare groups, leave Upptäckare→Äventyrare (ambiguous
+with two Äventyrare avdelningar) for later / by hand, and handle the misplaced people
+per person. (UI: the age-transition wording is "övergång", not "transition".)
 
 Also built: a **save-selection handoff** — "Spara urval för utförande" on the
 Uppflyttning blade commits the chosen group (browser-local); *Utför uppflyttning*
@@ -685,8 +692,7 @@ Uppflyttning) when nothing is saved. The **Äventyrare→Utmanare election** sho
 when working that group, and its direct entry takes just the 5-digit avdelnings-id
 plus a confirmation — the name is immaterial (a placeholder is stored).
 
-**Follow-up — the target-resolution rule (agreed definition).** Per source, in
-order:
+**Built — the target-resolution rule.** Per source, in order:
 
 1. **A configured flow hint** (e.g. the same-weekday match, Hajarna Mon → the Mon
    Upptäckare) → resolve to that target.
@@ -699,11 +705,16 @@ order:
    per-person one).
 
 So Spårare→Upptäckare stays automatic (weekday hint); Upptäckare→Äventyrare is
-auto-defaulted today (one Vikingarna) and becomes must-select-per-person once the
-second Äventyrare avdelning exists. Building it means switching `merge` off the
-config `default_target` onto inference (reinstate the reverted `infer_target_name`
-in `uppflyttning.engine`) so two Äventyrare correctly read as ambiguous, and
-dropping the per-source `default_target`s from config.
+auto-defaulted today (one Vikingarna) and becomes must-select-per-person the moment
+a second Äventyrare avdelning is added to config. Implemented by moving `merge` off
+the per-source config `default_target` (now dropped from config) onto
+`infer_target_name` in `uppflyttning.engine`: flow hint → single-candidate default →
+otherwise `PENDING_TARGET` with note "Flera möjliga måldelningar – välj måldelning
+per medlem". A **stable `off_cohort` flag** on `MoveEntry` keeps a misplaced member
+in the `misplaced` group even after a manual target override turns it READY, so
+wrong-age members are routed one-by-one via the same per-member dropdown without
+jumping into an age transition. Covered by `test_ambiguous_merge_needs_per_member_target`
+and `test_misplaced_member_routes_per_person`.
 
 - **Even-split projection stats** — where a target is ambiguous across N avdelningar,
   distribute count/N to each for the §20 projection figures only (never for an
@@ -1056,6 +1067,11 @@ heuristics tuned against real data once the capture exists.
   the real case is a scout who also holds an assistant-leader role elsewhere,
   which is a role and therefore visible. Flag for review, never auto-move.
 - **Members with no avdelning at all.** Present in live data. Manual resolution.
+- **A minor (under 18) who is a *member* of the Ledare avdelning** (`underage_in_ledare`).
+  A placement/permission anomaly — a child sitting in the adult unit. The structural
+  checks below skip Ledare (bracket `annat`), so this is caught explicitly. Distinct
+  from the leader-role security finding above (which is about holding a *leader role*
+  in Ledare); this is about a young *member* being there at all.
 - **An avdelning with scouts but no recorded leader.** Either a real staffing gap
   or a missing role assignment; both need a human. **Only fires when the avdelning
   has at least one member** — a newly created, entirely empty avdelning is not a

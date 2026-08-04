@@ -12,7 +12,7 @@ until a target is elected.
 from __future__ import annotations
 
 from karverktyg.collation import sort_key
-from karverktyg.config.models import Bracket, KarConfig, TransitionKind
+from karverktyg.config.models import Avdelning, Bracket, KarConfig, TransitionKind
 from karverktyg.roster import TroopIndex, build_troop_index
 from karverktyg.scoutnet.models import Member, MemberList
 from karverktyg.uppflyttning.cohort import resolve_cohort_year
@@ -23,6 +23,8 @@ _MOVING = {
     TransitionKind.MERGE,
     TransitionKind.NEW_COHORT_AVDELNING,
 }
+
+_ADULT_AGE = 18
 
 # The age ladder, low to high. A member moves up when their age for cohort year
 # N lands them in the *next* bracket's window rather than their current one.
@@ -71,7 +73,7 @@ def _is_excluded(m: Member, n: int, eighteen_plus: set[str]) -> str | None:
     """
     if m.is_leader:
         return "Satt som ledare i en avdelning – flyttas ej (inga automatiska ledarförflyttningar)"
-    if m.birth_year is not None and (n - m.birth_year) >= 18:  # noqa: PLR2004
+    if m.birth_year is not None and (n - m.birth_year) >= _ADULT_AGE:
         return "Myndig (18+) – flyttas ej, granska"
     if m.unit in eighteen_plus:
         return "I en 18+-avdelning – flyttas ej, granska"
@@ -96,9 +98,34 @@ def _base(
         target_troop_id=target_id,
         transition=transition,
         status=status,
+        off_cohort=status is MoveStatus.OFF_COHORT,
         note=note,
         default_target=target_name,
     )
+
+
+def infer_target_name(source: Avdelning, config: KarConfig) -> str | None:
+    """
+    The move target for a same_weekday / merge source (§17), so config need not
+    hardcode every target. In priority order: an explicit config ``default_target``
+    (a flow hint); else the next-bracket avdelning meeting on the **same weekday**
+    (the same_weekday hint); else the **sole** avdelning of the next bracket. If
+    several remain with no hint, return ``None`` — the tool must not guess and the
+    operator selects the target per member instead.
+    """
+    if source.default_target:
+        return source.default_target
+    nxt = _next_bracket(source.bracket)
+    if nxt is None:
+        return None
+    candidates = config.avdelningar_in(nxt)
+    if source.weekday is not None:
+        same_weekday = [a for a in candidates if a.weekday == source.weekday]
+        if len(same_weekday) == 1:
+            return same_weekday[0].name
+    if len(candidates) == 1:
+        return candidates[0].name
+    return None
 
 
 def _resolve_target(
@@ -111,7 +138,7 @@ def _resolve_target(
 ) -> MoveEntry:
     if transition in (TransitionKind.SAME_WEEKDAY, TransitionKind.MERGE):
         source = config.avdelning(m.unit) if m.unit else None
-        target_name = source.default_target if source else None
+        target_name = infer_target_name(source, config) if source else None
         target_id = index.name_to_id.get(target_name) if target_name else None
     elif elected_target is not None:  # NEW_COHORT_AVDELNING — operator elected it
         target_name = elected_target.avdelning
@@ -122,14 +149,11 @@ def _resolve_target(
         target_id = index.name_to_id.get(target_name) if target_name else None
 
     if target_name is None:
-        return _base(
-            m,
-            transition,
-            MoveStatus.PENDING_TARGET,
-            None,
-            None,
-            f"Ingen måldelning vald för årskull {n} – välj en Utmanare-avdelning ovan",
-        )
+        if transition is TransitionKind.NEW_COHORT_AVDELNING:
+            note = f"Ingen måldelning vald för årskull {n} – välj en Utmanare-avdelning ovan"
+        else:
+            note = "Flera möjliga måldelningar – välj måldelning per medlem"
+        return _base(m, transition, MoveStatus.PENDING_TARGET, None, None, note)
     if target_id is None:
         return _base(
             m,
@@ -161,6 +185,35 @@ def compute_master_set(  # noqa: C901 - per-member classification is inherently 
 
     entries: list[MoveEntry] = []
     for m in memberlist.members:
+        # Structural misplacements not tied to an age cohort, surfaced in the
+        # "misplaced" group so the operator can route them per person like any
+        # off-cohort member (§17). Also reported read-only in Anmärkningar (§11).
+        if not m.unit:
+            entries.append(
+                _base(
+                    m,
+                    TransitionKind.NONE,
+                    MoveStatus.OFF_COHORT,
+                    None,
+                    None,
+                    "Saknar avdelning – välj måldelning",
+                )
+            )
+            continue
+        if m.unit in eighteen_plus and m.birth_year is not None and (n - m.birth_year) < _ADULT_AGE:
+            entries.append(
+                _base(
+                    m,
+                    TransitionKind.NONE,
+                    MoveStatus.OFF_COHORT,
+                    None,
+                    None,
+                    f"Under 18 (fyller {n - m.birth_year} år {n}) i avdelningen Ledare "
+                    "– välj måldelning",
+                )
+            )
+            continue
+
         bracket = m.bracket
         if bracket is None:
             continue
@@ -242,11 +295,9 @@ def scope_master_set(master: MasterSet, group: str | None) -> MasterSet:
     if group in (None, "all"):
         return master
     if group == MISPLACED_GROUP:
-        entries = [e for e in master.entries if e.status is MoveStatus.OFF_COHORT]
+        # The stable off_cohort flag, so a misplaced member assigned a target per
+        # hand (now READY) stays here rather than jumping into an age transition.
+        entries = [e for e in master.entries if e.off_cohort]
     else:
-        entries = [
-            e
-            for e in master.entries
-            if str(e.transition) == group and e.status is not MoveStatus.OFF_COHORT
-        ]
+        entries = [e for e in master.entries if str(e.transition) == group and not e.off_cohort]
     return MasterSet(cohort_year=master.cohort_year, entries=entries)

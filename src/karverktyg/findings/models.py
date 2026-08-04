@@ -22,6 +22,7 @@ class FindingType(enum.StrEnum):
     ADULT_IN_SCOUT_UNIT = "adult_in_scout_unit"
     MULTI_AVDELNING = "multi_avdelning"
     YOUNG_LEADER = "young_leader"
+    UNDERAGE_IN_LEDARE = "underage_in_ledare"
     NO_AVDELNING = "no_avdelning"
     BAD_PHONE = "bad_phone"
     BAD_EMAIL = "bad_email"

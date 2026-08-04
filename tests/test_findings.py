@@ -96,6 +96,22 @@ def test_young_leader_is_flagged(config):
     assert FindingType.YOUNG_LEADER in kinds
 
 
+def test_underage_member_of_ledare_is_flagged(config):
+    """A minor placed in the Ledare (18+) avdelning is surfaced (§11)."""
+    ledare_troop = 10172
+    ml = MemberList(
+        members=[
+            _mk("led_resident", "Ledare", 7, ledare_troop, 1980),  # populates the index
+            _mk("minor", "Ledare", 7, ledare_troop, 2012),  # 14 in 2026 -> flagged
+            _mk("adult", "Ledare", 7, ledare_troop, 1990),  # 36 in 2026 -> not flagged
+        ]
+    )
+    findings = compute_findings(ml, config, cohort_year_n=2026)
+    flagged = [f for f in findings if f.type is FindingType.UNDERAGE_IN_LEDARE]
+    assert {f.member_no for f in flagged} == {"minor"}
+    assert flagged[0].severity is Severity.WARNING
+
+
 def test_utmanare_rover_exempt_from_structural(config):
     """Utmanare/Rover: no age check, no multi-avdelning check (§11, §17)."""
     ml = MemberList(

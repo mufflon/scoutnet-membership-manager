@@ -319,7 +319,7 @@ async function renderTemplates(root) {
 const STATUS_SV = {
   ready: "Redo att förflyttas",
   pending_target: "Väntar på måldelning",
-  off_cohort: "Utanför årskull",
+  off_cohort: "Felplacerad",
   excluded: "Undantagen (ledare/vuxen)",
   override_stay: "Behålls kvar (val)",
 };
@@ -340,18 +340,18 @@ const savedGroup = () => localStorage.getItem(SAVED_GROUP_KEY);
 const saveGroup = (g) => localStorage.setItem(SAVED_GROUP_KEY, g);
 const clearSavedGroup = () => localStorage.removeItem(SAVED_GROUP_KEY);
 const UPP_GROUP_LABEL = {
-  all: "Alla transitioner",
+  all: "Alla övergångar",
   same_weekday: "Spårare → Upptäckare",
   merge: "Upptäckare → Äventyrare",
   new_cohort_avdelning: "Äventyrare → Utmanare",
-  misplaced: "Felplacerade (fel ålder)",
+  misplaced: "Felplacerade (granska)",
 };
 
 // A row of buttons to pick one transition group at a time. Only groups that have
 // members are shown (plus "Alla"). Selecting one reloads the blade scoped to it.
 function groupSelector(groups) {
   const total = Object.values(groups || {}).reduce((a, b) => a + b, 0);
-  const wrap = el("div", { class: "card" }, el("strong", {}, "Välj transition att arbeta med"));
+  const wrap = el("div", { class: "card" }, el("strong", {}, "Välj övergång att arbeta med"));
   const row = el("div", { style: "margin-top:.4rem;display:flex;gap:.4rem;flex-wrap:wrap" });
   for (const g of ["all", "same_weekday", "merge", "new_cohort_avdelning", "misplaced"]) {
     const count = g === "all" ? total : groups[g] || 0;
@@ -430,7 +430,7 @@ async function renderUppflyttning(root) {
       stat(d.ready.length, "Redo att förflyttas"),
       stat(d.pending.length, "Väntar på måldelning"),
       stat(d.kept.length, "Behålls kvar"),
-      stat(d.off_cohort.length, "Utanför årskull"),
+      stat(d.off_cohort.length, "Felplacerade"),
       stat(d.excluded.length, "Undantagna"),
     ),
   );
@@ -593,7 +593,7 @@ async function renderUppflyttning(root) {
     ["Redo att förflyttas", d.ready],
     ["Väntar på måldelning", d.pending],
     ["Behålls kvar (val)", d.kept],
-    ["Utanför årskull", d.off_cohort],
+    ["Felplacerade – välj måldelning", d.off_cohort],
     ["Undantagna (ledare/vuxna)", d.excluded],
   ]) {
     if (!list.length) continue;
@@ -611,6 +611,7 @@ const FINDING_SV = {
   adult_in_scout_unit: "Myndig i scoutavdelning",
   multi_avdelning: "Medlem i flera avdelningar",
   young_leader: "Ung scout satt som ledare",
+  underage_in_ledare: "Under 18 i avdelningen Ledare",
   no_avdelning: "Saknar avdelning (ingen grupp)",
   bad_phone: "Telefonnummer ser felaktigt ut",
   bad_email: "E-postadress ser felaktig ut",
@@ -903,7 +904,7 @@ async function renderExecute(root) {
         "div",
         { class: "card" },
         el("strong", {}, "Utför uppflyttning"),
-        el("p", { class: "muted" }, 'Inget urval är sparat. Gå till fliken Uppflyttning, välj en transition och klicka "Spara urval för utförande".'),
+        el("p", { class: "muted" }, 'Inget urval är sparat. Gå till fliken Uppflyttning, välj en övergång och klicka "Spara urval för utförande".'),
       ),
     );
     return;

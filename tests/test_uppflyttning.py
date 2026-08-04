@@ -107,6 +107,69 @@ def test_master_set_moves(config):
     assert "u_resident" not in by_no
 
 
+def test_ambiguous_merge_needs_per_member_target(config):
+    """Two candidate Äventyrare avdelningar and no flow hint -> must select per member."""
+    from karverktyg.config.models import KarConfig
+
+    raw = config.model_dump(mode="json")
+    raw["avdelningar"].append({"name": "Sjörövarna", "bracket": "aventyrare", "weekday": 4})
+    cfg = KarConfig.model_validate(raw)
+
+    ms = compute_master_set(_synthetic(), cfg, config_cohort_year_n=2026)
+    e = {x.member_no: x for x in ms.entries}["u_move"]  # Upptäckare -> Äventyrare merge
+    assert e.status is MoveStatus.PENDING_TARGET
+    assert e.target_avdelning is None
+    assert e.off_cohort is False
+    assert "per medlem" in e.note
+
+
+def test_misplaced_member_routes_per_person(config):
+    """An off-cohort member assigned a target becomes READY yet stays in 'misplaced'."""
+    from karverktyg.roster import build_troop_index
+    from karverktyg.uppflyttning import MISPLACED_GROUP, scope_master_set
+    from karverktyg.uppflyttning.overrides import Override, apply_overrides
+
+    ml = _synthetic()
+    ms = compute_master_set(ml, config, config_cohort_year_n=2026)
+    off = {e.member_no: e for e in ms.entries}["s_offcohort"]
+    assert off.status is MoveStatus.OFF_COHORT and off.off_cohort is True
+
+    index = build_troop_index(ml, config)
+    apply_overrides(ms, [Override("s_offcohort", target_avdelning="Kämparna", by="op")], index)
+
+    routed = {e.member_no: e for e in ms.entries}["s_offcohort"]
+    assert routed.status is MoveStatus.READY and routed.target_troop_id is not None
+    assert routed.off_cohort is True  # stable flag — does not jump into an age transition
+    scoped = scope_master_set(ms, MISPLACED_GROUP)
+    assert "s_offcohort" in {e.member_no for e in scoped.entries}
+
+
+def test_structural_misplacements_join_misplaced_group(config):
+    """No-avdelning and under-18-in-Ledare members are routable in 'misplaced'."""
+    from karverktyg.uppflyttning import MISPLACED_GROUP, scope_master_set
+
+    ml = MemberList(
+        members=[
+            _mk("led_resident", "Ledare", 7, 10172, 1980),  # adult leader, stays put
+            _mk("led_minor", "Ledare", 7, 10172, 2012),  # 14 in 2026 -> misplaced
+            _mk("no_avd", "", None, None, 2015),  # no avdelning -> misplaced
+        ]
+    )
+    ms = compute_master_set(ml, config, config_cohort_year_n=2026)
+    by_no = {e.member_no: e for e in ms.entries}
+
+    assert "led_resident" not in by_no  # an adult correctly in Ledare is not surfaced
+    assert by_no["led_minor"].status is MoveStatus.OFF_COHORT
+    assert by_no["led_minor"].off_cohort is True
+    assert "Ledare" in by_no["led_minor"].note
+    assert by_no["no_avd"].status is MoveStatus.OFF_COHORT
+    assert by_no["no_avd"].off_cohort is True
+    assert "avdelning" in by_no["no_avd"].note.lower()
+
+    scoped = {e.member_no for e in scope_master_set(ms, MISPLACED_GROUP).entries}
+    assert {"led_minor", "no_avd"} <= scoped
+
+
 def test_elected_target_resolves_new_cohort(config):
     ms = compute_master_set(
         _synthetic(),

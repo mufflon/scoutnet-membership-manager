@@ -13,12 +13,12 @@
     { "bracket": "annat",      "age_min": null, "age_max": null, "transition": "none",              "structural_checks": false }
   ],
   "avdelningar": [
-    { "name": "Hajarna",       "bracket": "sparare",    "weekday": 0, "default_target": "Kämparna" },
-    { "name": "Späckhuggarna", "bracket": "sparare",    "weekday": 1, "default_target": "Spejarna" },
-    { "name": "Rockorna",      "bracket": "sparare",    "weekday": 2, "default_target": "Utforskarna" },
-    { "name": "Kämparna",      "bracket": "upptackare", "weekday": 0, "default_target": "Vikingarna" },
-    { "name": "Spejarna",      "bracket": "upptackare", "weekday": 1, "default_target": "Vikingarna" },
-    { "name": "Utforskarna",   "bracket": "upptackare", "weekday": 2, "default_target": "Vikingarna" },
+    { "name": "Hajarna",       "bracket": "sparare",    "weekday": 0 },
+    { "name": "Späckhuggarna", "bracket": "sparare",    "weekday": 1 },
+    { "name": "Rockorna",      "bracket": "sparare",    "weekday": 2 },
+    { "name": "Kämparna",      "bracket": "upptackare", "weekday": 0 },
+    { "name": "Spejarna",      "bracket": "upptackare", "weekday": 1 },
+    { "name": "Utforskarna",   "bracket": "upptackare", "weekday": 2 },
     { "name": "Vikingarna",    "bracket": "aventyrare", "weekday": 3 },
     { "name": "Finndus",       "bracket": "utmanare",   "cohort_year": null },
     { "name": "Finnemang",     "bracket": "utmanare",   "cohort_year": null },
