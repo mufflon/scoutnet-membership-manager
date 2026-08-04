@@ -45,11 +45,13 @@ USER app
 EXPOSE 8000
 # Frontend and API share one image/container (simple; the static frontend is
 # tiny and served by Flask). readiness = /readyz (Postgres only), liveness /healthz.
-# Threaded workers: the work is I/O-bound (blocking on slow Scoutnet reads —
-# organisation/group and awaiting_approval can take ~30 s), so gthread with many
-# threads gives ample concurrency without one slow read starving the rest. The
-# 120 s timeout leaves headroom above a first (uncached) slow read.
+# The work is I/O-bound (blocking on slow Scoutnet reads — organisation/group and
+# awaiting_approval can take ~30 s), so concurrency comes from threads. Use a
+# SINGLE gthread worker with many threads: the memberlist cache (§4) is per-process,
+# so one worker means one shared cache — the ~2 s Finn memberlist is fetched once
+# per TTL, not once per worker, which is what made blades feel slow. 16 threads is
+# ample for a small kår; the 120 s timeout leaves headroom above a first slow read.
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", \
-     "--worker-class", "gthread", "--workers", "4", "--threads", "8", \
+     "--worker-class", "gthread", "--workers", "1", "--threads", "16", \
      "--timeout", "120", "--graceful-timeout", "30", \
      "karverktyg.wsgi:app"]
