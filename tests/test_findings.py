@@ -144,3 +144,15 @@ def test_findings_on_fixture_smoke(memberlist, config):
         by_type[f.type] += 1
     # the two no-avdelning members are present in live data
     assert by_type.get(FindingType.NO_AVDELNING) == 2
+
+
+def test_phone_accepts_swedish_and_international():
+    from scoutnet_membership_manager.findings.engine import phone_looks_valid
+
+    # Valid Swedish, and valid international even without the leading '+' (§11).
+    assert phone_looks_valid("0702644412")  # Swedish mobile
+    assert phone_looks_valid("+972 50-264-4412")  # Israeli, with +
+    assert phone_looks_valid("972 50-264-4412")  # Israeli, no + (was wrongly flagged)
+    # Malformed numbers are still flagged.
+    assert not phone_looks_valid("070123")
+    assert not phone_looks_valid("12345")

@@ -8,6 +8,8 @@ and Äventyrare — Utmanare and Rover are exempt (§11, §17). Data-quality che
 
 from __future__ import annotations
 
+import re
+
 import phonenumbers
 from email_validator import EmailNotValidError, validate_email
 
@@ -20,9 +22,23 @@ ADULT_AGE = 18
 
 
 def phone_looks_valid(raw: str) -> bool:
-    """Whether a string parses as a valid Swedish phone number."""
+    """
+    Whether a string is a valid phone number — Swedish, or a valid **international**
+    number (§11). A foreign number entered without the leading ``+`` (e.g. a
+    ``972…`` Israeli mobile) parses as Swedish and fails, so we retry it as an
+    international number (which only succeeds when it starts with a real country
+    code — a malformed Swedish ``07…`` number stays invalid).
+    """
     try:
-        return phonenumbers.is_valid_number(phonenumbers.parse(raw, "SE"))
+        if phonenumbers.is_valid_number(phonenumbers.parse(raw, "SE")):
+            return True
+    except phonenumbers.NumberParseException:
+        pass
+    digits = re.sub(r"\D", "", raw)
+    if not digits or raw.lstrip().startswith("0"):
+        return False  # a leading 0 is a national prefix, not a country code
+    try:
+        return phonenumbers.is_valid_number(phonenumbers.parse("+" + digits, None))
     except phonenumbers.NumberParseException:
         return False
 
@@ -126,7 +142,7 @@ def _data_quality_findings(m: Member) -> list[Finding]:
             Severity.INFO,
             m,
             m.unit,
-            "Phone number does not parse as a valid Swedish number.",
+            "Phone number is not a valid Swedish or international number.",
             raw,
         )
         for raw in m.phones.values()
