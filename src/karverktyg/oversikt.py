@@ -235,7 +235,6 @@ def projection(
     config: KarConfig,
     master: MasterSet,
     composition_rows: list[AvdRow],
-    applicants: dict[str, MemberList | None],
 ) -> dict:
     """Next-year projection derived from §17's rules via the master set (§20)."""
     moving = [e for e in master.entries if e.status in _MOVING_STATUSES]
@@ -261,12 +260,10 @@ def projection(
         )
 
     transitions = _transition_lines(moving, config)
-    sparare = _sp234_recruitment(moving, config, master.cohort_year, applicants)
     return {
         "cohort_year": master.cohort_year,
         "rows": rows,
         "transitions": transitions,
-        "spararrekrytering": sparare,
         "utmanare_static_note": "Utmanare-avdelningar projiceras statiskt – "
         "ingen flyttas ut per regel (§17); spridning vid nedläggning är individuell.",
     }
@@ -355,59 +352,6 @@ def _transition_lines(moving: list, config: KarConfig) -> list[dict]:
         }
         for src, dst in steps
     ]
-
-
-def _sp234_recruitment(
-    moving: list, config: KarConfig, n: int, applicants: dict[str, MemberList | None]
-) -> dict:
-    """
-    Spårare recruitment target: X leave for Upptäckare, Y pending requests fall
-    in Spårare, Z = X − Y — all three shown together, Z never alone (§20).
-    """
-    x = sum(
-        1
-        for e in moving
-        if (a := config.avdelning(e.source_avdelning)) is not None and a.bracket is Bracket.SPARARE
-    )
-    y, oldest, missing = 0, None, []
-    for variant in ("waiting", "awaiting_approval"):
-        ml = applicants.get(variant)
-        if ml is None:
-            missing.append(variant)
-            continue
-        for m in ml.members:
-            if eligible_bracket(m.birth_year, n, config) is Bracket.SPARARE:
-                y += 1
-                since = m.passthrough.get("waiting_since")
-                if isinstance(since, str) and since and (oldest is None or since < oldest):
-                    oldest = since
-    z = x - y
-    provisional = bool(missing)
-    if z > 0:
-        sentence = (
-            f"Spårare: {x} går vidare till Upptäckare, {y} ansökningar väntar redan "
-            f"– rekryteringsmål för oförändrat medlemsantal: {z}."
-        )
-    else:
-        sentence = (
-            f"Spårare: {x} går vidare till Upptäckare, {y} ansökningar väntar – "
-            f"inget rekryteringsbehov; väntande överstiger avgångar med {abs(z)}."
-        )
-    return {
-        "x_leaving": x,
-        "y_pending": y,
-        "z_target": z,
-        "sentence": sentence,
-        "provisional": provisional,
-        "missing_variants": missing,
-        "oldest_request": oldest or DASH,
-        "assumption": "Z antar att varje väntande ansökan blir medlem – Z är ett golv.",
-        "provisional_note": (
-            "Provisorisk: en otillgänglig variant gör Y underskattat och Z överskattat."
-            if provisional
-            else ""
-        ),
-    }
 
 
 # --- KPIs and reconciliation ----------------------------------------------
@@ -565,7 +509,7 @@ def build_oversikt(inp: OversiktInputs) -> dict:
         index=index,
         elected_target=inp.elected_target,
     )
-    proj = projection(inp.config, master, rows, inp.applicants)
+    proj = projection(inp.config, master, rows)
     spl = scouts_per_leader(rows, ldr["per_troop"])
     kpi = kpis(
         inp.memberlist,

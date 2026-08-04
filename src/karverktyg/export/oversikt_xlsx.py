@@ -3,10 +3,10 @@
 
 Mirrors the trimmed on-screen blade: a cover sheet with the run metadata, one
 **composition** sheet (per åldersgrupp, with leaders and scouts-per-leader merged
-in), and one **projection** sheet (with the åldersgrupp transitions and the
-Spårare recruitment target). No weekday/årskull/tröskel columns, no separate
-leaders sheet, no KPI sheet, no chart — the blade dropped them, so the export does
-too.
+in), and one **projection** sheet (with the åldersgrupp transitions). No
+weekday/årskull/tröskel columns, no separate leaders sheet, no KPI sheet, no
+chart, no applicant/recruitment figures — the blade dropped them, so the export
+does too.
 
 This is the one **aggregate-only** export — no names, no member numbers — so it
 can circulate freely; the cover says so. Numbers are written as numbers so they
@@ -122,24 +122,12 @@ def _write_projection(ws: Worksheet, d: dict) -> None:
         ["Avdelning", "Nuvarande", "Utgående", "Inkommande", "Nästa år"],
         rows,
     )
-    # Transitions + recruitment below the table.
+    # Åldersgrupp transitions below the table.
     start = len(rows) + 3
     ws.cell(row=start, column=1, value="Åldersgruppsövergångar").font = _BOLD
     for i, t in enumerate(proj["transitions"], start=start + 1):
         ws.cell(row=i, column=1, value=f"{t['from']} → {t['to']}")
         ws.cell(row=i, column=2, value=t["count"])
-    sp = proj["spararrekrytering"]
-    rr = start + len(proj["transitions"]) + 2
-    ws.cell(row=rr, column=1, value="Spårarrekrytering").font = _BOLD
-    ws.cell(row=rr + 1, column=1, value=sp["sentence"])
-    ws.cell(row=rr + 2, column=1, value="X (avgår)")
-    ws.cell(row=rr + 2, column=2, value=sp["x_leaving"])
-    ws.cell(row=rr + 3, column=1, value="Y (väntande)")
-    ws.cell(row=rr + 3, column=2, value=sp["y_pending"])
-    ws.cell(row=rr + 4, column=1, value="Z (mål)")
-    ws.cell(row=rr + 4, column=2, value=sp["z_target"])
-    ws.cell(row=rr + 5, column=1, value="Provisorisk")
-    ws.cell(row=rr + 5, column=2, value="ja" if sp["provisional"] else "nej")
     ws.column_dimensions["A"].width = 22
 
 

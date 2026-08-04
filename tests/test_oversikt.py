@@ -125,17 +125,6 @@ def test_projection_autumn_targets_next_year(config):
     assert d["shift_applied"] is True and d["projection_targets"] == 2027
 
 
-def test_sparare_recruitment_shows_all_three_and_negative_in_words(config):
-    movers = [_member(f"m{i}", "Hajarna", 2, by=2016, troop_id=10155) for i in range(2)]
-    # Four Spårare-aged applicants (born 2018) waiting -> Y=4 > X=2 -> Z negative.
-    applicants = _ml([_member(f"w{i}", None, None, by=2018) for i in range(4)])
-    d = _build(config, movers, applicants={"waiting": applicants, "awaiting_approval": None})
-    sp = d["projection"]["spararrekrytering"]
-    assert sp["x_leaving"] == 2 and sp["y_pending"] == 4 and sp["z_target"] == -2
-    assert "inget rekryteringsbehov" in sp["sentence"]  # negative stated in words
-    assert sp["provisional"] is True  # awaiting_approval missing
-
-
 def test_utmanare_projects_static(config):
     d = _build(config, [_member("u", "Finndus", 5, by=2010, troop_id=20001)])
     row = next(r for r in d["projection"]["rows"] if r["avdelning"] == "Finndus")

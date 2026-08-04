@@ -153,8 +153,6 @@ async function renderOverview(root) {
   for (const t of d.projection.transitions) {
     root.append(el("p", { class: "muted" }, `${t.from} → ${t.to}: ${t.count} flyttar.`));
   }
-  const sp = d.projection.spararrekrytering;
-  root.append(el("p", {}, esc(sp.sentence) + (sp.provisional ? " (provisorisk)" : "")));
   root.append(table(
     ["Avdelning", "Nu", "Ut", "In", "Nästa"],
     d.projection.rows.map((r) => [r.avdelning, r.current, r.outgoing, r.incoming, r.next]),

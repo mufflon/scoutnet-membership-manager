@@ -34,8 +34,6 @@
 {% for t in o.projection.transitions %}
 <p class="small">{{ t.from }} → {{ t.to }}: <strong>{{ t.count }}</strong> flyttar.</p>
 {% endfor %}
-<p class="small">{{ o.projection.spararrekrytering.sentence }}
-  {% if o.projection.spararrekrytering.provisional %}<span class="warn">(provisorisk)</span>{% endif %}</p>
 <table>
   <thead><tr><th>Avdelning</th><th class="num">Nu</th><th class="num">Ut</th><th class="num">In</th><th class="num">Nästa</th></tr></thead>
   <tbody>
