@@ -82,13 +82,18 @@ Keys are **per endpoint, per body** (not per user), permanent until regenerated.
 ### 3. Deploy
 
 The tool runs on Kubernetes (developed against a local k3s / Rancher Desktop).
-`scripts/k8s-up.sh` reads your `apikeys.conf` (secrets → a Secret), builds the
-image (which bundles `scoutnet-membership-manager.json`), and rolls out:
+Both scripts read your `apikeys.conf` (secrets → a Secret), deploy Postgres via
+CloudNativePG, and roll the app out — pick how you want the image built:
 
 ```bash
-./scripts/k8s-up.sh                       # reads ./apikeys.conf
+./scripts/k8s-up-local.sh                 # build the image here (dev)
+./scripts/k8s-up-upstream.sh              # run the prebuilt GHCR image (no build)
 kubectl -n scoutnet-membership-manager port-forward svc/scoutnet-membership-manager 8000:80   # then open :8000
 ```
+
+`k8s-up-upstream.sh` pulls `ghcr.io/mufflon/scoutnet-membership-manager` (pin a
+release with `IMAGE_TAG=v0.1.0`); the package must be public or the node logged
+in to ghcr.io. Both are thin wrappers over the shared `scripts/k8s-up.sh`.
 
 The service is a ClusterIP — put human authentication at the ingress
 (`k8s/ingress.example.yaml`). `scripts/k8s-down.sh` tears it back down. For the

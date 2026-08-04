@@ -92,19 +92,20 @@ leads the older §18–§20 prose, the code is the fact (Authority order):
 
 **Key handling.**
 
-- [ ] **Keys must not be readable by a coding agent.** `.gitignore` protects git;
-      it does nothing about an agent with filesystem access to the deployment
-      config. Move the config outside the repo tree, or create the Kubernetes
-      Secret out of band so no plaintext key file exists at all. Hard rule 7 is a
-      policy; this is the structural version of it.
+- [~] **Keys must not be readable by a coding agent.** Secrets are now isolated to
+      one file, `apikeys.conf` (gitignored via `*.conf`, `.dockerignore`d, never
+      baked into the image); everything else is the committed, secret-free
+      `scoutnet-membership-manager.json`. That closes the git and image leak paths.
+      **Still open, structurally:** `apikeys.conf` is plaintext on disk in the repo
+      tree, so an agent with filesystem access can still read it. To fully satisfy
+      Hard rule 7, move it outside the tree or create the k8s Secret out of band so
+      no plaintext key file exists at all.
 
 **Resilience — before any extended absence.**
 
-- [ ] **Get the work off one machine.** Everything lives on a local `phase-2`
-      branch with no remote configured and nothing pushed. Merge to `main`,
-      configure a private remote, push. Until then the bus factor and the disk
-      factor are both one, and neither of the other two leaders can run
-      anything.
+- [x] **Get the work off one machine.** Done 2026-08-04. `main` is pushed to
+      `github.com/mufflon/scoutnet-membership-manager` (public); a `v*` tag builds a
+      multi-arch image to GHCR. Bus factor and disk factor are no longer one.
 
 **Discovery — cheap, and one may unlock a feature.**
 
@@ -127,13 +128,16 @@ leads the older §18–§20 prose, the code is the fact (Authority order):
 
 ## Deployment and version control
 
-Local k3s, namespace `scoutnet-membership-manager`, built by `scripts/k8s-up.sh` from a config
-file of API keys. Mode and the write allowlist are deployment config only, never
+Local k3s, namespace `scoutnet-membership-manager`. Deploy with one of two
+wrappers over `scripts/k8s-up.sh`: `k8s-up-local.sh` (build the image here) or
+`k8s-up-upstream.sh` (run the prebuilt GHCR image); both read secrets from
+`apikeys.conf`. Mode and the write allowlist are deployment config only, never
 entered in the UI (hard rule 7). During write testing the allowlist is bounded to
 a single record and the snapshot volume is PVC-backed.
 
-All write work is on the local branch `phase-2`, branched from the read-only tip
-that `main` points at. Nothing is pushed; there is no remote. See *Open actions*.
+`main` is the working line and is pushed to
+`github.com/mufflon/scoutnet-membership-manager` (public). A `v*` tag publishes a
+multi-arch image to GHCR via `.github/workflows/publish.yml`.
 
 ## Reference documents
 

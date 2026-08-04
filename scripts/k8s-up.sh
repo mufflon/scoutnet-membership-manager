@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
-# Build-up: deploy scoutnet-membership-manager to the local k3s cluster from a .conf of API keys.
+# Shared deploy engine for scoutnet-membership-manager on the local k3s cluster.
 #
-#   scripts/k8s-up.sh [scoutnet-membership-manager.conf]
+# Most people run one of the two wrappers instead of this directly:
+#   scripts/k8s-up-local.sh      build the image here, no registry (dev)
+#   scripts/k8s-up-upstream.sh   run the prebuilt GHCR image, no Docker build
+#
+# Direct use (defaults to a local build):
+#   scripts/k8s-up.sh [apikeys.conf]
+# Image source is chosen by env vars, which the wrappers set:
+#   IMAGE=…         image to run (default scoutnet-membership-manager:latest)
+#   BUILD=1|0       docker build IMAGE locally first (default 1)
+#   PULL_POLICY=…   container imagePullPolicy (default IfNotPresent)
 #
 # Blank values in the .conf disable that endpoint/action (the key is omitted, so
 # the app reports the capability as unavailable). An existing database is reused
@@ -34,8 +43,17 @@ DSN="$(conf_val SCOUTNET_DATABASE_URL)"
 DSN="${DSN:-postgresql+psycopg://${PGUSER}:${PGPASS}@scoutnet-membership-manager-db-rw:5432/${PGDB}}"
 MODE="$(conf_val SCOUTNET_MODE)"; MODE="${MODE:-read_only}"
 
-echo "==> building image scoutnet-membership-manager:latest"
-docker build -t scoutnet-membership-manager:latest "$HERE" >/dev/null
+# Image source: build locally (default) or run a prebuilt image (e.g. from GHCR).
+IMAGE="${IMAGE:-scoutnet-membership-manager:latest}"
+BUILD="${BUILD:-1}"
+PULL_POLICY="${PULL_POLICY:-IfNotPresent}"
+
+if [ "$BUILD" = 1 ]; then
+  echo "==> building image $IMAGE"
+  docker build -t "$IMAGE" "$HERE" >/dev/null
+else
+  echo "==> using prebuilt image $IMAGE (pull policy $PULL_POLICY)"
+fi
 
 kubectl get ns "$NS" >/dev/null 2>&1 || kubectl create ns "$NS" >/dev/null
 
@@ -85,6 +103,13 @@ kubectl -n "$NS" create secret generic scoutnet-membership-manager-db-app \
 
 echo "==> applying manifests"
 kubectl apply -f k8s/local/ >/dev/null
+# Point the app container and the db-bootstrap init container at the chosen image
+# (the manifest ships the local :latest tag; upstream runs override it here).
+kubectl -n "$NS" set image deploy/scoutnet-membership-manager \
+  scoutnet-membership-manager="$IMAGE" db-bootstrap="$IMAGE" >/dev/null
+kubectl -n "$NS" patch deploy/scoutnet-membership-manager --type=json -p \
+  "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/imagePullPolicy\",\"value\":\"$PULL_POLICY\"},{\"op\":\"replace\",\"path\":\"/spec/template/spec/initContainers/1/imagePullPolicy\",\"value\":\"$PULL_POLICY\"}]" >/dev/null
+# Force fresh pods so a rebuilt local :latest (unchanged tag) is actually picked up.
 kubectl -n "$NS" rollout restart deploy/scoutnet-membership-manager >/dev/null 2>&1 || true
 
 echo "==> waiting for Postgres (CNPG cluster)"
