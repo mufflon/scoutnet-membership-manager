@@ -47,7 +47,7 @@ SCOUTNET_SNAPSHOT_RETENTION_DAYS=30
 # Uppflyttning cohort year N. Blank = derive from the live term.
 SCOUTNET_COHORT_YEAR=2026
 
-# Kår identity / branding.
+# Kår identity.
 SCOUTNET_KAR_NAME=Scoutkåren Finn
 
 # Password for the in-cluster Postgres provisioned at build-up.

@@ -80,10 +80,9 @@ class Settings(BaseSettings):
     # read_only / read_write.
     database_url: str | None = None
 
-    # --- Kår identity / branding (§13) -------------------------------------
+    # --- Kår identity (§13) ------------------------------------------------
     kar_name: str = "Scoutkåren Finn"
     kar_group_id: str = "1025"
-    branding_dir: str = "branding/finn"
 
     # --- Uppflyttning config (§13, §17) ------------------------------------
     config_path: Path = Path("config/karverktyg.default.json")

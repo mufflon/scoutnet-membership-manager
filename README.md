@@ -148,7 +148,7 @@ src/karverktyg/
   web/                   Flask app, read-only API, capabilities, static frontend
   jobs/                  read-only canary + spec-drift (§14)
 scripts/                 Phase-0 throwaway spikes (capture + scrubber)
-config/ fixtures/ migrations/ k8s/ vendor/ branding/ docs/
+config/ fixtures/ migrations/ k8s/ vendor/ docs/
 ```
 
 ## Status / limits

@@ -1147,9 +1147,7 @@ All configuration through pydantic-settings, environment-driven, Kubernetes
 Secrets for keys and a ConfigMap for the rest. Notable knobs: chunk size, delay
 between chunks, snapshot retention window, allowed avdelningar, kår identity.
 
-- **Kår identity and branding** configurable, defaulting to Scoutkåren Finn.
-  Vendor Finn's logo and colours into the repo from scoutkarenfinn.se — never
-  fetch at build or run time. Keep them in a swappable directory.
+- **Kår identity** (name, group id) configurable, defaulting to Scoutkåren Finn.
 - **Age brackets and uppflyttning flows are configuration, not code.** The full
   specification is §17. The active configuration must be viewable in the app.
 - **Leaders are never auto-shifted (no automatic leader moves)** — being set as a
