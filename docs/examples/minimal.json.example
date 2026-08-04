@@ -1,6 +1,6 @@
 {
   "$schema": "../karverktyg.schema.json",
-  "version": 1,
+  "_comment": "Smallest possible kår: one avdelning per bracket. Because each next bracket has exactly one avdelning, every move auto-resolves (sole candidate) with no weekday needed.",
   "name": "Exempelkåren (minimal)",
   "avdelningar": [
     { "name": "Spårarna",    "bracket": "sparare",    "weekday": 0 },

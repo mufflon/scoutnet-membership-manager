@@ -10,7 +10,6 @@ from karverktyg.config.models import BRACKETS, Bracket, KarConfig, transition_fo
 
 def test_config_loads(config):
     assert config.name == "Scoutkåren Finn"
-    assert config.version == 1
     assert len(config.avdelningar) == 14
 
 
@@ -42,7 +41,7 @@ def test_same_weekday_target_resolves(config, memberlist):
 
 def test_no_config_default_is_empty():
     c = default_config()
-    assert c.avdelningar == [] and c.version == 1
+    assert c.avdelningar == []
 
 
 def test_unknown_target_rejected():

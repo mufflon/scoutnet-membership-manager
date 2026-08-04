@@ -11,10 +11,18 @@ from __future__ import annotations
 
 import enum
 import hashlib
+import os
 from pathlib import Path
 
 from pydantic import SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    JsonConfigSettingsSource,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
+
+from karverktyg.config.models import SCHEMA_VERSION, KarConfig
 
 
 class Mode(enum.StrEnum):
@@ -84,7 +92,15 @@ class Settings(BaseSettings):
     kar_name: str = "Scoutkåren Finn"
 
     # --- Uppflyttning config (§13, §17) ------------------------------------
+    # The single non-secret config file (karverktyg.json) provides mode,
+    # cohort_year, entity_id and the kår below; the API keys come from the
+    # environment only (apikeys.conf → env/Secret). See settings_customise_sources.
     config_path: Path = Path("karverktyg.json")
+    # The config-file schema version, so a file can be verified against (and
+    # migrated to) the current schema. Lives at the file root, not inside `kar`.
+    schema_version: int = SCHEMA_VERSION
+    # The kår: name + avdelningar (§13). Empty => avdelningar inferred from data.
+    kar: KarConfig = KarConfig()
     # Cohort year N. None => derive from the live term, guarded by the config
     # cross-check (§17). Set explicitly in production.
     cohort_year: int | None = None
@@ -108,6 +124,29 @@ class Settings(BaseSettings):
     # --- App ---------------------------------------------------------------
     app_version: str = "0.1.0"
     build_number: str = "dev"
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """
+        Read the non-secret config JSON, with env (the keys) taking precedence.
+
+        Order: explicit init args > environment (the API keys from apikeys.conf) >
+        .env > the karverktyg.json file > file secrets. SCOUTNET_CONFIG_PATH picks
+        the file; a missing file simply contributes nothing (the app then infers).
+        """
+        path = Path(os.environ.get("SCOUTNET_CONFIG_PATH", "karverktyg.json"))
+        sources: list[PydanticBaseSettingsSource] = [init_settings, env_settings, dotenv_settings]
+        if path.is_file():
+            sources.append(JsonConfigSettingsSource(settings_cls, json_file=path))
+        sources.append(file_secret_settings)
+        return tuple(sources)
 
     def require_live_credentials(self) -> None:
         """

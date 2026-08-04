@@ -1,19 +1,13 @@
-# Non-secret configuration (§13). Keys live in a Secret, never here.
+# Non-secret deployment knobs only. mode, entity_id, cohort_year and the kår live in
+# the committed karverktyg.json (bundled in the image); do NOT re-declare them here,
+# or env would silently override the file. Keys live in a Secret, never here.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: karverktyg-config
 data:
-  SCOUTNET_MODE: "read_only"
   SCOUTNET_BASE_URL: "https://scoutnet.se/api"
-  SCOUTNET_KAR_NAME: "Scoutkåren Finn"
-  SCOUTNET_ENTITY_ID: "1025"
-  # A kår mounts its own config here (a ConfigMap/volume as karverktyg.json). With
-  # no file present the app infers avdelningar from the data (§13). The bundled demo
-  # config is docs/examples/finn.json.example.
+  # Path to the config file inside the container (bundled at /app/karverktyg.json).
   SCOUTNET_CONFIG_PATH: "karverktyg.json"
-  # Cohort year N. Set explicitly each season (§17); cross-checked against the
-  # live term, which refuses to compute a master set on disagreement.
-  SCOUTNET_COHORT_YEAR: "2026"
   SCOUTNET_CHUNK_SIZE: "25"
   SCOUTNET_SNAPSHOT_RETENTION_DAYS: "30"

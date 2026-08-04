@@ -28,7 +28,7 @@ spec:
       initContainers:
         - name: wait-for-db
           image: busybox:1.36
-          command: ["sh", "-c", "until nc -z karverktyg-db 5432; do echo waiting for db; sleep 1; done"]
+          command: ["sh", "-c", "until nc -z karverktyg-db-rw 5432; do echo waiting for db; sleep 1; done"]
         # Bring the DB to the current schema: reuse/migrate if compatible, else
         # keep templates and rebuild (see db.bootstrap). Idempotent.
         - name: db-bootstrap

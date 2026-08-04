@@ -2,9 +2,9 @@
 Load, migrate and validate the single kår-config JSON (§13).
 
 The config is optional: with no file, the tool runs on inferred avdelningar and
-the universal routing rule (``default_config``). A present file carries a
-``version``; ``migrate`` brings older versions forward before validation, and a
-stray ``$schema`` reference (for editor/independent validation) is ignored.
+the universal routing rule (``default_config``). The file-format version lives at
+the file root (``schema_version``); ``migrate`` here just strips editor/comment
+keys (``$schema``, ``_comment``) from the kår block before validation.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from karverktyg.config.models import CONFIG_VERSION, KarConfig
+from karverktyg.config.models import KarConfig
 
 
 class ConfigError(RuntimeError):
@@ -41,22 +41,22 @@ def json_schema() -> dict:
 
 def migrate(raw: dict) -> dict:
     """
-    Bring a raw config dict forward to the current version (§13).
+    Normalise a kår-block dict before validation: drop the ``$schema`` hint and any
+    ``_comment`` keys (JSON has no comments, so we use ignorable underscore keys).
 
-    Each step upgrades one version to the next; add a branch here whenever the
-    schema changes so old files keep loading. Unknown/newer versions pass through
-    to validation, which reports the mismatch.
+    Config-file format migrations key on the file-level ``schema_version``; add
+    steps here when the kår block's shape changes so old files keep loading.
     """
-    raw = dict(raw)
-    raw.pop("$schema", None)  # editor/CLI validation hint, not a model field
-    version = raw.get("version", CONFIG_VERSION)
-    # (No migrations yet — v1 is the first versioned schema.)
-    raw["version"] = version
-    return raw
+    return {k: v for k, v in raw.items() if k != "$schema" and not k.startswith("_")}
 
 
 def load_config(path: str | Path) -> KarConfig:
-    """Load the config at ``path``; a missing file yields the zero-config default."""
+    """
+    Load the kår config at ``path``; a missing file yields the zero-config default.
+
+    Accepts both the full settings file (the ``kar`` block is taken) and a kar-only
+    file such as ``docs/examples/*.json.example``.
+    """
     p = Path(path)
     if not p.exists():
         return default_config()
@@ -64,6 +64,8 @@ def load_config(path: str | Path) -> KarConfig:
         data = json.loads(p.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         raise ConfigError(f"invalid JSON in {p}: {e}") from e
+    if isinstance(data, dict) and isinstance(data.get("kar"), dict):
+        data = data["kar"]  # a full karverktyg.json — take just the kår block
     try:
         return KarConfig.model_validate(migrate(data))
     except ValidationError as e:

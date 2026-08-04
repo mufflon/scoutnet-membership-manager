@@ -722,15 +722,19 @@ and `test_misplaced_member_routes_per_person`.
   distribute count/N to each for the §20 projection figures only (never for an
   actual move; config will not be kept perfectly current).
 
-**B. Config architecture — maintenance/portability, no deadline.**
+**B. Config architecture — done.**
 
-- **Single config location.** Partly addressed: `config/karverktyg.default.json`
-  now stays as the bundled demo/default, a kår generates its own with
-  `scripts/make_config.py` and points `SCOUTNET_CONFIG_PATH` at it (no editing of
-  the default). The open question is whether to fold that generated config into the
-  gitignored `karverktyg.conf` too, so keys and structure live in one place
-  ("if we configure in multiple places we will forget"). Deferred — the generator +
-  env-var flow is enough for sharing now.
+- **Two files, split by secrecy.** All non-secret configuration is one committed
+  JSON, **`karverktyg.json`** (Finn as default, bundled into the image): a root
+  `schema_version`, then `mode` / `cohort_year` / `entity_id` and the `kar`
+  (name + avdelningar). The **only** secret file is **`apikeys.conf`** (gitignored,
+  `apikeys.conf.example` committed): the Scoutnet API keys + the DB password. This
+  keeps the config freely shareable (it holds nothing secret) while the keys never
+  taint it. `Settings` reads `karverktyg.json` via a JSON source, with the env (the
+  keys, injected from `apikeys.conf` into a k8s Secret) taking precedence; the whole
+  file carries `schema_version` for forward migration. `.dockerignore` keeps
+  `*.conf` out of the image. Brackets are national and in code; avdelningar/troop
+  ids/group id are inferred from the data, so with no config the app still runs.
 - **Multi-kår generality.** Keep kår structure configurable and generic scouting
   rules (brackets, section classification) as defaults, so another kår extends
   config/lists rather than forking. Only matters if the tool is shared.
@@ -1147,13 +1151,25 @@ data, not testing live keys.
 
 ## 13. Configuration
 
-All configuration through pydantic-settings, environment-driven, Kubernetes
-Secrets for keys and a ConfigMap for the rest. Notable knobs: chunk size, delay
-between chunks, snapshot retention window, allowed avdelningar, kår identity.
+Two files at the **repo root**, split by secrecy (see §7-B):
 
-- **Kår identity** (name, group id) configurable, defaulting to Scoutkåren Finn.
-- **Age brackets and uppflyttning flows are configuration, not code.** The full
-  specification is §17. The active configuration must be viewable in the app.
+- **`./karverktyg.json`** — all non-secret configuration; **committed** (Finn is the
+  default) and bundled into the image at `/app/karverktyg.json`. Loaded by
+  `Settings` via a JSON source. Path is overridable with `SCOUTNET_CONFIG_PATH`.
+- **`./apikeys.conf`** — the **only** secrets file: the Scoutnet API keys + the DB
+  password. **Gitignored** (`*.conf`, so `git`) and in **`.dockerignore`** (so it
+  never enters the image); committed template is `./apikeys.conf.example`.
+  `k8s-up.sh` reads it into a k8s Secret; locally you `source` it into the env.
+
+Environment (the keys) overrides the file (the rest).
+
+- **Age brackets are national and in code** (`BRACKETS`; Utmanare 15–19), not
+  config — they are identical for every Swedish kår (§17).
+- **Kår identity:** the display `name` is in `karverktyg.json`; the group id is
+  inferred from the member data.
+- **A kår's config is just its avdelningar** (name, bracket, optional weekday,
+  optional target). troop ids and brackets are inferred from the data; with no
+  config the app still runs. The active configuration is viewable in the app.
 - **Leaders are never auto-shifted (no automatic leader moves)** — being set as a
   leader in an avdelning keeps the member there. This excludes leader-class roles
   only: a scout who holds a plain *non-leader* function elsewhere still shifts
@@ -1165,13 +1181,13 @@ between chunks, snapshot retention window, allowed avdelningar, kår identity.
   "keep" carries an expiry year, so shifting scouts off leaves no state behind
   for the future (§9 purge). A reset clears the whole year's working state.
 
-**Config and fixture tooling (`scripts/`).** A kår builds its config
-interactively with `scripts/make_config.py` — it validates against the config
-model and writes a JSON to point `SCOUTNET_CONFIG_PATH` at; it deliberately never
-edits `config/karverktyg.default.json` (that file is only the bundled demo/default).
-**When the config model gains or drops a configurable field, update
-`make_config.py` in the same change** so the generator stays complete — the script
-carries a header comment saying so. The committed demo memberlist
+**Config and fixture tooling (`scripts/`).** A kår edits `karverktyg.json`
+directly, or builds the `kar` block interactively with `scripts/make_config.py`
+(it validates against the config model). `karverktyg validate-config <file>` checks
+a config, and `docs/karverktyg.schema.json` (generated from the model, with a
+sync test) validates it independently. **When the config model gains or drops a
+configurable field, update `make_config.py` and regenerate the schema in the same
+change** so both stay complete — the script carries a header comment saying so. The committed demo memberlist
 (`fixtures/memberlist.demo.json`) is fabricated from scratch by
 `scripts/make_fixture.py` — no capture, no API key, zero real-data provenance; when
 a feature needs the demo to exercise it (a new finding, a role kind), extend the

@@ -1,59 +1,21 @@
-# PVC-backed Postgres for the local deployment. The Secret (karverktyg-secrets)
-# is created by scripts/k8s-up.sh from your .conf — not committed here.
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: karverktyg-db-data
-  namespace: karverktyg
-spec:
-  accessModes: ["ReadWriteOnce"]
-  storageClassName: local-path
-  resources:
-    requests:
-      storage: 2Gi
----
-apiVersion: apps/v1
-kind: Deployment
+# PostgreSQL for the local deployment, managed by CloudNativePG. The CNPG operator
+# is installed by scripts/k8s-up.sh (once); CNPG then creates the pods, PVCs and the
+# karverktyg-db-rw / -ro / -r services, and manages failover/backups. The app
+# connects to karverktyg-db-rw. The app-role password comes from the
+# karverktyg-db-app secret that k8s-up.sh writes from your .conf (CNPG adopts a
+# pre-existing "<cluster>-app" secret instead of generating one).
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
 metadata:
   name: karverktyg-db
   namespace: karverktyg
 spec:
-  replicas: 1
-  strategy:
-    type: Recreate # single ReadWriteOnce volume
-  selector:
-    matchLabels: { app: karverktyg-db }
-  template:
-    metadata:
-      labels: { app: karverktyg-db }
-    spec:
-      containers:
-        - name: postgres
-          image: postgres:17
-          envFrom:
-            - secretRef: { name: karverktyg-secrets }
-          ports:
-            - containerPort: 5432
-          volumeMounts:
-            - name: data
-              mountPath: /var/lib/postgresql/data
-              subPath: pgdata
-          readinessProbe:
-            exec: { command: ["pg_isready", "-U", "karverktyg"] }
-            periodSeconds: 5
-            timeoutSeconds: 3
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: karverktyg-db-data
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: karverktyg-db
-  namespace: karverktyg
-spec:
-  selector: { app: karverktyg-db }
-  ports:
-    - port: 5432
-      targetPort: 5432
+  instances: 1 # single instance for the local cluster; raise for real deployments
+  imageName: ghcr.io/cloudnative-pg/postgresql:17
+  storage:
+    size: 2Gi
+    storageClass: local-path
+  bootstrap:
+    initdb:
+      database: karverktyg
+      owner: karverktyg

@@ -16,6 +16,7 @@ RUN uv sync --frozen --no-install-project --no-dev --extra pdf
 # App layer.
 COPY src ./src
 COPY docs ./docs
+COPY karverktyg.json ./
 COPY fixtures ./fixtures
 COPY migrations ./migrations
 COPY vendor ./vendor

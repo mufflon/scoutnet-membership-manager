@@ -12,10 +12,12 @@ set -eu
 NS=karverktyg
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$HERE"
-CONF="${1:-karverktyg.conf}"
+# Secrets (API keys + DB password) come from apikeys.conf; everything else is in
+# the committed karverktyg.json.
+CONF="${1:-apikeys.conf}"
 
 [ -f "$CONF" ] || {
-  echo "config '$CONF' not found — copy karverktyg.conf.example and fill it in." >&2
+  echo "secrets file '$CONF' not found — copy apikeys.conf.example and fill it in." >&2
   exit 1
 }
 
@@ -28,7 +30,8 @@ PGDB=karverktyg
 PGUSER=karverktyg
 PGPASS="$(conf_val POSTGRES_PASSWORD)"; PGPASS="${PGPASS:-devpassword}"
 DSN="$(conf_val SCOUTNET_DATABASE_URL)"
-DSN="${DSN:-postgresql+psycopg://${PGUSER}:${PGPASS}@karverktyg-db:5432/${PGDB}}"
+# CloudNativePG exposes the primary at <cluster>-rw (karverktyg-db-rw).
+DSN="${DSN:-postgresql+psycopg://${PGUSER}:${PGPASS}@karverktyg-db-rw:5432/${PGDB}}"
 MODE="$(conf_val SCOUTNET_MODE)"; MODE="${MODE:-read_only}"
 
 echo "==> building image karverktyg:latest"
@@ -63,12 +66,29 @@ kubectl -n "$NS" create secret generic karverktyg-secrets "$@" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 echo "==> secret applied (${scoutnet_keys} SCOUTNET_ key(s) set; blanks disabled), mode=${MODE}"
 
+# CloudNativePG operator (installed once), so the DB is a managed CNPG Cluster.
+CNPG_VERSION="${CNPG_VERSION:-1.24.1}"
+CNPG_BRANCH="release-$(printf '%s' "$CNPG_VERSION" | cut -d. -f1-2)"
+if ! kubectl get crd clusters.postgresql.cnpg.io >/dev/null 2>&1; then
+  echo "==> installing CloudNativePG operator ${CNPG_VERSION}"
+  kubectl apply --server-side -f \
+    "https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/${CNPG_BRANCH}/releases/cnpg-${CNPG_VERSION}.yaml" >/dev/null
+  kubectl -n cnpg-system rollout status deploy/cnpg-controller-manager --timeout=180s
+fi
+
+# The app-role password for the CNPG cluster — CNPG adopts the <cluster>-app secret.
+kubectl -n "$NS" create secret generic karverktyg-db-app \
+  --type=kubernetes.io/basic-auth \
+  --from-literal=username="$PGUSER" \
+  --from-literal=password="$PGPASS" \
+  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
 echo "==> applying manifests"
 kubectl apply -f k8s/local/ >/dev/null
 kubectl -n "$NS" rollout restart deploy/karverktyg >/dev/null 2>&1 || true
 
-echo "==> waiting for Postgres"
-kubectl -n "$NS" rollout status deploy/karverktyg-db --timeout=120s
+echo "==> waiting for Postgres (CNPG cluster)"
+kubectl -n "$NS" wait --for=condition=Ready pod -l cnpg.io/cluster=karverktyg-db --timeout=300s
 echo "==> waiting for app (db-bootstrap runs first)"
 kubectl -n "$NS" rollout status deploy/karverktyg --timeout=180s
 

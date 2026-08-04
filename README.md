@@ -51,17 +51,20 @@ uv run ruff check . && uv run ruff format --check .
 Three things to prepare: a **config** (which avdelningar you have), your **API
 keys**, and where you **deploy**.
 
-### 1. Make your config
+### 1. Edit your config
 
-Age brackets and avdelningar are configuration, not code. Build yours interactively
-— it validates as it goes and writes a JSON file:
+Everything non-secret is one committed file, **`karverktyg.json`** (Finn ships as
+the default): `mode`, `cohort_year`, `entity_id`, and the **kår** — a name plus
+**which avdelningar you have**. The age-bracket ladder is national and lives in
+code, so each avdelning just takes a `bracket`, an optional meeting `weekday`, and
+an optional explicit move `target`. The file has inline `_comment` fields
+explaining each part.
 
-```bash
-python3 scripts/make_config.py            # asks where to save
-```
-
-Point the app at it with `SCOUTNET_CONFIG_PATH=config/yourkår.json`. The bundled
-`config/karverktyg.default.json` is the demo kår and the default if you set nothing.
+Edit it directly, or build the kår block interactively with
+`python3 scripts/make_config.py`. `karverktyg validate-config karverktyg.json`
+checks it against `docs/karverktyg.schema.json`. **With no avdelningar declared
+the tool still runs** — avdelningar are inferred from the member data and moves
+fall back to selecting a target per person where there's more than one candidate.
 
 ### 2. Get your API keys
 
@@ -72,21 +75,46 @@ Keys are **per endpoint, per body** (not per user), permanent until regenerated.
    `organisation/group`, and `update/membership` if you will write).
 3. The Basic-auth username is the **internal entity id** ("Kår-ID för webbtjänster")
    — not necessarily the visible kår number.
-4. Put the keys in `karverktyg.conf` (copy `karverktyg.conf.example`). **Never
-   commit it** — `*.conf` is gitignored; only `*.conf.example` is tracked.
+4. Put the keys in `apikeys.conf` (copy `apikeys.conf.example` — it notes the
+   Scoutnet endpoint each key is for). **This is the only secret file** — `*.conf`
+   is gitignored; everything non-secret lives in the committed `karverktyg.json`.
 
 ### 3. Deploy
 
 The tool runs on Kubernetes (developed against a local k3s / Rancher Desktop).
-`scripts/k8s-up.sh` reads your `karverktyg.conf`, builds the image, and rolls out:
+`scripts/k8s-up.sh` reads your `apikeys.conf` (secrets → a Secret), builds the
+image (which bundles `karverktyg.json`), and rolls out:
 
 ```bash
-./scripts/k8s-up.sh                       # uses ./karverktyg.conf
+./scripts/k8s-up.sh                       # reads ./apikeys.conf
 kubectl -n karverktyg port-forward svc/karverktyg 8000:80   # then open :8000
 ```
 
 The service is a ClusterIP — put human authentication at the ingress
-(`k8s/ingress.example.yaml`). `scripts/k8s-down.sh` tears it back down.
+(`k8s/ingress.example.yaml`). `scripts/k8s-down.sh` tears it back down. For the
+database, point `SCOUTNET_DATABASE_URL` at your own Postgres — the bundled
+`postgres:17` Deployment is only the local test overlay; a real deployment should
+use a managed/operator Postgres (e.g. CloudNativePG).
+
+### Or: just a container
+
+Kubernetes is optional. A tagged release publishes a multi-arch image to GHCR, so
+you can run the whole thing with one command — the demo needs no keys and no
+database:
+
+```bash
+docker run -e SCOUTNET_MODE=fixture -p 8000:8000 ghcr.io/OWNER/karverktyg:latest
+```
+
+For real use, pass your keys and (for writes) a Postgres URL as env vars:
+
+```bash
+docker run -p 8000:8000 \
+  -e SCOUTNET_MODE=read_only \
+  -e SCOUTNET_ENTITY_ID=... -e SCOUTNET_MEMBERLIST_KEY=... \
+  -v "$PWD/karverktyg.json:/app/karverktyg.json:ro" \
+  ghcr.io/OWNER/karverktyg:latest
+```
 
 ## Modes
 
@@ -127,18 +155,19 @@ undoable (`CLAUDE.md` §6, §8; `docs/runbook.md`).
   verification.
 
 Out of scope with the documented API: attendance tracking, and creating next
-year's arrangemang (see `docs/phase-0-findings.md`).
+year's arrangemang (see `CLAUDE.md` §5).
 
 ## Configuration reference
 
-All settings are environment-driven (`pydantic-settings`), prefix `SCOUTNET_`
-(see `.env.example`); `scripts/k8s-up.sh` maps `karverktyg.conf` onto them.
+Non-secret settings live in `karverktyg.json` (committed); the API keys come from
+the environment (`apikeys.conf`, prefix `SCOUTNET_`). Environment overrides the
+file, so k8s/`docker run` can set any of these:
 
 | Variable | Purpose |
 |---|---|
 | `SCOUTNET_MODE` | `fixture` \| `read_only` (default) \| `read_write` |
-| `SCOUTNET_CONFIG_PATH` | path to your kår config JSON (default: the bundled demo) |
-| `SCOUTNET_ENTITY_ID` | HTTP Basic username — the internal entity id |
+| `SCOUTNET_CONFIG_PATH` | path to your kår config JSON (default `karverktyg.json`; absent = infer) |
+| `SCOUTNET_ENTITY_ID` | HTTP Basic username — the internal entity id (also the kår id) |
 | `SCOUTNET_MEMBERLIST_KEY` | per-endpoint key for `/group/memberlist` |
 | `SCOUTNET_ORGANISATION_GROUP_KEY` | per-endpoint key for `/organisation/group` |
 | `SCOUTNET_UPDATE_MEMBERSHIP_KEY` | per-endpoint write key (required for `read_write`) |
@@ -166,7 +195,7 @@ All settings are environment-driven (`pydantic-settings`), prefix `SCOUTNET_`
 src/karverktyg/
   settings.py            app settings (pydantic-settings)
   collation.py i18n.py   Swedish collation and UI strings
-  config/                bracket + avdelning config models and loader
+  config/                config model (avdelningar), loader, national brackets
   scoutnet/              API client (fixture + read-only + write) and parser
   roster.py              troop-id index (from unit.raw_value)
   findings/              data-quality + membership-roll findings
@@ -179,7 +208,8 @@ src/karverktyg/
   web/                   Flask app, JSON API, static frontend
   jobs/                  read-only canary + spec-drift
 scripts/                 config/fixture generators + capture/scrub spikes
-config/ fixtures/ migrations/ k8s/ vendor/ docs/
+docs/examples/           example configs (*.json.example) + schema
+fixtures/ migrations/ k8s/ vendor/ docs/
 ```
 
 ## Standing limits

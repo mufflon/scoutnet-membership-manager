@@ -1,20 +1,14 @@
-.git/
-.venv/
-venv/
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-tests/
-captures/
-snapshots/
-*.raw.json
-*.local.json
+# Secrets never enter the image
+*.conf
+!*.conf.example
 .env
 .env.*
-!.env.example
-node_modules/
-.DS_Store
-docs/
+# Local/dev cruft
+.git
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+node_modules
+captures
+snapshots

@@ -147,7 +147,7 @@ def _validate_config(args: argparse.Namespace) -> int:
     except ConfigError as e:
         print(f"✗ {e}", file=sys.stderr)  # noqa: T201
         return 1
-    print(f"✓ {args.path}: giltig (v{cfg.version}, {len(cfg.avdelningar)} avdelningar)")  # noqa: T201
+    print(f"✓ {args.path}: giltig ({len(cfg.avdelningar)} avdelningar)")  # noqa: T201
     return 0
 
 

@@ -5,10 +5,10 @@ The national age-bracket ladder is fixed for every Swedish kår, so it lives in
 **code** here (``BRACKETS``), never in a kår's config. A kår's config is only its
 avdelningar — each with an optional meeting ``weekday`` and an optional explicit
 move ``target`` — and nothing else: which bracket a member is in, troop ids and
-the kår's group id are all read live from the member data. The config carries a
-``version`` so older files can be migrated forward (see ``loader.migrate``), and
-with **no config at all** the tool still runs: avdelningar are inferred from the
-data and moves fall back to the universal routing rule.
+the kår's group id are all read live from the member data. The config *file* carries
+a ``schema_version`` at its root (so it can be verified against and migrated to the
+current schema); with **no config at all** the tool still runs: avdelningar are
+inferred from the data and moves fall back to the universal routing rule.
 
 Cohort is keyed on **birth year**, never school year (§17); ages here are cohort
 ages = N − birth_year.
@@ -20,7 +20,7 @@ import enum
 
 from pydantic import BaseModel, Field, model_validator
 
-CONFIG_VERSION = 1
+SCHEMA_VERSION = 1
 
 
 class Bracket(enum.StrEnum):
@@ -146,12 +146,13 @@ class ExpectedPost(BaseModel):
 
 class KarConfig(BaseModel):
     """
-    A kår's configuration (§13): a version, an optional display name, and the
-    avdelningar. Brackets are national (see ``BRACKETS``); the group id and every
-    avdelning's bracket/troop_id are inferred from the data when not declared.
+    A kår's configuration (§13): an optional display name and the avdelningar.
+    Brackets are national (see ``BRACKETS``); the group id and every avdelning's
+    bracket/troop_id are inferred from the data when not declared. The file-format
+    version lives one level up (``schema_version`` on the whole config file), not
+    here.
     """
 
-    version: int = CONFIG_VERSION
     name: str | None = None
     avdelningar: list[Avdelning] = Field(default_factory=list)
 

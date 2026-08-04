@@ -1,6 +1,6 @@
 {
   "$schema": "../karverktyg.schema.json",
-  "version": 1,
+  "_comment": "Finn with a single STANDING Utmanare avdelning (Finnfararna) that scouts move into each year, shown two ways: the sole-candidate rule would route to it automatically, and here Vikingarna also names it explicitly via 'target'.",
   "name": "Scoutkåren Finn (stående Utmanare)",
   "avdelningar": [
     { "name": "Hajarna",       "bracket": "sparare",    "weekday": 0 },

@@ -90,13 +90,8 @@
       "type": "object"
     }
   },
-  "description": "A kår's configuration (§13): a version, an optional display name, and the\navdelningar. Brackets are national (see ``BRACKETS``); the group id and every\navdelning's bracket/troop_id are inferred from the data when not declared.",
+  "description": "A kår's configuration (§13): an optional display name and the avdelningar.\nBrackets are national (see ``BRACKETS``); the group id and every avdelning's\nbracket/troop_id are inferred from the data when not declared. The file-format\nversion lives one level up (``schema_version`` on the whole config file), not\nhere.",
   "properties": {
-    "version": {
-      "default": 1,
-      "title": "Version",
-      "type": "integer"
-    },
     "name": {
       "anyOf": [
         {

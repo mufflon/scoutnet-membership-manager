@@ -1,0 +1,34 @@
+{
+  "_comment": "karverktyg config — everything EXCEPT the API keys (those live in apikeys.conf). Safe to commit and share: it holds no secrets. Fields not set here fall back to defaults or to the environment; the API keys are read from the environment only.",
+  "schema_version": 1,
+
+  "_comment_mode": "fixture = demo (no keys/db) · read_only = live, no writes · read_write = live writes (the uppflyttning apply path).",
+  "mode": "read_only",
+
+  "_comment_cohort_year": "Uppflyttning year N. Leave it out to derive from the live term (guarded).",
+  "cohort_year": 2026,
+
+  "_comment_entity_id": "The kår's id (also the HTTP Basic username for the API). Not a secret.",
+  "entity_id": "1025",
+
+  "_comment_kar": "The kår itself: a display name and the avdelningar. Each avdelning has a bracket (sparare/upptackare/aventyrare/utmanare/rover/annat), an optional weekday (0=Mon..6=Sun, drives the same-weekday move), and an optional target (force a specific move destination). Brackets are national and defined in code; troop ids and the group id are read live from the data. With no avdelningar declared the tool infers them from the member data.",
+  "kar": {
+    "name": "Scoutkåren Finn",
+    "avdelningar": [
+      { "name": "Hajarna",       "bracket": "sparare",    "weekday": 0 },
+      { "name": "Späckhuggarna", "bracket": "sparare",    "weekday": 1 },
+      { "name": "Rockorna",      "bracket": "sparare",    "weekday": 2 },
+      { "name": "Kämparna",      "bracket": "upptackare", "weekday": 0 },
+      { "name": "Spejarna",      "bracket": "upptackare", "weekday": 1 },
+      { "name": "Utforskarna",   "bracket": "upptackare", "weekday": 2 },
+      { "name": "Vikingarna",    "bracket": "aventyrare", "weekday": 3 },
+      { "name": "Finndus",       "bracket": "utmanare" },
+      { "name": "Finnemang",     "bracket": "utmanare" },
+      { "name": "Fniss",         "bracket": "utmanare" },
+      { "name": "Finness",       "bracket": "rover" },
+      { "name": "Finnurligt",    "bracket": "rover" },
+      { "name": "Parafinn",      "bracket": "rover" },
+      { "name": "Ledare",        "bracket": "annat" }
+    ]
+  }
+}

@@ -9,7 +9,6 @@ from flask.typing import ResponseReturnValue
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.pool import StaticPool
 
-from karverktyg.config import load_config
 from karverktyg.db.models import Base
 from karverktyg.db.session import make_engine, make_sessionmaker
 from karverktyg.scoutnet.client import ScoutnetError, build_client
@@ -67,7 +66,7 @@ def create_app(settings: Settings | None = None, *, client: object | None = None
     the mode-appropriate client, failing loudly if a live deployment lacks keys.
     """
     settings = settings or Settings()
-    kar_config = load_config(settings.config_path)
+    kar_config = settings.kar  # from karverktyg.json (§13); empty => inferred
 
     app = Flask(__name__, static_folder=str(_STATIC), static_url_path="")
     app.config.update(

@@ -31,9 +31,7 @@ node_modules/
 /bundled.yaml
 .DS_Store
 
-# Filled-in deploy config (holds API keys) — never commit; keep only *.conf.example
+# API keys / secrets — never commit; keep only *.conf.example (e.g. apikeys.conf)
 *.conf
 !*.conf.example
-
-# Filled-in kår config (may hold nothing secret, but keep it out of git to be safe)
-karverktyg.json
+# karverktyg.json holds NO secrets (keys live in apikeys.conf), so it is committed.

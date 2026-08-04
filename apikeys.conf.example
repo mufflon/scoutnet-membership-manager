@@ -1,0 +1,28 @@
+# apikeys.conf — SECRETS ONLY. Copy to apikeys.conf and fill in; the real file is
+# gitignored and never baked into the image. Everything non-secret (mode, kår,
+# avdelningar, cohort year) lives in karverktyg.json instead.
+#
+# Locally, load these into the environment before running:  set -a; . ./apikeys.conf; set +a
+# In Kubernetes, scripts/k8s-up.sh reads this file into a Secret.
+#
+# Keys are per endpoint (from Din kår → Webbkoppling). The endpoint each key is for
+# is noted so you can verify you pasted the right one. A blank key disables that
+# capability.
+
+# SCOUTNET_MEMBERLIST_KEY -> GET https://scoutnet.se/api/group/memberlist
+#   The kår's full member list — the primary read.
+SCOUTNET_MEMBERLIST_KEY=REPLACE_ME
+
+# SCOUTNET_ORGANISATION_GROUP_KEY -> GET https://scoutnet.se/api/organisation/group
+#   The kår's org tree (avdelningar / units), used to resolve troop structure.
+SCOUTNET_ORGANISATION_GROUP_KEY=REPLACE_ME
+
+# SCOUTNET_UPDATE_MEMBERSHIP_KEY -> POST https://scoutnet.se/api/organisation/update/membership
+#   The write key. Only used in read_write mode; never entered in the app UI
+#   (hard rule 7). Blank = writing disabled.
+SCOUTNET_UPDATE_MEMBERSHIP_KEY=
+
+# Database. For the local CloudNativePG cluster just set a password; for an external
+# DB give the full DSN instead (it contains the password, hence a secret).
+POSTGRES_PASSWORD=devpassword
+# SCOUTNET_DATABASE_URL=postgresql+psycopg://user:pass@host:5432/karverktyg
