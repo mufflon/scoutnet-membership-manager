@@ -103,15 +103,17 @@ def test_bootstrap_rebuilds_incompatible_keeping_templates(tmp_path):
     assert len(rows) == 1 and rows[0].subject == "keep me"  # template preserved
 
 
-def test_bootstrap_migration_clears_uppflyttning_keeps_templates(tmp_path):
+def test_bootstrap_at_head_keeps_data(tmp_path):
     from alembic import command
 
     from karverktyg.db.bootstrap import _alembic_cfg
 
     url = _url(tmp_path)
     engine = create_engine(url)
-    # Managed DB one revision behind head (0001, before cohort_target exists).
-    command.upgrade(_alembic_cfg(url), "0001")
+    # A fully-migrated DB (the initial schema is a single squashed revision, so
+    # there is nothing to advance). A plain redeploy keeps everything — the
+    # uppflyttning scratch is only cleared on a *real* future migration.
+    command.upgrade(_alembic_cfg(url), "head")
     with engine.begin() as c:
         c.execute(
             text(
@@ -127,10 +129,9 @@ def test_bootstrap_migration_clears_uppflyttning_keeps_templates(tmp_path):
         )
 
     r = bootstrap(url)
-    assert r.action == "upgraded"
-    assert "uppflyttning cleared" in r.detail
+    assert r.action in ("upgraded", "adopted")
+    assert "nothing to migrate" in r.detail or "kept in place" in r.detail
 
     with engine.connect() as c:
-        # uppflyttning scratch gone, meaningful data kept
-        assert c.execute(text("SELECT COUNT(*) FROM uppflyttning_entry")).scalar() == 0
+        assert c.execute(text("SELECT COUNT(*) FROM uppflyttning_entry")).scalar() == 1
         assert c.execute(text("SELECT COUNT(*) FROM email_template")).scalar() == 1

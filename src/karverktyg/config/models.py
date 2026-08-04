@@ -1,9 +1,17 @@
 """
-Typed configuration models (§17).
+Typed configuration models (§13, §17).
 
-The engine understands the four transition kinds and reads everything else from
-config. Cohort is keyed on **birth year**, never school year (§17); ages here
-are *cohort ages* = N − birth_year.
+The national age-bracket ladder is fixed for every Swedish kår, so it lives in
+**code** here (``BRACKETS``), never in a kår's config. A kår's config is only its
+avdelningar — each with an optional meeting ``weekday`` and an optional explicit
+move ``target`` — and nothing else: which bracket a member is in, troop ids and
+the kår's group id are all read live from the member data. The config carries a
+``version`` so older files can be migrated forward (see ``loader.migrate``), and
+with **no config at all** the tool still runs: avdelningar are inferred from the
+data and moves fall back to the universal routing rule.
+
+Cohort is keyed on **birth year**, never school year (§17); ages here are cohort
+ages = N − birth_year.
 """
 
 from __future__ import annotations
@@ -11,6 +19,8 @@ from __future__ import annotations
 import enum
 
 from pydantic import BaseModel, Field, model_validator
+
+CONFIG_VERSION = 1
 
 
 class Bracket(enum.StrEnum):
@@ -53,54 +63,72 @@ def bracket_by_unit_type_code(code: int | str | None) -> Bracket | None:
 
 
 class TransitionKind(enum.StrEnum):
-    """How a bracket's oldest cohort moves up at the summer shift (§17)."""
+    """
+    The uppflyttning group a moving cohort belongs to — a UI/label key derived
+    from the *source* bracket, not a per-kår setting. Routing itself is uniform
+    (same-weekday → sole candidate → per-person, §17); these only name the groups.
+    """
 
-    SAME_WEEKDAY = "same_weekday"  # Spårare → Upptäckare (matched weekday)
-    MERGE = "merge"  # Upptäckare → one Äventyrare avdelning
-    NEW_COHORT_AVDELNING = "new_cohort_avdelning"  # Äventyrare → new Utmanare
+    SAME_WEEKDAY = "same_weekday"  # Spårare → Upptäckare
+    MERGE = "merge"  # Upptäckare → Äventyrare
+    NEW_COHORT_AVDELNING = "new_cohort_avdelning"  # Äventyrare → Utmanare
     NEVER_AUTO = "never_auto"  # Utmanare, Rover
     NONE = "none"  # Annat / Ledare — not a scout bracket
 
 
 class BracketRule(BaseModel):
-    """Age span and transition kind for one bracket."""
+    """Age span and structural-check flag for one bracket (national, in code)."""
 
     bracket: Bracket
     # Cohort-age span (N − birth_year). None for brackets that are not
     # age-bounded (Rover, Annat).
     age_min: int | None = None
     age_max: int | None = None
-    transition: TransitionKind
     # Whether the §11 age / multi-avdelning structural checks apply.
     structural_checks: bool = True
-    # §20 KPI thresholds, per åldersgrupp — younger avdelningar need denser
-    # staffing. These only *flag*, never hard-limit. None => no flag for this
-    # bracket. scouts_per_leader_max is scouts-per-one-leader (e.g. 6.0 => 6:1).
-    scouts_per_leader_max: float | None = None
-    projected_size_max: int | None = None
+
+
+# The national åldersgrupp ladder — identical for every Swedish kår (Utmanare tops
+# out at 19 by national decision), so it is code, not config.
+BRACKETS: list[BracketRule] = [
+    BracketRule(bracket=Bracket.SPARARE, age_min=8, age_max=9),
+    BracketRule(bracket=Bracket.UPPTACKARE, age_min=10, age_max=11),
+    BracketRule(bracket=Bracket.AVENTYRARE, age_min=12, age_max=14),
+    BracketRule(bracket=Bracket.UTMANARE, age_min=15, age_max=19, structural_checks=False),
+    BracketRule(bracket=Bracket.ROVER, structural_checks=False),
+    BracketRule(bracket=Bracket.ANNAT, structural_checks=False),
+]
+_BRACKET_RULE: dict[Bracket, BracketRule] = {b.bracket: b for b in BRACKETS}
+
+# The group a moving cohort is shown under, by source bracket (labels only).
+_TRANSITION_BY_BRACKET: dict[Bracket, TransitionKind] = {
+    Bracket.SPARARE: TransitionKind.SAME_WEEKDAY,
+    Bracket.UPPTACKARE: TransitionKind.MERGE,
+    Bracket.AVENTYRARE: TransitionKind.NEW_COHORT_AVDELNING,
+}
+
+
+def transition_for(bracket: Bracket) -> TransitionKind:
+    """The uppflyttning group key for a source bracket (a label, not behaviour)."""
+    return _TRANSITION_BY_BRACKET.get(bracket, TransitionKind.NEVER_AUTO)
 
 
 class Avdelning(BaseModel):
     """
-    One avdelning's config: its existence and attributes (bracket, weekday, move
-    target, cohort_year) — **never a troop_id**. The id is resolved live from
-    ``unit.raw_value``; for a brand-new avdelning too empty to appear in the
-    memberlist, the operator supplies the id at the target election, stored as run
-    metadata keyed to the cohort year (§17), not here. A config that carried the id
-    would go stale and offer itself as a plausible wrong-cohort default next year.
+    One avdelning's config: its meeting ``weekday`` and an optional explicit move
+    ``target`` — **never a troop_id** (resolved live from ``unit.raw_value``) and
+    never a bracket-specific transition. ``name`` and ``bracket`` may be declared
+    here or left to be inferred from the member data; declaring them lets an empty
+    or brand-new avdelning exist before anyone is in it.
     """
 
     name: str
     bracket: Bracket
-    # 0 = Monday .. 6 = Sunday. Required for same_weekday sources/targets.
+    # 0 = Monday .. 6 = Sunday. Enables the same-weekday move hint.
     weekday: int | None = Field(default=None, ge=0, le=6)
-    # Default move target avdelning name (same_weekday / merge). Not set for
-    # new_cohort_avdelning (resolved by cohort_year) or never_auto.
-    default_target: str | None = None
-    # The birth year an Utmanare avdelning was built around (§17). Describes the
-    # core, never used to move or flag anyone.
-    cohort_year: int | None = None
-    is_18plus: bool = False
+    # Explicit move target avdelning name — the direct-target mode. Overrides the
+    # weekday/sole-candidate rule for this source. Absent → universal rule (§17).
+    target: str | None = None
 
 
 class ExpectedPost(BaseModel):
@@ -113,100 +141,55 @@ class ExpectedPost(BaseModel):
 
     role_key: str
     count: int = Field(default=1, ge=1)
-    # Optional display label for a vacancy row; falls back to the role_key,
-    # since an unfilled post has no holder to read a role_name from.
     label: str | None = None
 
 
 class KarConfig(BaseModel):
-    """The whole kår configuration: brackets and avdelningar (§13, §17)."""
+    """
+    A kår's configuration (§13): a version, an optional display name, and the
+    avdelningar. Brackets are national (see ``BRACKETS``); the group id and every
+    avdelning's bracket/troop_id are inferred from the data when not declared.
+    """
 
-    name: str
-    group_id: str
-    # Cohort year N. None => derive from the live term, guarded by the
-    # cross-check in uppflyttning.cohort (§17).
-    cohort_year_n: int | None = None
-    # Marks a shipped placeholder configuration (§13).
-    placeholder: bool = True
-    brackets: list[BracketRule]
-    avdelningar: list[Avdelning]
+    version: int = CONFIG_VERSION
+    name: str | None = None
+    avdelningar: list[Avdelning] = Field(default_factory=list)
 
     # --- Förtroendeuppdrag (§18) -------------------------------------------
-    # The blade's three sections (board / other / delegate) and their order are
-    # hard-coded in karverktyg.fortroende — uniform for this kår; another kår
-    # would extend those lists. Config here only carries kår-specific data:
-    # optional role_key -> display label override (rare, ships empty), and the
-    # opt-in årsmöte vacancy list.
+    # Section classification is hard-coded in karverktyg.fortroende; config here
+    # only carries an optional role_key -> label override (rare) and the opt-in
+    # årsmöte vacancy list.
     role_label_overrides: dict[str, str] = Field(default_factory=dict)
-    # Optional expected posts for the årsmöte vacancy view (§18). Opt-in.
     expected_fortroende: list[ExpectedPost] = Field(default_factory=list)
 
     # --- Validation --------------------------------------------------------
     @model_validator(mode="after")
     def _validate(self) -> KarConfig:
-        rule_by_bracket = {r.bracket: r for r in self.brackets}
-        if len(rule_by_bracket) != len(self.brackets):
-            raise ValueError("duplicate bracket in 'brackets'")
-
         names = [a.name for a in self.avdelningar]
         if len(set(names)) != len(names):
             raise ValueError("duplicate avdelning name")
         name_set = set(names)
-
         for a in self.avdelningar:
-            if a.bracket not in rule_by_bracket:
-                raise ValueError(f"avdelning {a.name!r} references unknown bracket {a.bracket}")
-            rule = rule_by_bracket[a.bracket]
-            if rule.transition is TransitionKind.SAME_WEEKDAY and a.weekday is None:
-                raise ValueError(f"same_weekday avdelning {a.name!r} needs a weekday")
-            if a.default_target is not None and a.default_target not in name_set:
-                raise ValueError(
-                    f"avdelning {a.name!r} default_target {a.default_target!r} does not exist"
-                )
-
-        # cohort_year must be unique among avdelningar that set it, so
-        # "the Utmanare avdelning whose cohort_year is N" resolves unambiguously.
-        seen: dict[int, str] = {}
-        for a in self.avdelningar:
-            if a.cohort_year is None:
-                continue
-            if a.cohort_year in seen:
-                raise ValueError(
-                    f"cohort_year {a.cohort_year} is shared by {seen[a.cohort_year]!r} "
-                    f"and {a.name!r}; it must be unique so a move target resolves"
-                )
-            seen[a.cohort_year] = a.name
+            if a.target is not None and a.target not in name_set:
+                raise ValueError(f"avdelning {a.name!r} target {a.target!r} does not exist")
         return self
 
     # --- Lookups -----------------------------------------------------------
     def rule(self, bracket: Bracket) -> BracketRule:
-        """The rule for a bracket; raises KeyError if not configured."""
-        for r in self.brackets:
-            if r.bracket is bracket:
-                return r
-        raise KeyError(bracket)
+        """The national rule for a bracket; raises KeyError if unknown."""
+        return _BRACKET_RULE[bracket]
 
     def avdelning(self, name: str) -> Avdelning | None:
-        """The avdelning with this name, or None."""
+        """The declared avdelning with this name, or None."""
         for a in self.avdelningar:
             if a.name == name:
                 return a
         return None
 
     def avdelningar_in(self, bracket: Bracket) -> list[Avdelning]:
-        """All avdelningar in a bracket."""
+        """All declared avdelningar in a bracket."""
         return [a for a in self.avdelningar if a.bracket is bracket]
 
-    def target_for_cohort(self, bracket: Bracket, cohort_year: int) -> Avdelning | None:
-        """
-        Return the avdelning of ``bracket`` whose cohort_year matches — the
-        new_cohort_avdelning target for that cohort (§17).
-        """
-        for a in self.avdelningar_in(bracket):
-            if a.cohort_year == cohort_year:
-                return a
-        return None
-
     def eighteen_plus_avdelningar(self) -> list[str]:
-        """Names of avdelningar configured as 18+ (e.g. Ledare)."""
-        return [a.name for a in self.avdelningar if a.is_18plus]
+        """Names of declared 18+ avdelningar — the 'annat' bracket (e.g. Ledare)."""
+        return [a.name for a in self.avdelningar if a.bracket is Bracket.ANNAT]

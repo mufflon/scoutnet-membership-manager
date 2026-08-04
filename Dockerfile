@@ -15,7 +15,7 @@ RUN uv sync --frozen --no-install-project --no-dev --extra pdf
 
 # App layer.
 COPY src ./src
-COPY config ./config
+COPY docs ./docs
 COPY fixtures ./fixtures
 COPY migrations ./migrations
 COPY vendor ./vendor

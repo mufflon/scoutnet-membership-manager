@@ -7116,10 +7116,10 @@
         "value": "Johansson"
       },
       "ssno": {
-        "value": "070812-9101"
+        "value": "060812-9102"
       },
       "date_of_birth": {
-        "value": "2007-08-12"
+        "value": "2006-08-12"
       },
       "status": {
         "raw_value": "2",
@@ -7175,33 +7175,33 @@
         "value": "100111"
       },
       "first_name": {
-        "value": "Björn"
+        "value": "Cornelia"
       },
       "last_name": {
-        "value": "Lindqvist"
+        "value": "Bergström"
       },
       "ssno": {
-        "value": "081103-4743"
+        "value": "070622-5471"
       },
       "date_of_birth": {
-        "value": "2008-11-03"
+        "value": "2007-06-22"
       },
       "status": {
         "raw_value": "2",
         "value": "Aktiv"
       },
       "sex": {
-        "raw_value": "2",
-        "value": "Kvinna"
+        "raw_value": "1",
+        "value": "Man"
       },
       "address_1": {
-        "value": "Scoutstigen 84"
+        "value": "Testallén 82"
       },
       "postcode": {
-        "value": "968 00"
+        "value": "896 80"
       },
       "town": {
-        "value": "Södra Sandby"
+        "value": "Lund"
       },
       "country": {
         "value": "Sverige"
@@ -7210,7 +7210,7 @@
         "value": "medlem100111@example.org"
       },
       "contact_mobile_phone": {
-        "value": "0703380669"
+        "value": "0707049771"
       },
       "roles": {
         "value": []
@@ -7240,16 +7240,16 @@
         "value": "100112"
       },
       "first_name": {
-        "value": "Olga"
+        "value": "Iris"
       },
       "last_name": {
-        "value": "Holmberg"
+        "value": "Öberg"
       },
       "ssno": {
-        "value": "100522-1203"
+        "value": "060622-3121"
       },
       "date_of_birth": {
-        "value": "2010-05-22"
+        "value": "2006-06-22"
       },
       "status": {
         "raw_value": "2",
@@ -7260,13 +7260,13 @@
         "value": "Kvinna"
       },
       "address_1": {
-        "value": "Testallén 61"
+        "value": "Exempelgatan 38"
       },
       "postcode": {
-        "value": "380 83"
+        "value": "738 08"
       },
       "town": {
-        "value": "Veberöd"
+        "value": "Dalby"
       },
       "country": {
         "value": "Sverige"
@@ -7293,8 +7293,8 @@
         "value": "Finndus"
       },
       "prev_term": {
-        "raw_value": "unpaid_overdue_reminded",
-        "value": "Obetald (påmind)"
+        "raw_value": "paid",
+        "value": "Betald"
       },
       "prev_term_due_date": {
         "value": "2026-02-28"
@@ -7376,10 +7376,10 @@
         "value": "Isaksson"
       },
       "ssno": {
-        "value": "070318-1172"
+        "value": "060318-1173"
       },
       "date_of_birth": {
-        "value": "2007-03-18"
+        "value": "2006-03-18"
       },
       "status": {
         "raw_value": "2",
@@ -7506,10 +7506,10 @@
         "value": "Dahl"
       },
       "ssno": {
-        "value": "080227-2831"
+        "value": "071204-2837"
       },
       "date_of_birth": {
-        "value": "2008-02-27"
+        "value": "2007-12-04"
       },
       "status": {
         "raw_value": "2",
@@ -7636,10 +7636,10 @@
         "value": "Andersson"
       },
       "ssno": {
-        "value": "070405-9625"
+        "value": "060405-9626"
       },
       "date_of_birth": {
-        "value": "2007-04-05"
+        "value": "2006-04-05"
       },
       "status": {
         "raw_value": "2",
@@ -7896,10 +7896,10 @@
         "value": "Gustafsson"
       },
       "ssno": {
-        "value": "071104-2820"
+        "value": "061104-2821"
       },
       "date_of_birth": {
-        "value": "2007-11-04"
+        "value": "2006-11-04"
       },
       "status": {
         "raw_value": "2",
@@ -8416,10 +8416,10 @@
         "value": "Möller"
       },
       "ssno": {
-        "value": "070125-9582"
+        "value": "060125-9583"
       },
       "date_of_birth": {
-        "value": "2007-01-25"
+        "value": "2006-01-25"
       },
       "status": {
         "raw_value": "2",

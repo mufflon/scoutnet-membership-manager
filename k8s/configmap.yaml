@@ -8,7 +8,10 @@ data:
   SCOUTNET_BASE_URL: "https://scoutnet.se/api"
   SCOUTNET_KAR_NAME: "Scoutkåren Finn"
   SCOUTNET_ENTITY_ID: "1025"
-  SCOUTNET_CONFIG_PATH: "config/karverktyg.default.json"
+  # A kår mounts its own config here (a ConfigMap/volume as karverktyg.json). With
+  # no file present the app infers avdelningar from the data (§13). The bundled demo
+  # config is docs/examples/finn.json.example.
+  SCOUTNET_CONFIG_PATH: "karverktyg.json"
   # Cohort year N. Set explicitly each season (§17); cross-checked against the
   # live term, which refuses to compute a master set on disagreement.
   SCOUTNET_COHORT_YEAR: "2026"

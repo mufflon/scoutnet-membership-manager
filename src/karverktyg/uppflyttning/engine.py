@@ -12,17 +12,14 @@ until a target is elected.
 from __future__ import annotations
 
 from karverktyg.collation import sort_key
-from karverktyg.config.models import Avdelning, Bracket, KarConfig, TransitionKind
+from karverktyg.config.models import Bracket, KarConfig, TransitionKind, transition_for
 from karverktyg.roster import TroopIndex, build_troop_index
 from karverktyg.scoutnet.models import Member, MemberList
 from karverktyg.uppflyttning.cohort import resolve_cohort_year
 from karverktyg.uppflyttning.models import ElectedTarget, MasterSet, MoveEntry, MoveStatus
 
-_MOVING = {
-    TransitionKind.SAME_WEEKDAY,
-    TransitionKind.MERGE,
-    TransitionKind.NEW_COHORT_AVDELNING,
-}
+# The brackets whose oldest cohort auto-moves up at the summer shift (§17).
+_MOVING_BRACKETS = {Bracket.SPARARE, Bracket.UPPTACKARE, Bracket.AVENTYRARE}
 
 _ADULT_AGE = 18
 
@@ -104,27 +101,39 @@ def _base(
     )
 
 
-def infer_target_name(source: Avdelning, config: KarConfig) -> str | None:
+def _candidates_in(bracket: Bracket, config: KarConfig, index: TroopIndex) -> list[str]:
+    """Avdelning names in a bracket — from the data, plus any declared-empty ones."""
+    names = [index.id_to_name[i] for i in index.ids_for_bracket(bracket)]
+    for a in config.avdelningar_in(bracket):
+        if a.name not in names:
+            names.append(a.name)
+    return names
+
+
+def infer_target_name(source_name: str, config: KarConfig, index: TroopIndex) -> str | None:
     """
-    The move target for a same_weekday / merge source (§17), so config need not
-    hardcode every target. In priority order: an explicit config ``default_target``
-    (a flow hint); else the next-bracket avdelning meeting on the **same weekday**
-    (the same_weekday hint); else the **sole** avdelning of the next bracket. If
-    several remain with no hint, return ``None`` — the tool must not guess and the
-    operator selects the target per member instead.
+    The universal move target for a source avdelning (§17), in priority order: an
+    explicit config ``target`` (direct-target mode); else the next-bracket avdelning
+    meeting on the **same weekday** (config weekday hint); else the **sole** avdelning
+    of the next bracket. Otherwise ``None`` — the tool must not guess and the operator
+    picks the target per member. Candidates come from the data, so no config is needed
+    when there is only one avdelning in the next bracket.
     """
-    if source.default_target:
-        return source.default_target
-    nxt = _next_bracket(source.bracket)
+    decl = config.avdelning(source_name)
+    if decl is not None and decl.target:
+        return decl.target
+    source_bracket = decl.bracket if decl is not None else index.bracket_of(source_name)
+    nxt = _next_bracket(source_bracket) if source_bracket is not None else None
     if nxt is None:
         return None
-    candidates = config.avdelningar_in(nxt)
-    if source.weekday is not None:
-        same_weekday = [a for a in candidates if a.weekday == source.weekday]
-        if len(same_weekday) == 1:
-            return same_weekday[0].name
+    candidates = _candidates_in(nxt, config, index)
+    weekday = decl.weekday if decl is not None else None
+    if weekday is not None:
+        same = [c for c in candidates if (a := config.avdelning(c)) and a.weekday == weekday]
+        if len(same) == 1:
+            return same[0]
     if len(candidates) == 1:
-        return candidates[0].name
+        return candidates[0]
     return None
 
 
@@ -133,27 +142,26 @@ def _resolve_target(
     transition: TransitionKind,
     config: KarConfig,
     index: TroopIndex,
-    n: int,
     elected_target: ElectedTarget | None = None,
 ) -> MoveEntry:
-    if transition in (TransitionKind.SAME_WEEKDAY, TransitionKind.MERGE):
-        source = config.avdelning(m.unit) if m.unit else None
-        target_name = infer_target_name(source, config) if source else None
-        target_id = index.name_to_id.get(target_name) if target_name else None
-    elif elected_target is not None:  # NEW_COHORT_AVDELNING — operator elected it
+    target_name = infer_target_name(m.unit, config, index) if m.unit else None
+    # An operator-elected target (a fresh group made in Scoutnet) resolves what the
+    # rule could not — the Äventyrare→Utmanare "make a new group" case, generalised.
+    if target_name is None and elected_target is not None:
         target_name = elected_target.avdelning
         target_id = elected_target.troop_id or index.name_to_id.get(target_name)
-    else:  # NEW_COHORT_AVDELNING — fall back to config cohort_year
-        target_a = config.target_for_cohort(Bracket.UTMANARE, n)
-        target_name = target_a.name if target_a else None
+    else:
         target_id = index.name_to_id.get(target_name) if target_name else None
 
     if target_name is None:
-        if transition is TransitionKind.NEW_COHORT_AVDELNING:
-            note = f"Ingen måldelning vald för årskull {n} – välj en Utmanare-avdelning ovan"
-        else:
-            note = "Flera möjliga måldelningar – välj måldelning per medlem"
-        return _base(m, transition, MoveStatus.PENDING_TARGET, None, None, note)
+        return _base(
+            m,
+            transition,
+            MoveStatus.PENDING_TARGET,
+            None,
+            None,
+            "Flera möjliga måldelningar – välj måldelning per medlem",
+        )
     if target_id is None:
         return _base(
             m,
@@ -221,14 +229,15 @@ def compute_master_set(  # noqa: C901 - per-member classification is inherently 
             rule = config.rule(bracket)
         except KeyError:
             continue
-        if rule.transition not in _MOVING or rule.age_min is None or rule.age_max is None:
+        if bracket not in _MOVING_BRACKETS or rule.age_min is None or rule.age_max is None:
             continue
+        transition = transition_for(bracket)
 
         if m.birth_year is None:
             entries.append(
                 _base(
                     m,
-                    rule.transition,
+                    transition,
                     MoveStatus.OFF_COHORT,
                     None,
                     None,
@@ -250,7 +259,7 @@ def compute_master_set(  # noqa: C901 - per-member classification is inherently 
             entries.append(
                 _base(
                     m,
-                    rule.transition,
+                    transition,
                     MoveStatus.OFF_COHORT,
                     None,
                     None,
@@ -263,10 +272,10 @@ def compute_master_set(  # noqa: C901 - per-member classification is inherently 
         # Aged into the next bracket — this is the moving cohort.
         reason = _is_excluded(m, n, eighteen_plus)
         if reason is not None:
-            entries.append(_base(m, rule.transition, MoveStatus.EXCLUDED, None, None, reason))
+            entries.append(_base(m, transition, MoveStatus.EXCLUDED, None, None, reason))
             continue
 
-        entry = _resolve_target(m, rule.transition, config, index, n, elected_target)
+        entry = _resolve_target(m, transition, config, index, elected_target)
         if m.is_role_holder:
             extra = "har även en funktion i annan avdelning – kontrollera"
             entry.note = f"{entry.note} · {extra}" if entry.note else extra.capitalize()

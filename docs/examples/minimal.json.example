@@ -1,0 +1,13 @@
+{
+  "$schema": "../karverktyg.schema.json",
+  "version": 1,
+  "name": "Exempelkåren (minimal)",
+  "avdelningar": [
+    { "name": "Spårarna",    "bracket": "sparare",    "weekday": 0 },
+    { "name": "Upptäckarna", "bracket": "upptackare", "weekday": 0 },
+    { "name": "Äventyrarna", "bracket": "aventyrare", "weekday": 0 },
+    { "name": "Utmanarna",   "bracket": "utmanare" },
+    { "name": "Rovers",      "bracket": "rover" },
+    { "name": "Ledare",      "bracket": "annat" }
+  ]
+}

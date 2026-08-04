@@ -138,6 +138,19 @@ def _db_bootstrap(args: argparse.Namespace) -> int:
     return 0
 
 
+def _validate_config(args: argparse.Namespace) -> int:
+    """Validate a kår-config JSON against the model/schema (§13)."""
+    from karverktyg.config.loader import ConfigError, load_config
+
+    try:
+        cfg = load_config(args.path)
+    except ConfigError as e:
+        print(f"✗ {e}", file=sys.stderr)  # noqa: T201
+        return 1
+    print(f"✓ {args.path}: giltig (v{cfg.version}, {len(cfg.avdelningar)} avdelningar)")  # noqa: T201
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Main."""
     p = argparse.ArgumentParser(prog="karverktyg")
@@ -170,6 +183,10 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--execute", action="store_true", help="perform the write (default: dry-run)")
     v.add_argument("--idempotency", action="store_true", help="re-apply once, expect a no-op")
     v.set_defaults(func=_verify_write)
+
+    vc = sub.add_parser("validate-config", help="validate a kår-config JSON against the schema")
+    vc.add_argument("path", help="path to the config JSON")
+    vc.set_defaults(func=_validate_config)
 
     args = p.parse_args(argv)
     return args.func(args)

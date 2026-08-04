@@ -76,8 +76,9 @@ def _memberlist(variant: str = "active") -> MemberList:
 
 
 def _config_n() -> int | None:
-    s = _settings()
-    return s.cohort_year if s.cohort_year is not None else _config().cohort_year_n
+    # Cohort year N comes from settings (SCOUTNET_COHORT_YEAR); None => derived
+    # from the live term, guarded by the cross-check in uppflyttning.cohort (§17).
+    return _settings().cohort_year
 
 
 def _elected_target(ml: MemberList) -> ElectedTarget | None:
@@ -467,7 +468,7 @@ def api_uppflyttning() -> ResponseReturnValue:
 
 
 def _validate_manual_troop_id(
-    raw: object, config: KarConfig, index: object, *, acknowledged: bool
+    raw: object, index: object, *, acknowledged: bool
 ) -> tuple[int | None, dict | None]:
     """
     Validate a hand-typed troop_id for the Äventyrare→Utmanare election — the one
@@ -479,9 +480,10 @@ def _validate_manual_troop_id(
         tid = int(raw)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None, {"error": "troop_id måste vara ett heltal", "needs_ack": False}
-    if str(tid) == str(config.group_id):
+    entity_id = _settings().entity_id
+    if entity_id and str(tid) == str(entity_id):
         return None, {
-            "error": f"{tid} är kårens id (group_id), inte en avdelning – avvisas",
+            "error": f"{tid} är kårens id, inte en avdelning – avvisas",
             "needs_ack": False,
         }
     if not (_TROOP_ID_MIN <= tid <= _TROOP_ID_MAX):
@@ -516,7 +518,7 @@ def api_elect_target() -> ResponseReturnValue:
     raw_tid = data.get("troop_id")
     if raw_tid not in (None, ""):
         troop_id, err = _validate_manual_troop_id(
-            raw_tid, _config(), index, acknowledged=bool(data.get("acknowledge_unknown"))
+            raw_tid, index, acknowledged=bool(data.get("acknowledge_unknown"))
         )
         if err is not None:
             return jsonify(err), 400
@@ -602,7 +604,7 @@ def api_changelist() -> ResponseReturnValue:
             kar_name=_settings().kar_name,
             term_label=ml.current_term_label,
             generated_at=now,
-            config_version="placeholder" if _config().placeholder else "custom",
+            config_version="platshållare" if not _config().avdelningar else "anpassad",
             ack_by=ack_by,
             ack_at=now if ack_by else None,
         )

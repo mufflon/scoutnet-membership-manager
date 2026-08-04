@@ -4,73 +4,66 @@ import pytest
 from pydantic import ValidationError
 
 from karverktyg.config import TransitionKind
-from karverktyg.config.models import Bracket, KarConfig
+from karverktyg.config.loader import default_config
+from karverktyg.config.models import BRACKETS, Bracket, KarConfig, transition_for
 
 
-def test_default_config_loads(config):
+def test_config_loads(config):
     assert config.name == "Scoutkåren Finn"
-    assert config.group_id == "1025"
-    assert config.placeholder is True
+    assert config.version == 1
     assert len(config.avdelningar) == 14
-    assert len(config.brackets) == 6
 
 
 def test_ledare_is_the_only_18plus(config):
     assert config.eighteen_plus_avdelningar() == ["Ledare"]
 
 
-def test_same_weekday_targets_resolve(config):
+def test_national_bracket_ladder():
+    rules = {b.bracket: b for b in BRACKETS}
+    assert rules[Bracket.SPARARE].age_min == 8 and rules[Bracket.SPARARE].age_max == 9
+    assert rules[Bracket.UTMANARE].age_max == 19  # national decision: Utmanare tops at 19
+    assert rules[Bracket.ROVER].structural_checks is False
+
+
+def test_transition_groups_by_source_bracket():
+    assert transition_for(Bracket.SPARARE) is TransitionKind.SAME_WEEKDAY
+    assert transition_for(Bracket.UPPTACKARE) is TransitionKind.MERGE
+    assert transition_for(Bracket.AVENTYRARE) is TransitionKind.NEW_COHORT_AVDELNING
+
+
+def test_same_weekday_target_resolves(config, memberlist):
+    from karverktyg.roster import build_troop_index
     from karverktyg.uppflyttning.engine import infer_target_name
 
-    hajarna = config.avdelning("Hajarna")
-    assert hajarna.bracket is Bracket.SPARARE and hajarna.weekday == 0
-    # Target inferred by the same weekday in the next bracket (no hardcoded default).
-    target = infer_target_name(hajarna, config)
-    assert target == "Kämparna" and config.avdelning(target).weekday == 0
+    index = build_troop_index(memberlist, config)
+    # Hajarna (Mon) -> the Mon Upptäckare (Kämparna), by same-weekday inference.
+    assert infer_target_name("Hajarna", config, index) == "Kämparna"
 
 
-def test_transition_kinds(config):
-    assert config.rule(Bracket.SPARARE).transition is TransitionKind.SAME_WEEKDAY
-    assert config.rule(Bracket.UPPTACKARE).transition is TransitionKind.MERGE
-    assert config.rule(Bracket.AVENTYRARE).transition is TransitionKind.NEW_COHORT_AVDELNING
-    assert config.rule(Bracket.UTMANARE).transition is TransitionKind.NEVER_AUTO
+def test_no_config_default_is_empty():
+    c = default_config()
+    assert c.avdelningar == [] and c.version == 1
 
 
-def _base_config() -> dict:
-    return {
-        "name": "T",
-        "group_id": "1",
-        "brackets": [
-            {"bracket": "sparare", "age_min": 8, "age_max": 9, "transition": "same_weekday"},
-            {"bracket": "utmanare", "transition": "never_auto", "structural_checks": False},
-        ],
-        "avdelningar": [
-            {"name": "A", "bracket": "sparare", "weekday": 0, "default_target": "A"},
-        ],
-    }
-
-
-def test_duplicate_cohort_year_rejected():
-    cfg = _base_config()
-    cfg["avdelningar"] = [
-        {"name": "U1", "bracket": "utmanare", "cohort_year": 2020},
-        {"name": "U2", "bracket": "utmanare", "cohort_year": 2020},
-    ]
+def test_unknown_target_rejected():
     with pytest.raises(ValidationError):
-        KarConfig.model_validate(cfg)
+        KarConfig.model_validate(
+            {
+                "version": 1,
+                "name": "T",
+                "avdelningar": [{"name": "A", "bracket": "sparare", "target": "Nonexistent"}],
+            }
+        )
 
 
-def test_same_weekday_without_weekday_rejected():
-    cfg = _base_config()
-    cfg["avdelningar"] = [{"name": "A", "bracket": "sparare"}]
+def test_duplicate_avdelning_name_rejected():
     with pytest.raises(ValidationError):
-        KarConfig.model_validate(cfg)
-
-
-def test_unknown_default_target_rejected():
-    cfg = _base_config()
-    cfg["avdelningar"] = [
-        {"name": "A", "bracket": "sparare", "weekday": 0, "default_target": "Nonexistent"},
-    ]
-    with pytest.raises(ValidationError):
-        KarConfig.model_validate(cfg)
+        KarConfig.model_validate(
+            {
+                "version": 1,
+                "avdelningar": [
+                    {"name": "A", "bracket": "sparare"},
+                    {"name": "A", "bracket": "upptackare"},
+                ],
+            }
+        )

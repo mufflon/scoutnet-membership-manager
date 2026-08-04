@@ -34,7 +34,8 @@ import scrub_capture as sc  # sibling spike: name/ssno/phone/email fakers
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from karverktyg.config.models import Bracket, KarConfig, unit_type_code  # noqa: E402
 
-DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "config" / "karverktyg.default.json"
+DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "docs" / "examples" / "finn.json.example"
+DEMO_GROUP_ID = "1025"  # the kår's group id, carried on group-scoped förtroende roles
 REF_YEAR = 2026  # ages are as-of this cohort year
 # Rough per-bracket avdelning sizes (min, max) for a believable demo kår.
 SIZE = {
@@ -214,7 +215,7 @@ def fabricate(config: KarConfig, seed: int = 20260804) -> dict:
                 unit_type_code(Bracket.ANNAT),
                 rng.randint(30, 60),
                 rng,
-                roles=_group_roles(config.group_id, [(role_id, role_key, role_name)]),
+                roles=_group_roles(DEMO_GROUP_ID, [(role_id, role_key, role_name)]),
             )
 
     # A few patrol-scoped youth roles (Patrulledare) — never counted as leaders (§11).

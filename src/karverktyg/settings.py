@@ -82,10 +82,9 @@ class Settings(BaseSettings):
 
     # --- Kår identity (§13) ------------------------------------------------
     kar_name: str = "Scoutkåren Finn"
-    kar_group_id: str = "1025"
 
     # --- Uppflyttning config (§13, §17) ------------------------------------
-    config_path: Path = Path("config/karverktyg.default.json")
+    config_path: Path = Path("karverktyg.json")
     # Cohort year N. None => derive from the live term, guarded by the config
     # cross-check (§17). Set explicitly in production.
     cohort_year: int | None = None

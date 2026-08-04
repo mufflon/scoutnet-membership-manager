@@ -51,7 +51,6 @@ class AvdRow:
     name: str
     bracket: Bracket | None
     weekday: int | None
-    cohort_year: int | None
     troop_id: int | None
     member_count: int
     configured: bool
@@ -83,7 +82,6 @@ def _build_rows(memberlist: MemberList, config: KarConfig, index: TroopIndex) ->
             name=name,
             bracket=_avd_bracket(name, config, memberlist.members),
             weekday=(a.weekday if (a := config.avdelning(name)) else None),
-            cohort_year=(a.cohort_year if a else None),
             troop_id=index.name_to_id.get(name),
             member_count=live_counts.get(name, 0),
             configured=a is not None,
@@ -137,12 +135,11 @@ def _avd_dict(r: AvdRow) -> dict:
         "name": r.name,
         "bracket": str(r.bracket) if r.bracket else DASH,
         "weekday": r.weekday if r.weekday is not None else DASH,
-        "cohort_year": r.cohort_year if r.cohort_year is not None else DASH,
         "members": DASH if r.is_empty else r.member_count,
         "configured": r.configured,
         "discovered": r.discovered,
-        # Flag a discovered avdelning missing from config: its weekday/cohort are unknown.
-        "flag": None if r.configured else "saknas i config (veckodag/årskull okänd)",
+        # Flag a discovered avdelning with no config: its meeting weekday is unknown.
+        "flag": None if r.configured else "saknas i config (veckodag okänd)",
     }
 
 
@@ -183,7 +180,7 @@ def leaders(memberlist: MemberList, config: KarConfig) -> dict:
 
 
 def scouts_per_leader(
-    composition_rows: list[AvdRow], per_troop: dict[int, dict[str, int]], config: KarConfig
+    composition_rows: list[AvdRow], per_troop: dict[int, dict[str, int]]
 ) -> list[dict]:
     """
     Scouts-per-leader per avdelning (§20). Scouts come from ``unit`` counts,
@@ -198,8 +195,7 @@ def scouts_per_leader(
         adult, youth = led.get("adult", 0), led.get("youth", 0)
         total_leaders = adult + youth
         scouts = r.member_count
-        rule = _rule(config, r.bracket)
-        threshold = rule.scouts_per_leader_max if rule else None
+        threshold = None  # national ratio guidance is no longer configured (§13)
         if scouts == 0 or total_leaders == 0:
             ratio, per_one, over = DASH, DASH, False
         else:
@@ -247,7 +243,7 @@ def projection(
     incoming: Counter[str] = Counter(e.target_avdelning for e in moving if e.target_avdelning)
     pending_new = [e for e in moving if e.status is MoveStatus.PENDING_TARGET]
 
-    rows: list[dict] = [_projection_row(r, config, outgoing, incoming) for r in composition_rows]
+    rows: list[dict] = [_projection_row(r, outgoing, incoming) for r in composition_rows]
     # The new Utmanare avdelning may not exist yet: a pending row (§20).
     if pending_new:
         rows.append(
@@ -276,13 +272,10 @@ def projection(
     }
 
 
-def _projection_row(
-    r: AvdRow, config: KarConfig, outgoing: Counter[str], incoming: Counter[str]
-) -> dict:
+def _projection_row(r: AvdRow, outgoing: Counter[str], incoming: Counter[str]) -> dict:
     out = outgoing.get(r.name, 0)
     inc = incoming.get(r.name, 0)
-    rule = _rule(config, r.bracket)
-    threshold = rule.projected_size_max if rule else None
+    threshold = None  # national size guidance is no longer configured (§13)
 
     if r.is_empty:
         return _row(r.name, r.bracket, DASH, DASH, DASH, DASH, "empty", "", over=False)
@@ -573,7 +566,7 @@ def build_oversikt(inp: OversiktInputs) -> dict:
         elected_target=inp.elected_target,
     )
     proj = projection(inp.config, master, rows, inp.applicants)
-    spl = scouts_per_leader(rows, ldr["per_troop"], inp.config)
+    spl = scouts_per_leader(rows, ldr["per_troop"])
     kpi = kpis(
         inp.memberlist,
         inp.config,

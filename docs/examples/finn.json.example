@@ -1,0 +1,21 @@
+{
+  "$schema": "../karverktyg.schema.json",
+  "version": 1,
+  "name": "Scoutkåren Finn",
+  "avdelningar": [
+    { "name": "Hajarna",       "bracket": "sparare",    "weekday": 0 },
+    { "name": "Späckhuggarna", "bracket": "sparare",    "weekday": 1 },
+    { "name": "Rockorna",      "bracket": "sparare",    "weekday": 2 },
+    { "name": "Kämparna",      "bracket": "upptackare", "weekday": 0 },
+    { "name": "Spejarna",      "bracket": "upptackare", "weekday": 1 },
+    { "name": "Utforskarna",   "bracket": "upptackare", "weekday": 2 },
+    { "name": "Vikingarna",    "bracket": "aventyrare", "weekday": 3 },
+    { "name": "Finndus",       "bracket": "utmanare" },
+    { "name": "Finnemang",     "bracket": "utmanare" },
+    { "name": "Fniss",         "bracket": "utmanare" },
+    { "name": "Finness",       "bracket": "rover" },
+    { "name": "Finnurligt",    "bracket": "rover" },
+    { "name": "Parafinn",      "bracket": "rover" },
+    { "name": "Ledare",        "bracket": "annat" }
+  ]
+}

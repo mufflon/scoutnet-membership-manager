@@ -61,6 +61,6 @@ def capabilities(settings: Settings, config: KarConfig) -> dict:
         "endpoints": endpoints,
         "actions": actions,
         "icu_collation": using_icu(),
-        "config_placeholder": config.placeholder,
+        "config_placeholder": not config.avdelningar,
         "openapi": _openapi_meta(),
     }

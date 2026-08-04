@@ -11,7 +11,7 @@ from __future__ import annotations
 import phonenumbers
 from email_validator import EmailNotValidError, validate_email
 
-from karverktyg.config.models import Bracket, KarConfig
+from karverktyg.config.models import BRACKETS, Bracket, KarConfig
 from karverktyg.findings.models import Finding, FindingType, Severity, value_hash
 from karverktyg.roster import TroopIndex, build_troop_index
 from karverktyg.scoutnet.models import Member, MemberList
@@ -162,7 +162,7 @@ def compute_findings(
         for a in config.avdelningar
         if a.bracket is Bracket.ANNAT and a.name in index.name_to_id
     }
-    structural = {r.bracket for r in config.brackets if r.structural_checks}
+    structural = {r.bracket for r in BRACKETS if r.structural_checks}
     rover_ids = index.ids_for_bracket(Bracket.ROVER)
 
     findings: list[Finding] = []
