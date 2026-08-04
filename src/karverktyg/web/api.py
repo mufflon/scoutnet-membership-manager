@@ -159,26 +159,6 @@ def _oversikt_inputs(*, with_org: bool = False) -> OversiktInputs:
     )
 
 
-def _oversikt_bars(payload: dict) -> list[dict]:
-    """Current-vs-projected bar data, the one chart §20 allows (§20 Presentation)."""
-    pairs = [
-        (r["avdelning"], r["current"], r["next"])
-        for r in payload["projection"]["rows"]
-        if isinstance(r["current"], int) and isinstance(r["next"], int)
-    ]
-    top = max((max(c, n) for _, c, n in pairs), default=1) or 1
-    return [
-        {
-            "name": name,
-            "current": cur,
-            "next": nxt,
-            "cur_pct": round(100 * cur / top),
-            "next_pct": round(100 * nxt / top),
-        }
-        for name, cur, nxt in pairs
-    ]
-
-
 @api_bp.get("/overview")
 def api_overview() -> ResponseReturnValue:
     """
@@ -225,7 +205,7 @@ def api_oversikt_pdf() -> ResponseReturnValue:
             "term": payload.get("current_term"),
             "generated": datetime.now(UTC).isoformat(timespec="seconds"),
             "o": payload,
-            "bars": _oversikt_bars(payload),
+            "spl": {s["avdelning"]: s for s in payload["scouts_per_leader"]},
         },
     )
     try:

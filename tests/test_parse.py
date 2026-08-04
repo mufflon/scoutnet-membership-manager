@@ -5,7 +5,7 @@ from karverktyg.scoutnet.parse import EXTRA_INFO_PREFIX, parse_memberlist
 
 
 def test_parses_all_active_members(memberlist):
-    assert len(memberlist) == 371
+    assert len(memberlist) == 182
     assert memberlist.current_term_label  # "Höst 2026"
     assert memberlist.prev_term_label  # "Vår 2026"
 
@@ -48,7 +48,9 @@ def test_extra_info_dropped_at_boundary(memberlist_raw, memberlist):
 def test_troop_id_from_unit_raw_value(memberlist):
     vikingarna = [m for m in memberlist.members if m.unit == "Vikingarna"]
     assert vikingarna
-    assert all(m.unit_troop_id == 10164 for m in vikingarna)
+    # unit.raw_value resolves to one troop_id, shared by every member of the avdelning.
+    troop_ids = {m.unit_troop_id for m in vikingarna}
+    assert troop_ids == {20014}
 
 
 def test_payment_current_not_billed_prev_has_status(memberlist):

@@ -75,14 +75,14 @@ def test_write_snapshot_creates_file_and_index_row(tmp_path):
 
     info = write_snapshot(client, _settings(tmp_path), factory, run_id="run-1", now=now)
 
-    assert info.member_count == 371
+    assert info.member_count == 182
     path = Path(info.path)
     assert path.exists() and path.parent == tmp_path
     doc = json.loads(path.read_text("utf-8"))
     assert doc["kind"] == "memberlist_snapshot"
     assert doc["run_id"] == "run-1"
-    assert doc["member_count"] == 371
-    assert len(doc["members"]) == 371
+    assert doc["member_count"] == 182
+    assert len(doc["members"]) == 182
 
     rows = list_snapshots(factory)
     assert len(rows) == 1

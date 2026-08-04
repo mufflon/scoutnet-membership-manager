@@ -184,10 +184,10 @@ def test_elected_target_resolves_new_cohort(config):
 
 
 def test_master_set_on_fixture_is_sane(memberlist, config):
-    """Order-of-magnitude check (§17): a full move is ~83 members, four chunks."""
+    """Order-of-magnitude check (§17): the demo's oldest cohort moves up."""
     ms = compute_master_set(memberlist, config, config_cohort_year_n=None)
     moving = len(ms.ready()) + len(ms.pending()) + len(ms.excluded())
-    assert 60 <= moving <= 110, moving
+    assert 20 <= moving <= 110, moving
     # every ready move has a resolved target troop_id
     assert all(e.target_troop_id is not None for e in ms.ready())
     # Äventyrare->Utmanare stays pending until cohort_year is filled in

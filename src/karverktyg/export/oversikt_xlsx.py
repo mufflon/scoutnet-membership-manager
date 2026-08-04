@@ -1,17 +1,17 @@
 """
 Översikt as an Excel workbook (§19/§20).
 
-One sheet per table on the blade — composition, leaders + scouts-per-leader,
-projection (with the åldersgrupp transitions and the Spårare recruitment target),
-and the KPIs — plus a cover sheet carrying the kår, generation timestamp, the
-current term label and **the cohort year the projection targets** (without which a
-saved workbook is unreadable months later).
+Mirrors the trimmed on-screen blade: a cover sheet with the run metadata, one
+**composition** sheet (per åldersgrupp, with leaders and scouts-per-leader merged
+in), and one **projection** sheet (with the åldersgrupp transitions and the
+Spårare recruitment target). No weekday/årskull/tröskel columns, no separate
+leaders sheet, no KPI sheet, no chart — the blade dropped them, so the export does
+too.
 
 This is the one **aggregate-only** export — no names, no member numbers — so it
 can circulate freely; the cover says so. Numbers are written as numbers so they
-sum and chart; a not-applicable figure is the literal string ``-`` (never 0,
-never blank), and the derived/static/unknown qualifier survives as its own
-column. Streamed to the browser, never written to disk server-side (§9).
+sum; a not-applicable figure is the literal string ``-`` (never 0, never blank).
+Streamed to the browser, never written to disk server-side (§9).
 """
 
 from __future__ import annotations
@@ -71,92 +71,55 @@ def _write_cover(ws: Worksheet, d: dict, kar_name: str, generated_at: datetime) 
     ws.column_dimensions["B"].width = 26
 
 
-def _comp_row(group_label: str, a: dict) -> list[object]:
-    return [group_label, a["name"], a["weekday"], a["cohort_year"], a["members"], a["flag"] or ""]
+def _comp_row(group_label: str, a: dict, spl: dict[str, dict]) -> list[object]:
+    s = spl.get(a["name"], {})
+    return [
+        group_label,
+        a["name"],
+        a["members"],
+        s.get("leaders", "-"),
+        s.get("ratio", "-"),
+        a["flag"] or "",
+    ]
 
 
 def _write_composition(ws: Worksheet, d: dict) -> None:
     ws.title = "Sammansättning"
+    spl = {s["avdelning"]: s for s in d["scouts_per_leader"]}
     rows: list[list[object]] = []
     for g in d["composition"]["groups"]:
-        rows.extend(_comp_row(g["label"], a) for a in g["avdelningar"])
-        rows.append([f"  Delsumma {g['label']}", "", "", "", g["subtotal"], ""])
-    rows.extend(_comp_row("(okänd åldersgrupp)", a) for a in d["composition"]["unknown_bracket"])
-    rows.append(["Utan avdelning", "", "", "", d["composition"]["no_unit_count"], ""])
-    rows.append(["Kårtotal", "", "", "", d["composition"]["kar_total"], ""])
+        rows.extend(_comp_row(g["label"], a, spl) for a in g["avdelningar"])
+        rows.append([f"  Delsumma {g['label']}", "", g["subtotal"], "", "", ""])
+    rows.extend(
+        _comp_row("(okänd åldersgrupp)", a, spl) for a in d["composition"]["unknown_bracket"]
+    )
+    rows.append(["Utan avdelning", "", d["composition"]["no_unit_count"], "", "", ""])
+    rows.append(["Kårtotal", "", d["composition"]["kar_total"], "", "", ""])
     _write_rows(
         ws,
-        ["Åldersgrupp", "Avdelning", "Veckodag", "Årskull", "Medlemmar", "Anm."],
+        ["Åldersgrupp", "Avdelning", "Medlemmar", "Ledare", "Kvot", "Anm."],
         rows,
     )
-
-
-def _write_leaders(ws: Worksheet, d: dict) -> None:
-    ws.title = "Ledare"
+    # Leaders summary, mirroring the line under the blade's composition.
     ldr = d["leaders"]
-    ws.cell(row=1, column=1, value=ldr["ledare_members_label"]).font = _BOLD
-    ws.cell(row=1, column=2, value=ldr["ledare_members"])
-    ws.cell(row=2, column=1, value=ldr["role_holders_label"]).font = _BOLD
-    ws.cell(row=2, column=2, value=ldr["role_holders"])
-    start = 4
-    headers = [
-        "Avdelning",
-        "Scouter",
-        "Ledare",
-        "Vuxenledare",
-        "Ungdomsledare",
-        "Kvot",
-        "Tröskel",
-        "Över tröskel",
-    ]
-    for c, h in enumerate(headers, start=1):
-        ws.cell(row=start, column=c, value=h).font = _BOLD
-    for i, s in enumerate(d["scouts_per_leader"], start=start + 1):
-        for c, value in enumerate(
-            [
-                s["avdelning"],
-                s["scouts"],
-                s["leaders"],
-                s["adult_leaders"],
-                s["youth_leaders"],
-                s["ratio"],
-                s["threshold"],
-                "ja" if s["over_threshold"] else "nej",
-            ],
-            start=1,
-        ):
-            ws.cell(row=i, column=c, value=value)
-    ws.column_dimensions["A"].width = 20
+    foot = len(rows) + 3
+    ws.cell(row=foot, column=1, value=ldr["ledare_members_label"]).font = _BOLD
+    ws.cell(row=foot, column=2, value=ldr["ledare_members"])
+    ws.cell(row=foot + 1, column=1, value=ldr["role_holders_label"]).font = _BOLD
+    ws.cell(row=foot + 1, column=2, value=ldr["role_holders"])
+    ws.column_dimensions["A"].width = 22
 
 
 def _write_projection(ws: Worksheet, d: dict) -> None:
     ws.title = "Prognos"
     proj = d["projection"]
     rows = [
-        [
-            r["avdelning"],
-            r["bracket"],
-            r["current"],
-            r["outgoing"],
-            r["incoming"],
-            r["next"],
-            r["basis"],
-            r["note"],
-        ]
+        [r["avdelning"], r["current"], r["outgoing"], r["incoming"], r["next"]]
         for r in proj["rows"]
     ]
     _write_rows(
         ws,
-        [
-            "Avdelning",
-            "Åldersgrupp",
-            "Nuvarande",
-            "Utgående",
-            "Inkommande",
-            "Nästa år",
-            "Grund",
-            "Not",
-        ],
+        ["Avdelning", "Nuvarande", "Utgående", "Inkommande", "Nästa år"],
         rows,
     )
     # Transitions + recruitment below the table.
@@ -180,49 +143,12 @@ def _write_projection(ws: Worksheet, d: dict) -> None:
     ws.column_dimensions["A"].width = 22
 
 
-def _write_kpis(ws: Worksheet, d: dict) -> None:
-    ws.title = "Nyckeltal"
-    k = d["kpis"]
-    r = 1
-
-    def line(label: object, value: object) -> None:
-        nonlocal r
-        ws.cell(row=r, column=1, value=label).font = _BOLD
-        ws.cell(row=r, column=2, value=value)
-        r += 1
-
-    ws.cell(row=r, column=1, value="Storleksspridning per åldersgrupp").font = _BOLD
-    r += 1
-    for s in k["size_spread"]:
-        ws.cell(row=r, column=1, value=f"  {s['bracket']}")
-        ws.cell(row=r, column=2, value=f"{s['min']}–{s['max']} (spridning {s['spread']})")
-        r += 1
-    r += 1
-    line("Andel betald (beräknat)", f"{k['share_paid']['percent']} %")
-    line(
-        "  varav betalda / totalt", f"{k['share_paid']['computed_paid']} / {k['share_paid']['of']}"
-    )
-    line("  organisation/group active_paid", k["share_paid"]["org_active_paid"])
-    line("  stämmer", "ja" if k["share_paid"]["cross_check_ok"] else "nej")
-    line("Andel under 26 år", k["share_under_26"]["percent"])
-    line("Väntelistedjup (totalt)", k["waiting_depth"]["total"])
-    for b in k["waiting_depth"]["per_bracket"]:
-        line(f"  {b['bracket']}", b["count"])
-    line("Retention/avhopp", k["retention"]["note"])
-    for pr in k["projected_over_threshold"]:
-        line(f"⚠ Prognos över tröskel: {pr['avdelning']}", pr["next"])
-    ws.column_dimensions["A"].width = 40
-    ws.column_dimensions["B"].width = 30
-
-
 def build_oversikt_xlsx(d: dict, *, kar_name: str, generated_at: datetime) -> bytes:
     """Build the aggregate-only Översikt workbook (§19/§20)."""
     wb = Workbook()
     _write_cover(wb.active, d, kar_name, generated_at)
     _write_composition(wb.create_sheet("Sammansättning"), d)
-    _write_leaders(wb.create_sheet("Ledare"), d)
     _write_projection(wb.create_sheet("Prognos"), d)
-    _write_kpis(wb.create_sheet("Nyckeltal"), d)
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue()

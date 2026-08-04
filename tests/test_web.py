@@ -25,7 +25,7 @@ def test_liveness_and_readiness(client):
 
 def test_overview(client):
     d = client.get("/api/overview").get_json()
-    assert d["member_count"] == 371
+    assert d["member_count"] == 182
     assert d["current_term"]  # "Höst 2026"
 
 

@@ -35,10 +35,10 @@ def test_no_write_methods_on_read_clients(cls):
 def test_fixture_client_loads_committed_fixture():
     client = FixtureClient(DEFAULT_FIXTURE)
     ml = client.memberlist()
-    assert len(ml) == 371
+    assert len(ml) == 182
     # fixture mode is self-contained: organisation_group is synthesised
     agg = client.organisation_group()
-    assert agg["membercount"] == 371
+    assert agg["membercount"] == 182
 
 
 def test_fixture_mode_needs_no_credentials():

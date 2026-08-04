@@ -18,7 +18,7 @@ def config():
 
 @pytest.fixture
 def memberlist_raw():
-    return json.loads((ROOT / "fixtures" / "memberlist.scrubbed.json").read_text("utf-8"))
+    return json.loads((ROOT / "fixtures" / "memberlist.demo.json").read_text("utf-8"))
 
 
 @pytest.fixture

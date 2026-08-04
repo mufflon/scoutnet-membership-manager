@@ -578,8 +578,10 @@ A test asserts that write methods are absent in `fixture` and `read_only`.
 1. **No API keys in the repo, ever** — not in code, tests, fixtures, manifests
    or image layers. Environment variables only. Fail loudly at startup when a
    key is missing.
-2. **No real member data in the repo or git history.** Fixtures scrubbed or
-   synthetic. Snapshots (§8) hold no personal data either — only `member_no`
+2. **No real member data in the repo or git history.** The committed fixture is
+   fabricated from scratch (`make_fixture.py`); a real capture, if ever used, must
+   be scrubbed *and* composition-scrambled first (§13). Snapshots (§8) hold no
+   personal data either — only `member_no`
    and placement — so there is no longer any sanctioned personal-data exception;
    snapshot files still live on a mounted volume, never in git or an image.
 3. **`cancelled` is banned from the codebase.** It is a valid enum value that
@@ -722,11 +724,13 @@ and `test_misplaced_member_routes_per_person`.
 
 **B. Config architecture — maintenance/portability, no deadline.**
 
-- **Single config location.** Remove `config_path` / `config/karverktyg.default.json`
-  and fold the (now-slim) kår config into `karverktyg.conf`. Motive: "if we
-  configure in multiple places we will forget." Constraint: keys must never be
-  committed (hard rule 1), so the single file is the **gitignored `.conf`**, and a
-  structured avdelning list must be expressed there (e.g. a JSON-valued env var).
+- **Single config location.** Partly addressed: `config/karverktyg.default.json`
+  now stays as the bundled demo/default, a kår generates its own with
+  `scripts/make_config.py` and points `SCOUTNET_CONFIG_PATH` at it (no editing of
+  the default). The open question is whether to fold that generated config into the
+  gitignored `karverktyg.conf` too, so keys and structure live in one place
+  ("if we configure in multiple places we will forget"). Deferred — the generator +
+  env-var flow is enough for sharing now.
 - **Multi-kår generality.** Keep kår structure configurable and generic scouting
   rules (brackets, section classification) as defaults, so another kår extends
   config/lists rather than forking. Only matters if the tool is shared.
@@ -1160,6 +1164,21 @@ between chunks, snapshot retention window, allowed avdelningar, kår identity.
   the cohort year and never carry forward: next year is computed fresh and a
   "keep" carries an expiry year, so shifting scouts off leaves no state behind
   for the future (§9 purge). A reset clears the whole year's working state.
+
+**Config and fixture tooling (`scripts/`).** A kår builds its config
+interactively with `scripts/make_config.py` — it validates against the config
+model and writes a JSON to point `SCOUTNET_CONFIG_PATH` at; it deliberately never
+edits `config/karverktyg.default.json` (that file is only the bundled demo/default).
+**When the config model gains or drops a configurable field, update
+`make_config.py` in the same change** so the generator stays complete — the script
+carries a header comment saying so. The committed demo memberlist
+(`fixtures/memberlist.demo.json`) is fabricated from scratch by
+`scripts/make_fixture.py` — no capture, no API key, zero real-data provenance; when
+a feature needs the demo to exercise it (a new finding, a role kind), extend the
+fabricator. A kår that instead wants realistic test data from its *own* live
+capture uses `scripts/scrub_capture.py --scramble`: fake every personal field, then
+obscure per-avdelning head-counts (`scramble_composition.py`) so the committed
+fixture reveals neither identities nor real composition.
 
 ## 14. Deployment
 

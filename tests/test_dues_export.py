@@ -146,8 +146,8 @@ def test_contact_and_due_columns_populate():
 
 def test_fixture_scale(memberlist):
     wb = load_workbook(BytesIO(build_dues_xlsx(memberlist)))
-    # 24 unpaid_overdue_reminded + 1 paid_partial_credit = 25 rows, plus the header.
-    assert wb["Medlemsavgifter"].max_row == 26
+    # The fabricated demo has 20 members with an outstanding previous term, plus the header.
+    assert wb["Medlemsavgifter"].max_row == 21
 
 
 def test_api_dues_xlsx():

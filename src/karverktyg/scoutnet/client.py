@@ -27,7 +27,7 @@ _VARIANT_PARAMS = {
     "waiting": {"waiting": "1"},
     "awaiting_approval": {"awaiting_approval": "1"},
 }
-DEFAULT_FIXTURE = Path("fixtures/memberlist.scrubbed.json")
+DEFAULT_FIXTURE = Path("fixtures/memberlist.demo.json")
 # Synthetic sample so the membership-draft feature is demoable before a real
 # waiting/awaiting capture exists. Fully fabricated.
 _WAITING_SAMPLE = Path("fixtures/memberlist-waiting.sample.json")

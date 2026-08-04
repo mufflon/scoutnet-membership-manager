@@ -50,7 +50,7 @@ def test_only_group_scope_is_listed(config):
 
 
 def test_unknown_role_key_passes_through_sorted_last(config, memberlist):
-    # The scrubbed fixture carries role_key "30c24e" -> "Nyckelansvarig", an
+    # The demo fixture carries role_key "key_responsible" -> "Nyckelansvarig", an
     # unfamiliar key: §18 pass-through must show it, never drop it, sorted last.
     result = fortroendeuppdrag(memberlist, config)
     keys = [a.role_key for a in result.assignments]
@@ -59,7 +59,7 @@ def test_unknown_role_key_passes_through_sorted_last(config, memberlist):
     # Kårordförande (group-scoped role_key "leader") sorts first (constitutional).
     assert result.assignments[0].role_name == "Kårordförande"
     # The unconfigured key sorts after every configured styrelse key.
-    assert keys.index("30c24e") > keys.index("board_member")
+    assert keys.index("key_responsible") > keys.index("board_member")
 
 
 def test_styrelse_constitutional_order(config):

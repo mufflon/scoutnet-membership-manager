@@ -26,10 +26,12 @@ Design:
 Stdout is counts and field names only — never a value.
 
 Usage:
-    python3 scripts/scrub_capture.py [CAPTURE_PATH] [-o OUTPUT_PATH]
+    python3 scripts/scrub_capture.py [CAPTURE_PATH] [-o OUTPUT_PATH] [--scramble]
 
 With no CAPTURE_PATH it uses the newest captures/*.raw.json. Output defaults to
-fixtures/memberlist.scrubbed.json.
+fixtures/memberlist.scrubbed.json. ``--scramble`` additionally obscures each
+avdelning's head-count (see scramble_composition.py) — use it for a fixture that
+will be published, so the committed data reveals no real per-avdelning composition.
 """
 
 from __future__ import annotations
@@ -426,6 +428,12 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Scrub a memberlist capture into a fixture.")
     ap.add_argument("capture", nargs="?", type=Path, help="capture .raw.json (default: newest)")
     ap.add_argument("-o", "--output", type=Path, default=DEFAULT_OUTPUT)
+    ap.add_argument(
+        "--scramble",
+        action="store_true",
+        help="also obscure per-avdelning composition (delete + duplicate) so the "
+        "committed fixture does not reveal the real head-count of any avdelning",
+    )
     args = ap.parse_args()
 
     try:
@@ -433,6 +441,11 @@ def main() -> None:
         capture = json.loads(Path(src).read_bytes())
         out = scrub(capture)
         verify_no_pii(out)
+        if args.scramble:
+            import scramble_composition  # sibling spike; keeps this import optional
+
+            out = scramble_composition.scramble(out)
+            verify_no_pii(out)  # the scramble only touches already-safe data
     except ScrubError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
@@ -444,7 +457,7 @@ def main() -> None:
 
     policy_counts: Counter[str] = Counter(POLICY[f] for m in out["data"].values() for f in m)
     print(f"Scrubbed {src.name} -> {args.output}")
-    print(f"Members: {len(out['data'])}")
+    print(f"Members: {len(out['data'])}" + (" (composition scrambled)" if args.scramble else ""))
     print("PII scan: clean (no personnummer/email/phone in preserved fields)")
     print("Field policy application counts (field-instances):")
     for policy, n in sorted(policy_counts.items()):

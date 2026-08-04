@@ -169,7 +169,7 @@ def test_share_paid_and_retention(config):
 def test_xlsx_is_aggregate_only_with_dash(config):
     d = _build(config, [_member("HEMLIG123", "Hajarna", 2, by=2018, troop_id=10155)])
     wb = load_workbook(BytesIO(build_oversikt_xlsx(d, kar_name="Finn", generated_at=WHEN)))
-    assert wb.sheetnames == ["Info", "Sammansättning", "Ledare", "Prognos", "Nyckeltal"]
+    assert wb.sheetnames == ["Info", "Sammansättning", "Prognos"]
     all_cells = [
         str(c.value)
         for name in wb.sheetnames
@@ -192,10 +192,10 @@ def _client():
 
 def test_api_overview_rich_and_consistent():
     d = _client().get("/api/overview").get_json()
-    assert d["member_count"] == 371  # legacy key preserved
-    assert d["composition"]["kar_total"] == 371
-    assert d["leaders"]["ledare_members"] == 120
-    assert d["reconciliation"]["membercount"]["agree"] is True  # 371 == synthesised org count
+    assert d["member_count"] == 182  # legacy key preserved
+    assert d["composition"]["kar_total"] == 182
+    assert d["leaders"]["ledare_members"] == 25
+    assert d["reconciliation"]["membercount"]["agree"] is True  # 182 == synthesised org count
 
 
 def test_api_oversikt_exports():
