@@ -1,6 +1,5 @@
 {
   "$schema": "../karverktyg.schema.json",
-  "_comment": "The 'kar' block for Scoutkåren Finn — the same shape as the kar block inside karverktyg.json. Each avdelning: a bracket, an optional weekday (0=Mon..6=Sun) that drives the same-weekday move, and an optional target. Three Spårare and three Upptäckare on Mon/Tue/Wed, one Äventyrare, three Utmanare (built fresh each year).",
   "name": "Scoutkåren Finn",
   "avdelningar": [
     { "name": "Hajarna",       "bracket": "sparare",    "weekday": 0 },

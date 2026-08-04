@@ -88,7 +88,9 @@ kubectl apply -f k8s/local/ >/dev/null
 kubectl -n "$NS" rollout restart deploy/karverktyg >/dev/null 2>&1 || true
 
 echo "==> waiting for Postgres (CNPG cluster)"
-kubectl -n "$NS" wait --for=condition=Ready pod -l cnpg.io/cluster=karverktyg-db --timeout=300s
+# Wait on the Cluster resource (present immediately after apply) rather than its
+# pods, which the operator creates a moment later (a label wait would race).
+kubectl -n "$NS" wait --for=condition=Ready cluster/karverktyg-db --timeout=300s
 echo "==> waiting for app (db-bootstrap runs first)"
 kubectl -n "$NS" rollout status deploy/karverktyg --timeout=180s
 
