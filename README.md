@@ -153,7 +153,10 @@ undoable (`CLAUDE.md` §6, §8; `docs/runbook.md`).
   including scouts with no avdelning and minors sitting in the Ledare avdelning.
 - **Uppflyttning** — the computed master set (who moves where at the summer shift),
   one övergång at a time, with per-member routing and a downloadable Excel
-  changelist.
+  changelist. A second export, **berörda scouter**, gives the current selection's
+  contact roster (member + guardian phone/email) by their *current* avdelning,
+  computed live from the data so you can click between övergångar and see exactly
+  who is affected.
 - **Utför uppflyttning** *(`read_write` only)* — apply the reviewed övergång:
   dry-run drift report, confirm-to-execute, live progress, and undo.
 - **API-koll / Verifiera skrivning** — per-key live probes and manual write

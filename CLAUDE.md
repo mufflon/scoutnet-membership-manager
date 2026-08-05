@@ -181,6 +181,27 @@ code and never invent a synonym:
 
 Reproduce this table in the README and in the app's glossary.
 
+### Writing prose from a person's words
+
+What a person types in chat — the maintainer or anyone else directing the work
+through an AI — is **intent to interpret, not text to transcribe**. Never paste
+someone's phrasing into code, comments, commit messages, documentation or UI
+strings verbatim. Infer what they meant, then write it yourself: unambiguous,
+correct, and self-contained for a reader who wasn't in the conversation. Casual,
+compressed or imprecise wording in a request is normal and expected; the artifact
+must not inherit it.
+
+- **Internal text** (English — code, comments, commits, docs): precise and exact.
+  Prefer the established term (the API vocabulary above), state the actual behaviour,
+  and leave no room for a second reading.
+- **User-facing text** (Swedish UI strings): plainer and gentler, because some
+  readers are volunteers with no technical background — but no less clear. Drop the
+  jargon, not the precision; a sentence can be warm and still say exactly one thing.
+- **When your prose diverges substantially from what was said** — you resolved an
+  ambiguity, corrected a term, or changed the framing — don't just silently apply
+  it. Surface the gap back in a short, condensed note (what they said → what you
+  wrote and why) so they can confirm you inferred correctly.
+
 ## 3. Tech stack
 
 Versions verified on PyPI 2026-08-02. **Re-verify before pinning**; do not
@@ -413,19 +434,30 @@ treat those two as convenience columns only.
 
 #### Guardian and contact fields
 
-Scoutnet uses a **dad/mum split**:
+Scoutnet uses a **dad/mum split** in the field *keys*, but these are legacy
+internal names: the API's own `labels` map them to the gender-neutral **Anhörig 1
+(the `_mum` keys)** and **Anhörig 2 (the `_dad` keys)** — the same wording the
+Scoutnet UI shows. The mapping is deterministic and was verified against live data
+(370 active members): `_mum` → *Anhörig 1*, `_dad` → *Anhörig 2*.
 
-- `contact_fathers_name`, `contact_mothers_name`
-- `contact_email_dad`, `contact_email_mum`
-- `contact_mobile_dad`, `contact_mobile_mum`
-- `contact_telephone_dad`, `contact_telephone_mum`
+- `contact_mothers_name` = *Anhörig 1 namn*, `contact_fathers_name` = *Anhörig 2 namn*
+- `contact_email_mum` / `contact_email_dad` = *Anhörig 1 / 2 e-post*
+- `contact_mobile_mum` / `contact_mobile_dad` = *Anhörig 1 / 2 mobiltelefon*
+- `contact_telephone_mum` / `contact_telephone_dad` = *Anhörig 1 / 2 hemtelefon*
+
+The gendered keys do **not** reliably describe the person (a lone guardian, a
+grandparent, two dads all land in these slots). Present them by the neutral
+*Anhörig 1 / 2* labels, never mor/far, in anything an operator sees.
 
 Member's own: `contact_mobile_phone`, `contact_home_phone` (**not**
 `contact_telephone_home`), `contact_work_phone`, `contact_email`,
-`contact_alt_email`, `contact_scouterna-email`.
+`contact_alt_email`, `contact_scouterna-email`. A scout's own email is usually
+empty (≈9/370) — the guardians are the real contact path.
 
-Coverage is uneven between mum and dad fields. That is data-quality territory
-(§11), not an error.
+Coverage is uneven between the two Anhörig slots (Anhörig 1 ≈299/370, Anhörig 2
+≈244/370). That is data-quality territory (§11), not an error. The published demo
+fixture carries **none** of these guardian fields (only `contact_mobile_phone`), so
+fixture mode shows the guardian columns empty — real data populates them.
 
 #### status
 
@@ -1697,6 +1729,25 @@ someone might want to sort or filter it.
 cached, never stored in Postgres (§9). Once downloaded they are the operator's
 responsibility.
 
+#### Column labels — align with Scoutnet's `labels` (known gap, deferred)
+
+Our exports hand-write their own Swedish column headers. The membership export
+endpoint (`GET /group/memberlist`) already returns the canonical display name for
+every field in a top-level **`labels`** object, keyed by the raw field name — the
+exact wording Scoutnet uses in its own exports. Examples: `member_no` →
+*Medlemsnr.*, `unit` → *Avdelning*, `contact_mobile_phone` → *Mobiltelefon*,
+`contact_mothers_name` → *Anhörig 1 namn*, `contact_email_dad` → *Anhörig 2 e-post*.
+Our headers are close but not identical, so a leader comparing one of our sheets to
+a Scoutnet export sees slightly different names for the same columns.
+
+This is a consistency gap, not a defect, and is deliberately left unfixed for now.
+When an export is next modified, prefer deriving its headers from the endpoint's
+`labels` (we currently drop the object on ingest) so the column names match Scoutnet
+exactly. Keep hand-written headers only for columns we compute that have no
+corresponding Scoutnet field — for example the changelist's *Klar* and *Från*/*Till*,
+or the affected-scouts roster's *Anhörig 1/2*, which are left-packed and so
+deliberately renumbered relative to Scoutnet's fixed slots.
+
 ### Changelist export (uppflyttning)
 
 The computed master set, after review and per-member overrides, exported as an
@@ -1721,6 +1772,38 @@ diff it against the changelist: how many applied, which members were not found,
 which ended up somewhere other than intended. Pure read, and it catches exactly
 the transcription errors manual entry produces. The same reconciliation code
 serves the write executor (§8).
+
+### Berörda scouter export (uppflyttning)
+
+A second, deliberately lighter export off the same blade: the **contact roster**
+for the current selection, for warning families before the shift. Distinct from
+the changelist in three ways, and the distinctions are the point:
+
+- **Organised by _current_ avdelning, not target.** The changelist answers "where
+  is everyone going"; this answers "who is affected and how do I reach them, where
+  they are now". A single flat sheet (operator preference, cf. §19), Swedish
+  collation by avdelning then surname.
+- **Contact details only:** `member_no`, current avdelning, name, member
+  phone/email, and up to two guardians. **No** postal address and **no**
+  personnummer — out of scope by request; empty cells are left blank as a §11
+  data-quality signal, never "-".
+- **Guardian columns are neutral "Anhörig 1 / Anhörig 2", not mor/far.** The API
+  keys the slots mum/dad (§4), but Scoutnet's own UI shows the gender-neutral
+  *Anhörig 1/2* and the gendered keys do not reliably describe the person (a lone
+  guardian, a grandparent, two dads). So the values are carried but the labels
+  dropped, and present guardians are **left-packed** — a sole guardian fills
+  Anhörig 1 even when only the "dad" fields are set. Phone prefers mobile, falling
+  back to the landline (`contact_telephone_*`).
+- **Computed live, ignoring stored state.** It layers neither the per-member
+  decisions nor the elected target (unlike the changelist, which is the reviewed
+  set). Group membership does not depend on those anyway — a decision only changes
+  a row's status/target, never which övergång it belongs to — so the roster always
+  shows who is affected *right now* as the operator clicks between selections. It is
+  **not** gated on the off-cohort acknowledgement; it moves no one.
+
+Same `?group=` scope as the blade, streamed to the browser, never written to disk
+(§9). `build_affected_scouts_xlsx` joins each move entry back to the live member for
+contacts; entries with no matching member are skipped rather than erroring.
 
 ### Översikt export
 

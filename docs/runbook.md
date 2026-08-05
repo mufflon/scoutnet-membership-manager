@@ -92,7 +92,13 @@ and offers undo.
 
 Review first, on the **Uppflyttning** blade: elect the Äventyrare→Utmanare target,
 set any per-member overrides ("stay a year", a different target), and look at
-anyone marked **utanför årskull** (off-cohort). Then go to the **Utför** blade:
+anyone marked **utanför årskull** (off-cohort). Pick an övergång at the top and the
+blade is scoped to it; **Exportera berörda scouter** then hands you an Excel contact
+roster for exactly that selection — medlemsnummer, current avdelning, name, and
+member + guardian phone/email — for warning families ahead of the shift. It is
+computed live and ignores your saved overrides, so it always reflects who is
+currently affected, not a decision you might still change. Then go to the **Utför**
+blade:
 
 1. **Förhandsgranska (torrkörning).** Sends nothing. Shows, per member: *kommer
    att flyttas*, *redan på plats* (skipped, no-op), or *avviker* (skipped — someone

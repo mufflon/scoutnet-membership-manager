@@ -421,6 +421,7 @@ async function renderUppflyttning(root) {
   root.append(el("div", { class: "card" }, ...saveCardChildren));
 
   root.append(el("p", {}, el("a", { href: "/api/uppflyttning/changelist.xlsx?group=" + d.group }, "Exportera changelist (Excel)"), el("span", { class: "muted" }, " – enbart vald grupp")));
+  root.append(el("p", {}, el("a", { href: "/api/uppflyttning/berorda-scouter.xlsx?group=" + d.group }, "Exportera berörda scouter (Excel)"), el("span", { class: "muted" }, " – kontaktuppgifter för vald grupp, som de ser ut nu")));
   root.append(
     el(
       "div",

@@ -6,6 +6,7 @@ workbooks contain names and are streamed to the browser, never written to disk
 server-side (§9).
 """
 
+from scoutnet_membership_manager.export.affected_scouts_xlsx import build_affected_scouts_xlsx
 from scoutnet_membership_manager.export.changelist_xlsx import (
     ChangelistAckRequired,
     build_changelist,
@@ -20,6 +21,7 @@ __all__ = [
     "ChangelistAckRequired",
     "PdfUnavailable",
     "ReconResult",
+    "build_affected_scouts_xlsx",
     "build_changelist",
     "build_dues_xlsx",
     "build_fortroende_xlsx",
