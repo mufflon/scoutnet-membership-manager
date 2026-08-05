@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import httpx
 from flask import Flask, jsonify
 from flask.typing import ResponseReturnValue
 from sqlalchemy import Engine, create_engine
@@ -89,6 +90,15 @@ def create_app(settings: Settings | None = None, *, client: object | None = None
     @app.errorhandler(ScoutnetError)
     def _scoutnet_error(e: ScoutnetError) -> ResponseReturnValue:
         return jsonify(error=str(e)), 502
+
+    @app.errorhandler(httpx.TimeoutException)
+    def _scoutnet_timeout(_e: httpx.TimeoutException) -> ResponseReturnValue:
+        # A Scoutnet read exceeded http_timeout_s — intermittent upstream slowness,
+        # not a client error. Return a clear, retryable message instead of a bare
+        # 500 the browser surfaces as "Load failed". The read endpoints in api.py
+        # already swallow httpx.HTTPError; this covers the write/preview paths
+        # (e.g. the fresh dry-run read) that let the timeout propagate.
+        return jsonify(error="Scoutnet svarade inte i tid. Ladda om och försök igen."), 504
 
     @app.errorhandler(CohortYearConflict)
     def _cohort_conflict(e: CohortYearConflict) -> ResponseReturnValue:

@@ -104,6 +104,23 @@ def test_write_endpoints_require_read_write():
 # --- dry-run ---------------------------------------------------------------
 
 
+def test_scoutnet_read_timeout_is_reported_not_500(tmp_path):
+    # An intermittent Scoutnet read timeout on the (unwrapped) dry-run preview
+    # must become a clear, retryable message — not a bare 500 the browser shows
+    # as "Load failed" (§4).
+    import httpx
+
+    app, double = _rw_app(tmp_path)
+
+    def _timeout(*_args, **_kwargs):
+        raise httpx.ReadTimeout("The read operation timed out")
+
+    double.memberlist = _timeout
+    r = app.test_client().post("/api/uppflyttning/run", json={"mode": "dry_run"})
+    assert r.status_code == 504
+    assert "tid" in r.get_json()["error"].lower()
+
+
 def test_dry_run_reports_the_move_without_sending(tmp_path):
     app, double = _rw_app(tmp_path)
     c = app.test_client()
