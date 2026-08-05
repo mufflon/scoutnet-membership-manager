@@ -55,7 +55,12 @@ else
   echo "==> using prebuilt image $IMAGE (pull policy $PULL_POLICY)"
 fi
 
-kubectl get ns "$NS" >/dev/null 2>&1 || kubectl create ns "$NS" >/dev/null
+# Create the namespace declaratively so it carries the apply annotation from the
+# start. Doing this before the Secret lands in it (below) means the later
+# `kubectl apply -f k8s/local/` re-applies the same object cleanly, instead of
+# warning that an imperatively-created (`kubectl create ns`) namespace is missing
+# last-applied-configuration. Idempotent: a no-op when the namespace exists.
+kubectl apply -f k8s/local/00-namespace.yaml >/dev/null
 
 # Secret from the .conf: DB creds + DSN, plus every non-empty SCOUTNET_* key.
 set -- \
