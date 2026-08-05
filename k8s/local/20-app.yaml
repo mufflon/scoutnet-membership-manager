@@ -43,6 +43,13 @@ spec:
           imagePullPolicy: IfNotPresent # image is read from the docker store by k3s
           envFrom:
             - secretRef: { name: scoutnet-membership-manager-secrets }
+          env:
+            # Where the write path (§8) writes its pre-run snapshots. Must match
+            # the volumeMount below — it is deployment infra, not app config, so it
+            # lives here beside the mount, not in scoutnet-membership-manager.json.
+            # If the two ever diverge, reconciling them is the deployer's job.
+            - name: SCOUTNET_SNAPSHOT_DIR
+              value: /var/lib/scoutnet-membership-manager/snapshots
           volumeMounts:
             - name: snapshots
               mountPath: /var/lib/scoutnet-membership-manager/snapshots

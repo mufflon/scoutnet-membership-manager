@@ -11,3 +11,7 @@ data:
   SCOUTNET_CONFIG_PATH: "scoutnet-membership-manager.json"
   SCOUTNET_CHUNK_SIZE: "25"
   SCOUTNET_SNAPSHOT_RETENTION_DAYS: "30"
+  # Where the write path (§8) writes pre-run snapshots. Must match the snapshots
+  # volumeMount in deployment.yaml; it is deployment infra, not app config, so it
+  # lives here rather than in scoutnet-membership-manager.json.
+  SCOUTNET_SNAPSHOT_DIR: "/data/snapshots"
