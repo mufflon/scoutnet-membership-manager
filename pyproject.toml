@@ -1,6 +1,6 @@
 [project]
 name = "scoutnet-membership-manager"
-version = "0.1.0"
+version = "0.1.1"
 description = "Internal Scoutnet tool for a Swedish scoutkår (default: Scoutkåren Finn, Lund). Phase 1 — read-only."
 readme = "README.md"
 requires-python = ">=3.14"
