@@ -149,6 +149,7 @@ def _run_status(run_id: str) -> dict | None:
             "cohort_year": run.cohort_year,
             "parent_run_id": run.parent_run_id,
             "snapshot_id": run.snapshot_id,
+            "error": run.error,
             "journal": summary,
             "members": members,
         }
@@ -364,6 +365,33 @@ def _busy() -> bool:
     return current_app.config["RUN_MANAGER"].busy() or run_active_in_db(_sm())
 
 
+def _record_run_failure(
+    sm: object, run_id: str, kind: str, cohort_year: int | None, error: str
+) -> None:
+    """
+    Mark a background run failed so the frontend poll returns a terminal state
+    with a reason, instead of spinning on "Startar körning…" (§8). A run that
+    fails before its row is created (e.g. no snapshot volume) has no row yet, so
+    it is inserted here; otherwise the existing row is updated in place.
+    """
+    with get_session(sm) as s:
+        run = s.get(WriteRun, run_id)
+        if run is None:
+            s.add(
+                WriteRun(
+                    id=run_id,
+                    kind=kind,
+                    cohort_year=cohort_year,
+                    mode=RunMode.EXECUTE.value,
+                    state="failed",
+                    error=error,
+                )
+            )
+        else:
+            run.state = "failed"
+            run.error = error
+
+
 def _launch(
     kind: str,
     cohort_year: int | None,
@@ -375,16 +403,25 @@ def _launch(
     if _busy():
         return jsonify(error="a write run is already in progress"), _HTTP_CONFLICT
     run_id = str(uuid.uuid4())
+    # Captured here in the request context: _job runs in a background thread where
+    # current_app (and thus _sm()) is not bound.
+    sm = _sm()
 
     def _job() -> None:
-        executor.run(
-            moves,
-            kind=kind,
-            cohort_year=cohort_year,
-            mode=RunMode.EXECUTE,
-            run_id=run_id,
-            exclude_leaders=exclude_leaders,
-        )
+        try:
+            executor.run(
+                moves,
+                kind=kind,
+                cohort_year=cohort_year,
+                mode=RunMode.EXECUTE,
+                run_id=run_id,
+                exclude_leaders=exclude_leaders,
+            )
+        except Exception as exc:
+            # Persist any failure so the UI reports it instead of spinning; then
+            # re-raise so the traceback still reaches the logs.
+            _record_run_failure(sm, run_id, kind, cohort_year, str(exc))
+            raise
 
     current_app.config["RUN_MANAGER"].launch(_job)
     return jsonify(run_id=run_id, status="started"), _HTTP_ACCEPTED

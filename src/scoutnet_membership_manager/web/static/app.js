@@ -819,6 +819,7 @@ function runStatusCard(area, s) {
     el("strong", {}, "Körning " + s.run_id.slice(0, 8) + " · " + (RUNSTATE_SV[s.state] || s.state)),
     el("div", { class: "muted" }, s.kind + " · " + counts),
   );
+  if (s.error) card.append(el("p", { class: "err" }, "Fel: " + esc(s.error)));
   const failed = (s.members || []).filter((m) => m.state === "failed");
   if (failed.length) {
     const b = el("button", { class: "action" }, "Återuppta från felad chunk");
