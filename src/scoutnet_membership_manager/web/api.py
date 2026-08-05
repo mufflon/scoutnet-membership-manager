@@ -13,6 +13,7 @@ from scoutnet_membership_manager.db.session import get_session
 from scoutnet_membership_manager.export import (
     ChangelistAckRequired,
     PdfUnavailable,
+    build_affected_scouts_xlsx,
     build_changelist,
     build_dues_xlsx,
     build_fortroende_xlsx,
@@ -109,6 +110,20 @@ def _master_set(ml: MemberList) -> MasterSet:
         decisions = get_decisions(s, ms.cohort_year)
     apply_overrides(ms, decisions, index)
     return ms
+
+
+def _raw_master_set(ml: MemberList) -> MasterSet:
+    """
+    The master set as freshly computed, **without** the operator's stored decisions
+    or the target election layered on. Group membership is identical to
+    :func:`_master_set` (decisions only change a row's status/target, never which
+    transition it belongs to), so this is the affected scouts of a selection as they
+    stand right now — for the "berörda scouter" contact roster, which shows current
+    avdelning and must not reflect saved choices.
+    """
+    return compute_master_set(
+        ml, _config(), _config_n(), ml.current_term_label, elected_target=None
+    )
 
 
 def _entry_for(ml: MemberList, member_no: str) -> dict | None:
@@ -624,6 +639,24 @@ def api_changelist() -> ResponseReturnValue:
         headers={
             "Content-Disposition": "attachment; filename=uppflyttning.xlsx",
         },
+    )
+
+
+@api_bp.get("/uppflyttning/berorda-scouter.xlsx")
+def api_affected_scouts() -> ResponseReturnValue:
+    """
+    Stream the affected-scouts contact roster for the current selection (§17). The
+    same ``?group=`` scope as the blade, computed from the live data only: stored
+    decisions and the target election are deliberately ignored so the operator can
+    click around and see exactly who is affected, with member + guardian contacts.
+    """
+    ml = _memberlist()
+    ms = scope_master_set(_raw_master_set(ml), _group_from(request.args.get("group")))
+    data = build_affected_scouts_xlsx(ms, ml)
+    return Response(
+        data,
+        mimetype=_XLSX_MIME,
+        headers={"Content-Disposition": "attachment; filename=berorda-scouter.xlsx"},
     )
 
 
