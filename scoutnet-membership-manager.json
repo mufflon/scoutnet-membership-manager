@@ -1,8 +1,9 @@
 {
   "schema_version": 1,
-  "mode": "read_only",
+  "mode": "read_write",
   "cohort_year": 2026,
   "entity_id": "1025",
+  "write_allowlist": ["3020341"],
   "kar": {
     "name": "Scoutkåren Finn",
     "avdelningar": [

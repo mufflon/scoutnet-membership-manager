@@ -122,7 +122,7 @@ class Settings(BaseSettings):
     write_allowlist: list[str] = []
 
     # --- App ---------------------------------------------------------------
-    app_version: str = "0.1.0"
+    app_version: str = "0.1.1"
     build_number: str = "dev"
 
     @classmethod

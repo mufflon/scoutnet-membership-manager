@@ -38,8 +38,13 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 # Non-root.
 RUN useradd --uid 10001 --create-home app
 COPY --from=build --chown=app:app /app /app
+# Mode is deliberately NOT baked in here. It is read from
+# scoutnet-membership-manager.json — the single non-secret config source (§6, §13).
+# An image-level `ENV SCOUTNET_MODE=…` outranks the JSON file (env beats the JSON
+# settings source), so setting it here would silently override the file and make
+# the committed `mode` field dead. A deployment that genuinely needs to force a
+# mode can still do so with a real env var / Secret key.
 ENV PATH="/app/.venv/bin:$PATH" \
-    SCOUTNET_MODE=read_only \
     PYTHONUNBUFFERED=1
 USER app
 EXPOSE 8000

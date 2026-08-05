@@ -131,9 +131,12 @@ leads the older §18–§20 prose, the code is the fact (Authority order):
 Local k3s, namespace `scoutnet-membership-manager`. Deploy with one of two
 wrappers over `scripts/k8s-up.sh`: `k8s-up-local.sh` (build the image here) or
 `k8s-up-upstream.sh` (run the prebuilt GHCR image); both read secrets from
-`apikeys.conf`. Mode and the write allowlist are deployment config only, never
+`apikeys.conf` (API keys only). Mode and the write allowlist live in
+`scoutnet-membership-manager.json` with the rest of the non-secret config, never
 entered in the UI (hard rule 7). During write testing the allowlist is bounded to
-a single record and the snapshot volume is PVC-backed.
+a single record and the snapshot volume is PVC-backed — its path is set as
+`SCOUTNET_SNAPSHOT_DIR` beside the volumeMount in the manifest (deployment infra
+that must match the mount, so it is not in the JSON).
 
 `main` is the working line and is pushed to
 `github.com/mufflon/scoutnet-membership-manager` (public). A `v*` tag publishes a
@@ -508,7 +511,10 @@ How the read client calls the API, learned from live use (§6 modes still apply)
 - **Retry only connection failures.** A read timeout means Scoutnet accepted the
   request but is slow to answer — retrying only multiplies the wait. Retry
   `ConnectError` / `ConnectTimeout` a few times with a short fixed wait; let read
-  timeouts fail fast.
+  timeouts fail fast. A read timeout that reaches the web layer (the write/preview
+  paths, which do not swallow `httpx.HTTPError` the way the read blades do) is
+  turned into a friendly **504** ("Scoutnet svarade inte i tid") by an app-level
+  `httpx.TimeoutException` handler, never a bare 500.
 - **Short in-process memberlist cache (~90 s).** The active / waiting /
   awaiting_approval lists are cached per variant so navigating between blades
   does not re-fetch a multi-second list each time. This is read-only data that
@@ -587,10 +593,12 @@ until `/organisation/project` has actually been read.
 
 ### Operating modes
 
-A single deployment-level setting, `SCOUTNET_MODE`, decides what this instance
-can do. It is enforced **at client construction**, not at each call site — in
-the wrong mode the write methods do not exist on the object, so a bug cannot
-reach them.
+A single setting, `mode`, decides what this instance can do. It lives in
+`scoutnet-membership-manager.json`; the `SCOUTNET_MODE` env var still overrides it
+(pydantic source order), but it is deliberately **not** baked into the image as an
+`ENV`, so the committed file governs. It is enforced **at client construction**,
+not at each call site — in the wrong mode the write methods do not exist on the
+object, so a bug cannot reach them.
 
 | Mode | Reads | Writes | Data source |
 |---|---|---|---|
@@ -762,13 +770,16 @@ and `test_misplaced_member_routes_per_person`.
 
 - **Two files, split by secrecy.** All non-secret configuration is one committed
   JSON, **`scoutnet-membership-manager.json`** (Finn as default, bundled into the image): a root
-  `schema_version`, then `mode` / `cohort_year` / `entity_id` and the `kar`
-  (name + avdelningar). The **only** secret file is **`apikeys.conf`** (gitignored,
-  `apikeys.conf.example` committed): the Scoutnet API keys + the DB password. This
-  keeps the config freely shareable (it holds nothing secret) while the keys never
-  taint it. `Settings` reads `scoutnet-membership-manager.json` via a JSON source, with the env (the
-  keys, injected from `apikeys.conf` into a k8s Secret) taking precedence; the whole
-  file carries `schema_version` for forward migration. `.dockerignore` keeps
+  `schema_version`, then `mode` / `cohort_year` / `entity_id` / `write_allowlist`
+  and the `kar` (name + avdelningar). The **only** secret file is **`apikeys.conf`**
+  (gitignored, `apikeys.conf.example` committed): the Scoutnet API keys + the DB
+  password. This keeps the config freely shareable (it holds nothing secret) while
+  the keys never taint it. `Settings` reads `scoutnet-membership-manager.json` via a JSON source,
+  with the env (the keys, injected from `apikeys.conf` into a k8s Secret) taking
+  precedence. Because env outranks the JSON, non-secret settings must **not** be
+  baked into the image as an `ENV` — doing so silently overrides the file (the bug
+  that once pinned `SCOUTNET_MODE=read_only`). The whole file carries
+  `schema_version` for forward migration. `.dockerignore` keeps
   `*.conf` out of the image. Brackets are national and in code; avdelningar/troop
   ids/group id are inferred from the data, so with no config the app still runs.
 - **Multi-kår generality.** Keep kår structure configurable and generic scouting
@@ -1197,7 +1208,8 @@ Two files at the **repo root**, split by secrecy (see §7-B):
   never enters the image); committed template is `./apikeys.conf.example`.
   `k8s-up.sh` reads it into a k8s Secret; locally you `source` it into the env.
 
-Environment (the keys) overrides the file (the rest).
+Environment (the keys) overrides the file (the rest) — so non-secret settings are
+never baked into the image as an `ENV`, which would silently override the file.
 
 - **Age brackets are national and in code** (`BRACKETS`; Utmanare 15–19), not
   config — they are identical for every Swedish kår (§17).

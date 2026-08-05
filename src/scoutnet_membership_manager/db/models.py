@@ -110,6 +110,10 @@ class WriteRun(Base):
     snapshot_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Run-level failure reason for errors that abort a run before any chunk is
+    # journalled (e.g. no snapshot volume configured). Lets the UI report the
+    # failure instead of polling "Startar körning…" forever (§8).
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class WriteJournal(Base):
