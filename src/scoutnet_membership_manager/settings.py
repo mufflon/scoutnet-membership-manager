@@ -14,7 +14,7 @@ import hashlib
 import os
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import (
     BaseSettings,
     JsonConfigSettingsSource,
@@ -22,6 +22,7 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
+from scoutnet_membership_manager import __version__
 from scoutnet_membership_manager.config.models import SCHEMA_VERSION, KarConfig
 
 
@@ -122,7 +123,9 @@ class Settings(BaseSettings):
     write_allowlist: list[str] = []
 
     # --- App ---------------------------------------------------------------
-    app_version: str = "0.1.1"
+    # Single-sourced from pyproject.toml via the installed package metadata
+    # (scoutnet_membership_manager.__version__); overridable by env for a build.
+    app_version: str = Field(default_factory=lambda: __version__)
     build_number: str = "dev"
 
     @classmethod
