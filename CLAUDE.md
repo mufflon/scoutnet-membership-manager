@@ -504,6 +504,61 @@ Batch, keyed by member number. `status` is **required on every entry**.
 Documented as atomic: any error rejects the entire request. On 400 the response
 is keyed by member number with per-member error strings.
 
+#### What cannot be written, and revisiting it if the API grows (gap)
+
+The **entire** write vocabulary available to Finn is the three fields above:
+`status`, `troop_id`, `patrol_id`. There is no endpoint — in the vendored spec or
+in the Webbkoppling surface — for writing **engagements / uppdrag** at all. Roles
+appear only read-only, embedded in the memberlist (§4 `roles`). Consequences:
+
+- **Ending a patrol-scoped role (Patrulledare / Vice patrulledare) must be done by
+  hand in the Scoutnet UI.** Setting a *slutdatum* on the uppdrag is what moves it
+  to *tidigare uppdrag* rather than deleting it — i.e. the keep-history behaviour
+  is native to the UI, it simply cannot be automated here. This came up after an
+  Äventyrare → Utmanare migration where movers kept their old Patrulledare role in
+  the source avdelning's patrull. The tool therefore *surfaces the worklist* rather
+  than acting on it: `patrol_roles.patrol_role_holders` lists everyone in a
+  selection holding a patrol-scoped role, rendered both as a "Patrulledare att
+  avsluta" sheet in the Berörda scouter export and as new-tab links
+  (`https://scoutnet.se/organisation/user/<member_no>`) at the bottom of the Utför
+  outcomes, so the operator can open each and set the slutdatum by hand. The
+  profile-URL scheme is not in the API spec — verify it against one real profile.
+- **Placement is not the same object as a role.** A member's patrull *placement*
+  (`patrol_id`) and a patrol-scoped *role* (a Patrulledare uppdrag whose `scope` is
+  `patrol`, scoped to some patrull id) are independent. Writing a new `patrol_id`
+  moves the placement; it does **not** end an old patrol-scoped role. Both the
+  move and the role-end are needed, and only the move is automatable.
+- **`patrol_id` write is implemented, but not yet live-verified.** An uppflyttning
+  now places each mover in the target avdelning's *first known patrull* (lowest
+  `patrol_id`) automatically — `_moves_from_master` fills `target_patrol_id` from a
+  `build_patrol_index` of the live memberlist, `_payload_for` sends `patrol_id`, and
+  the snapshot + two `write_journal` columns (`intended_patrol_id`,
+  `source_patrol_id`, migration 0003) let an undo restore the prior patrull too.
+  This matters because Scoutnet only counts members who sit in a patrull, so a
+  migration that set avdelning without a patrull left movers uncounted. **Caveat:**
+  only `troop_id` is live-verified (2026-08-03); `patrol_id` is documented but has
+  never round-tripped against live Scoutnet. Before trusting it in a bulk run, do
+  the one-member verify-and-undo — the single-member `/api/write/verify` now takes
+  an optional `target_patrol_id` for exactly this. The endpoint **cannot clear** a
+  patrull, so a move with no known target patrull omits the field (today's
+  behaviour) and an undo cannot restore a member who had *no* patrull before.
+- **Empty patruller are invisible.** `GET /body_key_list` (the only body
+  enumerator) is restricted and not available to Finn (§4), and `/organisation/group`
+  has no per-patrull breakdown, so patruller surface only via members in the
+  memberlist. A patrull with no members cannot be discovered — so when a target
+  avdelning has a *known* patrull (≥1 member), place movers there; when it does
+  not (e.g. a brand-new Utmanare avdelning), both avdelning and patrull must be set
+  by hand, exactly as the target avdelning already is.
+
+**Standing instruction.** These limits are a property of *today's* endpoint set,
+not permanent facts. If the API ever grows — a new endpoint is provisioned, one of
+the three undocumented endpoints (§4) turns out to be readable, or upstream ships a
+role/uppdrag write — **re-open the feasibility discussion** (§5) before assuming
+anything is still impossible. Ask specifically what each new endpoint enables *on
+its own* and *in combination with the endpoints we already have*; several
+conclusions here (attendance §5, this role-end gap) are provisional for exactly
+that reason.
+
 ### Read client behaviour
 
 How the read client calls the API, learned from live use (§6 modes still apply):

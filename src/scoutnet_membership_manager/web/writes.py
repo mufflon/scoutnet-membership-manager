@@ -15,7 +15,7 @@ from flask.typing import ResponseReturnValue
 from sqlalchemy import select
 
 from scoutnet_membership_manager.db import WriteJournal, WriteRun, get_session
-from scoutnet_membership_manager.roster import build_troop_index
+from scoutnet_membership_manager.roster import PatrolIndex, build_patrol_index, build_troop_index
 from scoutnet_membership_manager.settings import Mode, Settings
 from scoutnet_membership_manager.uppflyttning import scope_master_set
 from scoutnet_membership_manager.uppflyttning.models import MasterSet
@@ -64,14 +64,28 @@ def _executor() -> WriteExecutor:
     return WriteExecutor(current_app.config["SCOUTNET"], _settings(), _sm())
 
 
-def _moves_from_master(master_set: MasterSet) -> list[IntendedMove]:
-    """The reviewed, override-applied set of ready moves (§17)."""
-    return [
-        IntendedMove(
-            e.member_no, e.source_troop_id, e.target_troop_id, label=e.target_avdelning or ""
+def _moves_from_master(master_set: MasterSet, patrol_index: PatrolIndex) -> list[IntendedMove]:
+    """
+    The reviewed, override-applied set of ready moves (§17). Each move is also
+    placed in the target avdelning's first known patrull when it has one, so the
+    mover is counted (Scoutnet only counts members placed in a patrull, §4). When
+    the target avdelning has no known patrull — e.g. a brand-new Utmanare
+    avdelning — ``target_patrol_id`` stays ``None`` and the patrull is set by hand.
+    """
+    moves: list[IntendedMove] = []
+    for e in master_set.ready():
+        pinfo = patrol_index.first_known_patrol(e.target_troop_id)
+        moves.append(
+            IntendedMove(
+                e.member_no,
+                e.source_troop_id,
+                e.target_troop_id,
+                label=e.target_avdelning or "",
+                target_patrol_id=pinfo.patrol_id if pinfo else None,
+                patrol_label=pinfo.name if pinfo else "",
+            )
         )
-        for e in master_set.ready()
-    ]
+    return moves
 
 
 # --- serialisation ---------------------------------------------------------
@@ -82,8 +96,11 @@ def _ser_preflight(p: PreflightItem) -> dict:
         "member_no": p.move.member_no,
         "target_troop_id": p.move.target_troop_id,
         "label": p.move.label,
+        "target_patrol_id": p.move.target_patrol_id,
+        "patrol_label": p.move.patrol_label,
         "category": str(p.category),
         "current_troop_id": p.current_troop_id,
+        "current_patrol_id": p.current_patrol_id,
         "current_status": p.current_status,
         "reason": p.reason,
     }
@@ -138,6 +155,8 @@ def _run_status(run_id: str) -> dict | None:
                     "state": row.state,
                     "intended_troop_id": row.intended_troop_id,
                     "source_troop_id": row.source_troop_id,
+                    "intended_patrol_id": row.intended_patrol_id,
+                    "source_patrol_id": row.source_patrol_id,
                     "error": row.error,
                 }
             )
@@ -170,7 +189,7 @@ def api_uppflyttning_run() -> ResponseReturnValue:
     # Scoped to the selected transition group so a run only writes what the
     # operator is looking at — never a transition they did not choose (§7 A).
     ms = scope_master_set(_master_set(ml), _group_from(data.get("group")))
-    moves = _moves_from_master(ms)
+    moves = _moves_from_master(ms, build_patrol_index(ml))
 
     # Off-cohort acknowledgement gate before an execute run (§17).
     if execute and ms.off_cohort() and not data.get("ack_by"):
@@ -231,10 +250,17 @@ def api_verify() -> ResponseReturnValue:
     raw_target = data.get("target_troop_id")
     if not member_no or raw_target is None:
         return jsonify(error="member_no and target_troop_id are required"), _HTTP_BAD_REQUEST
+    # Optional patrull for the single-member verify: patrol_id is documented but not
+    # yet live-verified (only troop_id is, 2026-08-03), so proving one patrol write +
+    # undo by hand here is the gate before any bulk run relies on it (§4, §8).
+    raw_patrol = data.get("target_patrol_id")
     try:
         target = int(raw_target)
+        target_patrol = None if raw_patrol in (None, "") else int(raw_patrol)
     except (TypeError, ValueError):
-        return jsonify(error="target_troop_id must be an integer"), _HTTP_BAD_REQUEST
+        return jsonify(
+            error="target_troop_id and target_patrol_id must be integers"
+        ), _HTTP_BAD_REQUEST
 
     client = current_app.config["SCOUTNET"]
     memberlist = client.memberlist("active", fresh=True)
@@ -243,7 +269,21 @@ def api_verify() -> ResponseReturnValue:
         return jsonify(error=f"member {member_no} not in active roster"), _HTTP_NOT_FOUND
     index = build_troop_index(memberlist, current_app.config["KAR_CONFIG"])
     label = next((name for name, tid in index.name_to_id.items() if tid == target), "")
-    moves = [IntendedMove(member_no, member.unit_troop_id, target, label=label)]
+    patrol_label = ""
+    if target_patrol is not None:
+        patrols = build_patrol_index(memberlist).by_troop.get(target, [])
+        pinfo = next((p for p in patrols if p.patrol_id == target_patrol), None)
+        patrol_label = pinfo.name if pinfo else ""
+    moves = [
+        IntendedMove(
+            member_no,
+            member.unit_troop_id,
+            target,
+            label=label,
+            target_patrol_id=target_patrol,
+            patrol_label=patrol_label,
+        )
+    ]
     assert_allowlist(_settings(), moves)  # clean 400 on violation (errorhandler)
     executor = _executor()
     # A deliberate single-member test may target a leader (e.g. the operator's own

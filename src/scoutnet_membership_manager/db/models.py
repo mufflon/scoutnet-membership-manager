@@ -131,8 +131,13 @@ class WriteJournal(Base):
     chunk_id: Mapped[int] = mapped_column(Integer)  # monotonic within a run
     member_no: Mapped[str] = mapped_column(String(32), index=True)
     intended_status: Mapped[str] = mapped_column(String(16))  # "confirmed" for uppflyttning (§3)
-    intended_troop_id: Mapped[int] = mapped_column(Integer)  # the only field a move changes
+    intended_troop_id: Mapped[int] = mapped_column(Integer)  # avdelning the move sets
     source_troop_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Patrull the move sets, and the observed prior patrull for undo (§4, §8). Both
+    # nullable: a move omits patrol_id when the target avdelning has no known patrull,
+    # and the endpoint cannot clear a patrull, so a null prior is not restorable.
+    intended_patrol_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_patrol_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # pending -> in_flight -> done | failed
     state: Mapped[str] = mapped_column(String(16), default="pending")
     attempts: Mapped[int] = mapped_column(Integer, default=0)

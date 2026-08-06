@@ -56,3 +56,58 @@ def build_troop_index(memberlist: MemberList, config: KarConfig) -> TroopIndex:
 
     id_to_name = {tid: name for name, tid in name_to_id.items()}
     return TroopIndex(name_to_id=name_to_id, id_to_name=id_to_name, id_to_bracket=id_to_bracket)
+
+
+@dataclass
+class PatrolInfo:
+    """One patrull within an avdelning, as seen in the live memberlist."""
+
+    patrol_id: int
+    name: str
+    size: int  # current active members placed in it
+
+
+@dataclass
+class PatrolIndex:
+    """
+    Which patruller exist in each avdelning, derived from the live memberlist
+    (§4). A patrull is only visible when at least one member is placed in it —
+    ``GET /body_key_list`` (the only body enumerator) is not available to this
+    kår, and an empty patrull therefore cannot be discovered. So a "known"
+    patrull always has ``size >= 1``, exactly the ones an uppflyttning can place
+    movers into automatically.
+    """
+
+    by_troop: dict[int, list[PatrolInfo]] = field(default_factory=dict)
+
+    def first_known_patrol(self, troop_id: int | None) -> PatrolInfo | None:
+        """
+        The patrull movers into ``troop_id`` should be placed in, or ``None`` when
+        the avdelning has no known patrull (then the operator sets both avdelning
+        and patrull by hand, as today). Deterministic: the lowest ``patrol_id``,
+        i.e. the first patrull created. We deliberately do not load-balance —
+        everyone lands in one patrull and the avdelning's leaders redistribute.
+        """
+        patrols = self.by_troop.get(troop_id) if troop_id is not None else None
+        return patrols[0] if patrols else None
+
+
+def build_patrol_index(memberlist: MemberList) -> PatrolIndex:
+    """
+    Group the live memberlist into patruller per avdelning (§4). Only patruller
+    with at least one placed member appear — empty ones are undiscoverable.
+    """
+    counts: dict[int, dict[int, tuple[str, int]]] = {}
+    for m in memberlist.members:
+        if m.unit_troop_id is None or m.patrol_id is None:
+            continue
+        troop = counts.setdefault(m.unit_troop_id, {})
+        name, size = troop.get(m.patrol_id, (m.patrol or "", 0))
+        troop[m.patrol_id] = (name or (m.patrol or ""), size + 1)
+    by_troop: dict[int, list[PatrolInfo]] = {}
+    for troop_id, patrols in counts.items():
+        by_troop[troop_id] = [
+            PatrolInfo(patrol_id=pid, name=name, size=size)
+            for pid, (name, size) in sorted(patrols.items())
+        ]
+    return PatrolIndex(by_troop=by_troop)

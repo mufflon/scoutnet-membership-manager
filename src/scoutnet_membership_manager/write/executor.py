@@ -89,12 +89,21 @@ class RunMode(StrEnum):
 
 @dataclass
 class IntendedMove:
-    """One member's intended move: put them in ``target_troop_id`` (§8)."""
+    """
+    One member's intended move: put them in ``target_troop_id`` (§8).
+
+    ``target_patrol_id`` places them in a patrull within that avdelning when one
+    is known (§4). It is optional: ``None`` means "leave the patrull untouched" —
+    the endpoint has no way to *clear* a patrull, so a move with no known target
+    patrull simply omits the field and behaves as it did before patrol writes.
+    """
 
     member_no: str
     source_troop_id: int | None
     target_troop_id: int
     label: str = ""  # target avdelning name, display only
+    target_patrol_id: int | None = None
+    patrol_label: str = ""  # target patrull name, display only
 
 
 @dataclass
@@ -106,6 +115,7 @@ class PreflightItem:
     current_troop_id: int | None
     current_status: str | None
     reason: str = ""
+    current_patrol_id: int | None = None  # observed prior patrull, for the snapshot/undo
 
 
 @dataclass
@@ -162,25 +172,29 @@ def drift_check(
         if m is None:
             items.append(PreflightItem(mv, Category.DRIFTED, None, None, "not in active roster"))
             continue
-        cur, status = m.unit_troop_id, m.status_code
+        cur, status, pat = m.unit_troop_id, m.status_code, m.patrol_id
         if cur == mv.target_troop_id:
             items.append(
-                PreflightItem(mv, Category.ALREADY_APPLIED, cur, status, "already at target")
+                PreflightItem(mv, Category.ALREADY_APPLIED, cur, status, "already at target", pat)
             )
         elif exclude_leaders and m.is_leader:
             items.append(
-                PreflightItem(mv, Category.DRIFTED, cur, status, "now holds a leader role")
+                PreflightItem(mv, Category.DRIFTED, cur, status, "now holds a leader role", pat)
             )
         elif mv.source_troop_id is not None and cur != mv.source_troop_id:
             items.append(
-                PreflightItem(mv, Category.DRIFTED, cur, status, f"in unexpected avdelning {cur}")
+                PreflightItem(
+                    mv, Category.DRIFTED, cur, status, f"in unexpected avdelning {cur}", pat
+                )
             )
         elif status != ACTIVE_STATUS_CODE:
             items.append(
-                PreflightItem(mv, Category.DRIFTED, cur, status, f"unexpected status {status!r}")
+                PreflightItem(
+                    mv, Category.DRIFTED, cur, status, f"unexpected status {status!r}", pat
+                )
             )
         else:
-            items.append(PreflightItem(mv, Category.WILL_APPLY, cur, status, ""))
+            items.append(PreflightItem(mv, Category.WILL_APPLY, cur, status, "", pat))
     return items
 
 
@@ -219,6 +233,12 @@ def build_inverse_moves(sessionmaker: object, run_id: str) -> list[IntendedMove]
     ``source_troop_id`` — never the intended change. A row with no prior troop
     is skipped (the endpoint cannot restore an absent placement); the pre-flight
     drift check then excludes any member since moved elsewhere.
+
+    The patrull is restored the same way, from the observed prior
+    ``source_patrol_id``. Note the endpoint cannot *clear* a patrull, so if the
+    member had no patrull before the run (``source_patrol_id is None``) the undo
+    restores the avdelning but leaves the patrull the run set — surfaced in the
+    undo dry-run, and the snapshot file records the true prior state either way.
     """
     with get_session(sessionmaker) as s:
         rows = (
@@ -236,6 +256,7 @@ def build_inverse_moves(sessionmaker: object, run_id: str) -> list[IntendedMove]
                 source_troop_id=r.intended_troop_id,  # where this run left them
                 target_troop_id=r.source_troop_id,  # put them back (observed prior)
                 label="undo",
+                target_patrol_id=r.source_patrol_id,  # restore observed prior patrull
             )
             for r in rows
             if r.source_troop_id is not None
@@ -310,12 +331,18 @@ class WriteExecutor:
         if not rows:
             raise ExecutorError(f"no journal for run {run_id!r}")
         pending: dict[int, list[PreflightItem]] = {}
-        for chunk_id, member_no, target, source, state in rows:
+        for chunk_id, member_no, target, source, state, target_pat, source_pat in rows:
             if state == "done":
                 continue
-            move = IntendedMove(member_no, source, target)
+            move = IntendedMove(member_no, source, target, target_patrol_id=target_pat)
             pending.setdefault(chunk_id, []).append(
-                PreflightItem(move, Category.WILL_APPLY, source, ACTIVE_STATUS_CODE)
+                PreflightItem(
+                    move,
+                    Category.WILL_APPLY,
+                    source,
+                    ACTIVE_STATUS_CODE,
+                    current_patrol_id=source_pat,
+                )
             )
         self._set_run_state(run_id, "running")
         return self._drive(run_id, sorted(pending.items()), now)
@@ -357,11 +384,19 @@ class WriteExecutor:
         assert_allowlist(self._settings, moves)
 
     def _payload_for(self, items: list[PreflightItem], statuses: dict[str, str | None]) -> dict:
-        """Build the update/membership body: status echoed back, troop_id moved (§8)."""
+        """
+        Build the update/membership body: status echoed back, troop_id moved,
+        and patrol_id set when a target patrull is known (§4, §8). ``patrol_id`` is
+        omitted when ``None`` — the endpoint cannot clear a patrull, so an absent
+        field means "leave the patrull as it is".
+        """
         payload = {}
         for item in items:
             token = write_status_token(statuses.get(item.move.member_no))
-            payload[item.move.member_no] = {"status": token, "troop_id": item.move.target_troop_id}
+            entry: dict = {"status": token, "troop_id": item.move.target_troop_id}
+            if item.move.target_patrol_id is not None:
+                entry["patrol_id"] = item.move.target_patrol_id
+            payload[item.move.member_no] = entry
         return payload
 
     def _plan_chunks(self, actionable: list[PreflightItem]) -> list[ChunkResult]:
@@ -479,6 +514,8 @@ class WriteExecutor:
                             intended_status=write_status_token(item.current_status),
                             intended_troop_id=item.move.target_troop_id,
                             source_troop_id=item.current_troop_id,
+                            intended_patrol_id=item.move.target_patrol_id,
+                            source_patrol_id=item.current_patrol_id,
                             state="pending",
                         )
                     )
@@ -525,12 +562,21 @@ class WriteExecutor:
                 .all()
             )
             return [
-                (r.chunk_id, r.member_no, r.intended_troop_id, r.source_troop_id, r.state)
+                (
+                    r.chunk_id,
+                    r.member_no,
+                    r.intended_troop_id,
+                    r.source_troop_id,
+                    r.state,
+                    r.intended_patrol_id,
+                    r.source_patrol_id,
+                )
                 for r in rows
             ]
 
     def _journal_summary(self, run_id: str) -> dict[str, int]:
         summary: dict[str, int] = {}
-        for _cid, _mno, _t, _s, state in self._journal_rows(run_id):
+        for row in self._journal_rows(run_id):
+            state = row[4]
             summary[state] = summary.get(state, 0) + 1
         return summary

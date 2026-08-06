@@ -34,6 +34,7 @@ from scoutnet_membership_manager.membership import (
 )
 from scoutnet_membership_manager.membership.templates import templates_by_key
 from scoutnet_membership_manager.oversikt import OversiktInputs, build_oversikt
+from scoutnet_membership_manager.patrol_roles import patrol_role_holders
 from scoutnet_membership_manager.roster import build_troop_index
 from scoutnet_membership_manager.scoutnet.client import ScoutnetError
 from scoutnet_membership_manager.scoutnet.models import MemberList
@@ -657,6 +658,32 @@ def api_affected_scouts() -> ResponseReturnValue:
         data,
         mimetype=_XLSX_MIME,
         headers={"Content-Disposition": "attachment; filename=berorda-scouter.xlsx"},
+    )
+
+
+@api_bp.get("/uppflyttning/patrol-roles")
+def api_patrol_roles() -> ResponseReturnValue:
+    """
+    Patrulledare / Vice patrulledare held by anyone in the current selection (§4,
+    §17). These roles cannot be ended through the API — there is no engagement-write
+    endpoint — so this is the by-hand follow-up worklist, each with a link straight
+    to the member's Scoutnet profile. Same live-only scoping as berörda scouter.
+    """
+    ml = _memberlist()
+    ms = scope_master_set(_raw_master_set(ml), _group_from(request.args.get("group")))
+    holders = patrol_role_holders(ml, {e.member_no for e in ms.entries})
+    return jsonify(
+        holders=[
+            {
+                "member_no": h.member_no,
+                "name": h.name,
+                "avdelning": h.avdelning,
+                "patrol": h.patrol,
+                "role_name": h.role_name,
+                "url": h.url,
+            }
+            for h in holders
+        ]
     )
 
 
