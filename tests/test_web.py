@@ -29,6 +29,16 @@ def test_overview(client):
     assert d["current_term"]  # "Höst 2026"
 
 
+def test_patrol_roles_endpoint_shape_and_links(client):
+    r = client.get("/api/uppflyttning/patrol-roles?group=all")
+    assert r.status_code == 200
+    holders = r.get_json()["holders"]
+    assert isinstance(holders, list)
+    for h in holders:  # fixture-dependent contents; assert the contract, not the count
+        assert set(h) == {"member_no", "name", "avdelning", "patrol", "role_name", "url"}
+        assert h["url"] == "https://scoutnet.se/organisation/user/" + h["member_no"]
+
+
 def test_fixture_on_postgres_url_uses_normal_engine(monkeypatch):
     # Regression: fixture mode on a real DB (the in-cluster Postgres) must go
     # through make_engine, not the sqlite StaticPool/check_same_thread path

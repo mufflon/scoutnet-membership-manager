@@ -84,9 +84,20 @@ scoutnet-membership-manager verify-write --undo-run <run_id> --execute
 `--idempotency` re-applies the same move once and confirms Scoutnet treats it as a
 no-op. The crash-resume path in section 5 relies on that being true.
 
-The same test is available in the UI under **Verifiera skrivning** (read_write
-only): it shows the allowlist, lets you dry-run then execute a single-member move,
-and offers undo.
+**Verify the patrull write before the first real uppflyttning.** Only `troop_id`
+is live-proven (2026-08-03); `patrol_id` is documented but has never round-tripped
+against live Scoutnet, and an uppflyttning now sets it automatically. Prove it once
+the same way, by adding `--patrol <target_patrol_id>` to the move, then confirm by
+hand that the placeholder landed in that patrull, and undo:
+
+```bash
+scoutnet-membership-manager verify-write --member <placeholder_no> --to <target_troop_id> --patrol <target_patrol_id>
+scoutnet-membership-manager verify-write --member <placeholder_no> --to <target_troop_id> --patrol <target_patrol_id> --execute
+```
+
+The same tests are available in the UI under **Verifiera skrivning** (read_write
+only): it shows the allowlist, lets you dry-run then execute a single-member move
+(with an optional patrull), and offers undo.
 
 ## 4. Running an uppflyttning
 

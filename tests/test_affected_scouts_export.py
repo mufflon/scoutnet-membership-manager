@@ -6,7 +6,7 @@ from openpyxl import load_workbook
 
 from scoutnet_membership_manager.export import build_affected_scouts_xlsx
 from scoutnet_membership_manager.export.affected_scouts_xlsx import _HEADERS
-from scoutnet_membership_manager.scoutnet.models import Member, MemberList
+from scoutnet_membership_manager.scoutnet.models import Member, MemberList, Role
 from scoutnet_membership_manager.settings import Mode, Settings
 from scoutnet_membership_manager.uppflyttning.models import MasterSet, MoveEntry, MoveStatus
 from scoutnet_membership_manager.web import create_app
@@ -40,7 +40,8 @@ def _entry(no, name="X X"):
 
 def _sheet(master, memberlist):
     wb = load_workbook(BytesIO(build_affected_scouts_xlsx(master, memberlist)))
-    assert wb.sheetnames == ["Berörda scouter"]  # a single flat sheet
+    # The contact roster, plus a follow-up sheet for patrol roles to end by hand.
+    assert wb.sheetnames == ["Berörda scouter", "Patrulledare att avsluta"]
     return wb["Berörda scouter"]
 
 
@@ -130,6 +131,28 @@ def test_orders_by_avdelning_then_surname_and_skips_unknown_members():
     names = [ws.cell(row=r, column=3).value for r in range(2, ws.max_row + 1)]
     # Spårarna before Upptäckarna; within Upptäckarna, Alm before Berg.
     assert names == ["Cesar Ek", "Alva Alm", "Berit Berg"]
+
+
+def test_patrol_roles_sheet_lists_holders_with_scoutnet_links():
+    m = _m("1", "Alva", "Ek", "Utmanarna")
+    m.patrol = "Örnen"
+    m.roles = [
+        Role(scope="patrol", scope_id=500, role_id=2, role_key="leader", role_name="Patrulledare"),
+        # A troop-scoped adult role must NOT appear — only patrol-scoped roles.
+        Role(scope="troop", scope_id=10, role_id=9, role_key="leader", role_name="Ledare"),
+    ]
+    ml = MemberList(members=[m])
+    master = MasterSet(cohort_year=2026, entries=[_entry("1", "Alva Ek")])
+    wb = load_workbook(BytesIO(build_affected_scouts_xlsx(master, ml)))
+    ws = wb["Patrulledare att avsluta"]
+    assert [c.value for c in ws[1]] == ["Namn", "Avdelning", "Patrull", "Uppdrag", "Scoutnet-länk"]
+    row = [c.value for c in ws[2]]
+    assert row[0] == "Alva Ek" and row[1] == "Utmanarna" and row[2] == "Örnen"
+    assert row[3] == "Patrulledare"
+    link = ws.cell(row=2, column=5)
+    assert link.value == "https://scoutnet.se/organisation/user/1"
+    assert link.hyperlink.target == "https://scoutnet.se/organisation/user/1"
+    assert ws.max_row == 2  # the troop-scoped Ledare role is excluded
 
 
 def test_api_affected_scouts_xlsx():

@@ -32,11 +32,20 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 
 from scoutnet_membership_manager.collation import sort_key
+from scoutnet_membership_manager.patrol_roles import patrol_role_holders
 from scoutnet_membership_manager.scoutnet.models import Member, MemberList
 from scoutnet_membership_manager.uppflyttning.models import MasterSet
 
 _BOLD = Font(bold=True)
+_LINK = Font(color="0563C1", underline="single")
 _NO_AVDELNING = "(ingen avdelning)"
+
+# Second sheet: patrol-scoped roles held by anyone in the selection, to be ended by
+# hand in Scoutnet (there is no engagement-write endpoint, §4). A follow-up worklist
+# after an uppflyttning, where a mover can keep a Patrulledare role in their old
+# patrull. Each row links straight to the member's Scoutnet profile.
+_ROLE_HEADERS = ["Namn", "Avdelning", "Patrull", "Uppdrag", "Scoutnet-länk"]
+_ROLE_WIDTHS = [26, 20, 20, 18, 48]
 
 _HEADERS = [
     "Medlemsnummer",
@@ -123,6 +132,32 @@ def build_affected_scouts_xlsx(master: MasterSet, memberlist: MemberList) -> byt
     for col, width in enumerate(_WIDTHS, start=1):
         ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = width
 
+    _add_patrol_roles_sheet(wb, master, memberlist)
+
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+def _add_patrol_roles_sheet(wb: Workbook, master: MasterSet, memberlist: MemberList) -> None:
+    """
+    A "Patrulledare att avsluta" sheet: everyone in the selection who holds a
+    patrol-scoped role (Patrulledare / Vice patrulledare), with a clickable link to
+    their Scoutnet profile so the operator can open each and set a slutdatum by hand.
+    Always added, even when empty, so the export documents that the check was made.
+    """
+    holders = patrol_role_holders(memberlist, {e.member_no for e in master.entries})
+    ws = wb.create_sheet("Patrulledare att avsluta")
+    for c, h in enumerate(_ROLE_HEADERS, start=1):
+        ws.cell(row=1, column=c, value=h).font = _BOLD
+    ws.freeze_panes = "A2"
+    for r, h in enumerate(holders, start=2):
+        ws.cell(row=r, column=1, value=h.name)
+        ws.cell(row=r, column=2, value=h.avdelning or _NO_AVDELNING)
+        ws.cell(row=r, column=3, value=h.patrol or "")
+        ws.cell(row=r, column=4, value=h.role_name)
+        link = ws.cell(row=r, column=5, value=h.url)
+        link.hyperlink = h.url
+        link.font = _LINK
+    for col, width in enumerate(_ROLE_WIDTHS, start=1):
+        ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = width

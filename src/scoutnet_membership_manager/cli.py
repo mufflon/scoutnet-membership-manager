@@ -106,7 +106,11 @@ def _verify_write(args: argparse.Namespace) -> int:  # noqa: PLR0911 - guard-hea
             if member is None:
                 print(f"member {args.member} not in active roster", file=sys.stderr)  # noqa: T201
                 return 2
-            moves = [IntendedMove(args.member, member.unit_troop_id, args.to)]
+            moves = [
+                IntendedMove(
+                    args.member, member.unit_troop_id, args.to, target_patrol_id=args.patrol
+                )
+            ]
             result = executor.run(moves, kind="stage2_verify", mode=mode)
     except (AllowlistViolation, ExecutorError, ScoutnetError) as e:
         print(f"verify-write failed: {e}", file=sys.stderr)  # noqa: T201
@@ -117,9 +121,10 @@ def _verify_write(args: argparse.Namespace) -> int:  # noqa: PLR0911 - guard-hea
         print("\nDry-run only — nothing written. Re-run with --execute to perform.")  # noqa: T201
         return 0
     if not args.undo_run:
+        where = f"troop {args.to}" + (f" / patrull {args.patrol}" if args.patrol else "")
         print(  # noqa: T201
             f"\nExecuted run {result.run_id}. Verify by hand in the Scoutnet UI that member "
-            f"{args.member} is now in troop {args.to}, then undo with:\n"
+            f"{args.member} is now in {where}, then undo with:\n"
             f"  scoutnet_membership_manager verify-write --undo-run {result.run_id} --execute"
         )
         if args.idempotency:
@@ -179,6 +184,12 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--mode", default=None)
     v.add_argument("--member", default=None, help="member_no to move (must be on the allowlist)")
     v.add_argument("--to", type=int, default=None, help="target troop_id")
+    v.add_argument(
+        "--patrol",
+        type=int,
+        default=None,
+        help="target patrol_id (optional; verifies a patrull write, not yet live-proven)",
+    )
     v.add_argument("--undo-run", dest="undo_run", default=None, help="undo a run by id instead")
     v.add_argument("--execute", action="store_true", help="perform the write (default: dry-run)")
     v.add_argument("--idempotency", action="store_true", help="re-apply once, expect a no-op")

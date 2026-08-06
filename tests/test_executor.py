@@ -53,6 +53,8 @@ class FakeReadWrite:
         for mno, fields in payload.items():
             if mno in self._members:  # writing "confirmed" keeps them active (read code "2")
                 self._members[mno]["troop_id"] = fields["troop_id"]
+                if "patrol_id" in fields:  # patrull only changes when the field is sent
+                    self._members[mno]["patrol_id"] = fields["patrol_id"]
         return {"status": "ok"}
 
 
@@ -344,3 +346,44 @@ def test_only_will_apply_members_are_sent(tmp_path):
     assert len(client.calls) == 1  # only 100 sent
     assert next(iter(client.calls[0])) == "100"
     assert result.journal == {"done": 1}
+
+
+# --- patrull (patrol_id) ---------------------------------------------------
+
+
+def test_payload_carries_patrol_id_only_when_target_known(tmp_path):
+    client = FakeReadWrite({"100": {"troop_id": 10}, "200": {"troop_id": 10}})
+    ex = WriteExecutor(client, _settings(tmp_path, allowlist=["100", "200"]), _factory())
+    moves = [
+        IntendedMove("100", 10, 20, target_patrol_id=500),  # target avdelning has a patrull
+        IntendedMove("200", 10, 20, target_patrol_id=None),  # no known patrull -> omit
+    ]
+    result = ex.run(moves, kind="uppflyttning", mode=RunMode.DRY_RUN, now=NOW)
+
+    payloads = {mno: p for chunk in result.chunks for mno, p in chunk.payload.items()}
+    assert payloads["100"] == {"status": "confirmed", "troop_id": 20, "patrol_id": 500}
+    # No known patrull -> patrol_id field is absent, not null (endpoint can't clear).
+    assert payloads["200"] == {"status": "confirmed", "troop_id": 20}
+    assert "patrol_id" not in payloads["200"]
+
+
+def test_execute_places_in_patrull_and_undo_restores_prior_patrull(tmp_path):
+    # Mover 100 leaves troop 10 / patrull 500, into troop 20 / patrull 900.
+    client = FakeReadWrite({"100": {"troop_id": 10, "patrol_id": 500}})
+    sm = _factory()
+    ex = WriteExecutor(client, _settings(tmp_path, allowlist=["100"]), sm)
+
+    run = ex.run(
+        [IntendedMove("100", 10, 20, target_patrol_id=900)],
+        kind="uppflyttning",
+        mode=RunMode.EXECUTE,
+        now=NOW,
+    )
+    assert run.run_state == "done"
+    assert client._members["100"]["troop_id"] == 20
+    assert client._members["100"]["patrol_id"] == 900  # placed in the target patrull
+
+    undo = ex.undo(run.run_id, mode=RunMode.EXECUTE, now=NOW)
+    assert undo.run_state == "done"
+    assert client._members["100"]["troop_id"] == 10
+    assert client._members["100"]["patrol_id"] == 500  # prior patrull restored from the journal

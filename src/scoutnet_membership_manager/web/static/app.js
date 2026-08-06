@@ -801,8 +801,14 @@ function preview(out, r) {
         { class: "card" },
         el("strong", {}, CAT_SV[cat] + " (" + rows.length + ")"),
         table(
-          ["Medlemsnr", "Från", "Till", "Anledning"],
-          rows.map((p) => [p.member_no, troopName(p.current_troop_id), troopName(p.target_troop_id), p.reason || ""]),
+          ["Medlemsnr", "Från", "Till", "Patrull", "Anledning"],
+          rows.map((p) => [
+            p.member_no,
+            troopName(p.current_troop_id),
+            troopName(p.target_troop_id),
+            p.patrol_label || (p.target_patrol_id != null ? "#" + p.target_patrol_id : "—"),
+            p.reason || "",
+          ]),
         ),
       ),
     );
@@ -875,6 +881,44 @@ async function pollRun(area, runId) {
     if (s.state === "running") setTimeout(tick, 1000);
   };
   tick();
+}
+
+async function renderPatrolFollowup(out, group) {
+  // Patrulledare / Vice patrulledare in the selection. These roles cannot be ended
+  // through the API (no engagement-write endpoint, §4), so this is the by-hand
+  // worklist: open each link in a new tab and set a slutdatum in Scoutnet. Shown at
+  // the bottom of the outcomes; harmless if the fetch fails (it just stays empty).
+  let holders;
+  try {
+    holders = (await api("uppflyttning/patrol-roles?group=" + group)).holders || [];
+  } catch {
+    out.replaceChildren();
+    return;
+  }
+  if (!holders.length) {
+    out.replaceChildren();
+    return;
+  }
+  const list = el("ul", { style: "margin:.4rem 0 0;padding-left:1.2rem;" });
+  for (const h of holders) {
+    const link = el("a", { href: h.url, target: "_blank", rel: "noopener noreferrer" }, h.name);
+    const tail = [h.role_name, h.avdelning, h.patrol].filter(Boolean).join(" · ");
+    list.append(el("li", {}, link, el("span", { class: "muted" }, tail ? " — " + tail : "")));
+  }
+  out.replaceChildren(
+    el(
+      "div",
+      { class: "card" },
+      el("strong", {}, "Patrulledaruppdrag att avsluta manuellt (" + holders.length + ")"),
+      el(
+        "p",
+        { class: "muted" },
+        "Dessa uppdrag kan inte avslutas via API:t. Öppna varje länk i Scoutnet och sätt ett slutdatum " +
+          "(uppdraget flyttas då till tidigare uppdrag, det raderas inte).",
+      ),
+      list,
+    ),
+  );
 }
 
 async function renderExecute(root) {
@@ -961,8 +1005,10 @@ async function renderExecute(root) {
     );
   }
   controls.append(el("div", { style: "margin-top:.4rem;" }, dryBtn, " ", execBtn));
-  root.append(controls, previewOut, progress);
+  const followup = el("div", {});
+  root.append(controls, previewOut, progress, followup);
   runDry(); // show the changes immediately, no click needed
+  renderPatrolFollowup(followup, g); // manual role-end worklist, at the bottom
 
   execBtn.onclick = async () => {
     if (!confirm("Utför " + UPP_GROUP_LABEL[upp.group] + "? " + willApply + " medlem(mar) skrivs till Scoutnet.")) return;
